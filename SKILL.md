@@ -1,454 +1,235 @@
 ---
-name: quant-paper-reader
+name: quant-paper2code
 description: >
-  Extract structured, executable strategy specifications from quantitative
-  finance research papers (PDF). Multi-strategy detection, 5-layer LLM
-  extraction, dual-format output (JSON + Markdown). Use this skill whenever
-  the user mentions analyzing a quant paper, extracting trading strategies
-  from a PDF, understanding what strategies a paper describes, parsing
-  academic finance research, or preparing a paper for code generation.
-  Also use when the user has a PDF of a trading/investment paper and wants
-  to know what's in it, compare strategies across papers, or build a
-  library of strategy specifications. Even if they just say "look at this
-  paper" or "what strategies does this use" — this skill handles it.
+  End-to-end pipeline: quantitative finance research paper (PDF) →
+  structured strategy specification → executable Backtrader code →
+  backtest → diagnosis report. Two capabilities: (1) paper2spec extracts
+  multi-strategy specs from PDFs via 5-layer LLM extraction, and
+  (2) spec2code generates validated, runnable backtest code from specs, 
+  executes it locally, and compares results against paper-reported metrics.
+  Use this skill when the user wants to analyze a quant paper, extract
+  trading strategies from a PDF, generate executable strategy code,
+  run a backtest, or go end-to-end from paper to results. Covers any
+  request about parsing finance research, building strategy specifications,
+  implementing strategies as code, or validating backtest performance.
 metadata:
-  version: 0.3.0
+  version: 0.4.0
   author: ALAGENT AI (alagent-ai)
-  tags: [quantitative-finance, paper-parsing, strategy-extraction, research, multi-strategy]
+  tags: [quantitative-finance, paper-parsing, strategy-extraction, code-generation, backtesting]
 ---
 
-# paper2spec
+# quant-paper2code
 
-Convert quantitative finance research papers into structured, machine-readable
-strategy specifications — with automatic multi-strategy detection.
+Research paper → Strategy spec → Executable code → Backtest → Diagnosis.
+End-to-end quantitative strategy implementation from academic papers.
 
-## What This Skill Does
+## Capabilities
 
-Given a **PDF** of a quantitative finance paper, this skill:
-
-1. **Parses** the paper into structured sections (methodology, signal logic,
-   data requirements) via dual-mode extraction (direct LLM or FAISS RAG).
-2. **Detects** if the paper contains multiple independent strategies (Layer 0).
-3. **Extracts** a complete specification per strategy through 4 focused LLM
-   calls (metadata → indicators → logic pipeline → execution plan).
-4. **Renders** all outputs in dual format: machine-readable JSON +
-   human-readable Markdown.
-
-The output is designed to be directly consumable by code generation agents
-(e.g., for Backtrader, Zipline, or other backtesting frameworks).
+| Capability | Description | Reference |
+|-----------|-------------|-----------|
+| **paper2spec** | PDF → structured strategy specification (multi-strategy detection, JSON + Markdown) | [references/paper2spec.md](references/paper2spec.md) |
+| **spec2code** | Specification → validated Backtrader code → local backtest → diagnosis report | [references/spec2code.md](references/spec2code.md) |
 
 ## First-Run Setup
 
-On first use, walk the user through these three steps. Skip any step
-that's already configured. Persist choices in the project `.env` so
-future runs remain stable across sessions.
+On first use, walk the user through these steps. Skip any already configured.
+Persist choices in `.env`.
 
 ### Step 1: Workspace Location
 
-Ask the user where they want to store PDFs and analysis results.
-Default: `./library/` in the current working directory.
-
-```
-
-Persist this choice to `.env`:
+Ask where to store PDFs and results. Default: `./library/`.
 
 ```
 PAPER2SPEC_LIBRARY_PATH=/absolute/path/to/library
 ```
-
-If `.env` does not exist, create it from `.env.example` first.
-
-On every run, scripts should read `PAPER2SPEC_LIBRARY_PATH` as the default
-output root. This avoids path drift across sessions.
-Prefer absolute paths so custom user directories remain stable regardless of
-current working directory.
-Where should I store paper analyses?
-  1. ./library/  (default, recommended)
-  2. Custom path
-```
-
-Scan the chosen directory for any existing `metadata.json` files to
-detect previously analyzed papers. Report what's already there.
 
 ### Step 2: LLM API Key
 
-Check if any API key is already set in the environment (`DEEPSEEK_API_KEY`,
-`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). If none found, **you must ask the
-user to provide their API key** before proceeding — do not silently skip
-this step or assume they will set it later. Prompt the user like this:
+Check for existing keys (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`).
+If none found, ask the user:
 
 ```
-No LLM API key detected. paper2spec needs one to extract strategies.
+No LLM API key detected. This skill needs one for extraction and code generation.
 
-Recommended: DeepSeek (best cost-performance ratio for this task)
-  → ~$0.01 per paper, API key from https://platform.deepseek.com
-
+Recommended: DeepSeek (~$0.01 per paper)
 Alternatives: OpenAI GPT-4o, Anthropic Claude, any litellm-supported model.
 
-Please paste your API key now (e.g. sk-...) and tell me which provider
-it belongs to (DeepSeek / OpenAI / Anthropic):
+Please paste your API key and tell me which provider:
 ```
 
-Wait for the user to reply with their key. Once received, **write it into
-a `.env` file** at the project root so the key persists across sessions.
-The project auto-loads `.env` (gitignored by default):
+Write to `.env` (gitignored). Verify with:
 
-```bash
-cp .env.example .env
-# Then replace the placeholder values with the user's actual key and model
-```
-
-For example, if the user provides a DeepSeek key, the `.env` should contain:
-```
-PAPER2SPEC_LIBRARY_PATH=/absolute/path/to/library
-PAPER2SPEC_MODEL=deepseek/deepseek-chat
-DEEPSEEK_API_KEY=sk-actualKeyFromUser
-PAPER2SPEC_INIT_VERSION=1
-```
-
-If the user provides an OpenAI key:
-```
-PAPER2SPEC_MODEL=openai/gpt-4o-mini
-OPENAI_API_KEY=sk-actualKeyFromUser
-```
-
-**Important**: Never write a `.env` with placeholder values like `sk-...`.
-Always wait until you have the real key from the user, then write the file.
-
-Verify the key works by running:
 ```bash
 uv run python -c "from paper2spec.llm import chat; print(chat('Say OK'))" 2>&1 | head -1
 ```
 
 ### Step 3: Python Environment
 
-paper2spec uses **uv** for dependency management. The project contains a
-`.python-version` (3.11) and `pyproject.toml` — uv handles everything.
-
 ```bash
 cd <skill-path>
 
-# Check if already set up
-.venv/bin/python -c "import paper2spec; print(paper2spec.__version__)" 2>/dev/null
+# Install all dependencies
+uv sync --extra codegen     # Core + backtrader/yfinance/akshare
+uv sync --extra agent       # + FAISS/embeddings for long papers
+uv sync --extra dev         # + pytest
 
-# If not set up: create venv + install deps (one command)
-uv sync                    # Core only (Mode A)
-uv sync --extra agent      # + FAISS/embeddings (Mode B)
-uv sync --extra dev        # + pytest (for testing)
+# Or minimal (paper2spec only)
+uv sync
 ```
 
-**Running scripts**: Always use `uv run` so the correct venv is activated
-automatically — no need to manually activate `.venv/`:
+Always use `uv run` to execute scripts.
 
-```bash
-uv run python scripts/analyze.py paper.pdf -o library/my_paper/
-uv run python scripts/search.py "momentum trading" -n 5
-```
-
-**Alternative (no uv)**: If `uv` is not available, use pip directly:
-```bash
-cd <skill-path>
-python -m venv .venv && source .venv/bin/activate
-pip install -e .                    # Core (Mode A)
-pip install -e ".[agent]"           # + Mode B deps
-pip install -e ".[dev]"             # + test deps
-```
-
-### Persistent Config (Environment)
-
-Primary persistent config is `.env` (gitignored):
+### Persistent Config (.env)
 
 ```
 PAPER2SPEC_LIBRARY_PATH=/absolute/path/to/library
 PAPER2SPEC_MODEL=deepseek/deepseek-chat
 DEEPSEEK_API_KEY=sk-...
+SPEC2CODE_BACKTEST_TIMEOUT=300
 PAPER2SPEC_INIT_VERSION=1
 ```
 
-On subsequent runs, read `.env` first and skip setup questions for already
-configured values.
-
-Initialization completion policy:
-- `PAPER2SPEC_INIT_VERSION` is a quick marker (recommended value: `1`).
-- Do not trust marker alone. Always verify runtime capability:
-  `PAPER2SPEC_LIBRARY_PATH`, `PAPER2SPEC_MODEL`, and at least one provider API key.
-
 ## Quick Start
 
-### One-Shot Analysis (recommended)
+### End-to-End: Paper → Spec → Code → Backtest
 
 ```bash
-# Full pipeline: PDF → content (JSON+MD) + spec (JSON+MD) + metadata
+# Step 1: Analyze paper → extract specs
 uv run python scripts/analyze.py paper.pdf -o library/my_paper/
+
+# Step 2: Generate code from spec (agent-driven or CLI)
+uv run python scripts/generate.py library/my_paper/spec.json --strategy-index 0
+
+# Step 3: Validate code
+uv run python scripts/validate_strategy.py library/my_paper/strategy.py
+
+# Step 4: Run backtest
+uv run python scripts/backtest.py library/my_paper/strategy.py -o library/my_paper/results/
 ```
 
-This produces:
-```
-library/my_paper/
-├── paper.pdf       # Original PDF (auto-copied for self-contained library)
-├── content.json    # PaperContent (machine-readable)
-├── content.md      # PaperContent (human-readable)
-├── spec.json       # ExtractionResult with all strategies (machine-readable)
-├── spec.md         # Strategy summary (human-readable)
-└── metadata.json   # Analysis metadata (model, version, pdf_file, etc.)
-```
-
-### Step-by-Step Pipeline
+### Paper2Spec Only
 
 ```bash
-# 1. Search for papers (optional)
-uv run python scripts/search.py "momentum trading strategy" -n 5
+uv run python scripts/analyze.py paper.pdf -o library/my_paper/
+# → content.json, content.md, spec.json, spec.md, metadata.json
+```
 
-# 2. Parse PDF → PaperContent
-uv run python scripts/parse.py paper.pdf -o content.json
+### Spec2Code Only
 
-# 3. Extract PaperContent → ExtractionResult (multi-strategy)
-uv run python scripts/extract.py content.json -o spec.json
+```bash
+uv run python scripts/generate.py library/my_paper/spec.json --strategy-index 0
+# → strategy.py, validation report, backtest results, diagnosis report
 ```
 
 ## Agent Workflow
 
 ### User-Facing Interaction Policy
 
-- Commands and scripts in this skill are internal implementation details.
-- In user conversations, present these as agent capabilities (search, parse,
-  extract, summarize, compare) rather than exposing raw command sequences by default.
-- Run tools internally, then report outcomes, key findings, and next actions.
-- Show exact commands only when the user explicitly asks for reproducibility,
-  debugging, or CLI instructions.
-- Combine this skill with broader agent reasoning to resolve ambiguity and
-  choose sensible defaults before asking users extra questions.
+- Commands and scripts are internal implementation details.
+- Present capabilities to users as agent actions, not raw CLI commands.
+- Run tools internally, report outcomes and findings.
+- Show exact commands only when the user asks for reproducibility.
 
-When using this skill as an AI agent, follow this workflow:
+### Routing Logic
 
-### Standard Analysis
+When the user's request arrives, route to the appropriate capability:
+
+| User Intent | Route To | Action |
+|-------------|----------|--------|
+| "Analyze this paper" / "What strategies does this use" | **paper2spec** | Run `scripts/analyze.py`, read spec.md |
+| "Search for papers about X" | **paper2spec** | Run `scripts/search.py` |
+| "Generate code for this strategy" / "Implement this" | **spec2code** | Generate code using LLM + validate + execute |
+| "Run a backtest" / "Test this strategy" | **spec2code** | Run `scripts/backtest.py` |
+| "Take this paper end to end" | **both** | paper2spec → spec2code pipeline |
+| "Compare results with the paper" | **spec2code** | Run analyzer/diagnosis |
+
+### Full Pipeline Agent Flow
 
 ```
-1. Run: uv run python scripts/analyze.py <pdf_path> -o library/<slug>/
-2. Read the generated spec.md for a quick summary
-3. Read spec.json for machine-readable details
+1. Receive PDF from user
+2. [paper2spec] Parse and extract specs
+   → Read references/paper2spec.md for details
+3. Present extracted strategies to user for review
+4. User selects strategy (or all)
+5. [spec2code] For each selected strategy:
+   a. Generate data module → signal module → backtest module
+   b. Integrate into single script
+   c. Validate (AST + structural checks)
+   d. Execute backtest (subprocess, timeout-guarded)
+   e. Diagnose: compare metrics vs paper
+   → Read references/spec2code.md for details
+6. Present diagnosis report to user
 ```
 
-### Managing Multiple Papers (Library Pattern)
-
-Organize analyzed papers in a `library/` directory. Each paper gets its own
-subdirectory with all outputs:
+### Library Management
 
 ```
 library/
-├── tactical_asset_allocation/
-│   ├── faber_2007.pdf            # Original PDF
-│   ├── content.json, content.md  # Parsed paper
-│   ├── spec.json, spec.md        # Strategy specs
-│   └── metadata.json             # Metadata (pdf_file, model, strategies, ...)
 ├── pairs_trading/
-│   ├── goncalves_2023.pdf
-│   └── ...  (3 strategies detected)
-└── value_momentum/
-    ├── asness_2013.pdf
-    └── ...  (2 strategies detected)
+│   ├── paper.pdf, content.json, spec.json, spec.md
+│   ├── strategy_0.py          # Generated code
+│   ├── results/               # Backtest outputs
+│   └── metadata.json
+├── momentum_crashes/
+│   └── ...
 ```
 
-Each directory is **self-contained**: the original PDF is copied in, so the
-library can be moved or shared without losing the source paper. The
-`metadata.json` field `pdf_file` records the filename within the directory.
-
-**Agent guidelines for library management:**
-
-- Before analyzing a new paper, check if `library/` already has an entry
-  for it (scan `metadata.json` files for matching titles or `pdf_file`).
-- Use descriptive slugs for directories (e.g., `momentum_crashes` not `paper1`).
-- When the user asks to compare strategies across papers, read the relevant
-  `spec.json` files and synthesize.
-- When the user wants to proceed to code generation (Spec2Code), point them
-  to the specific `spec.json` path and strategy index.
-- To re-analyze a paper with different settings, the PDF is already in the
-  directory — no need to locate the original file again.
-
-### Handing Off to Spec2Code
-
-The `spec.json` output is designed for downstream code generation. To pass a
-specific strategy to a Spec2Code agent:
-
-```python
-import json
-result = json.load(open("library/pairs_trading/spec.json"))
-strategy = result["strategies"][0]  # Pick strategy by index
-# Pass `strategy` dict to Spec2Code agent
-```
-
-## Scripts Reference
-
-### `scripts/analyze.py` — Full Pipeline (recommended)
-
-```
-uv run python scripts/analyze.py <pdf> [-o DIR] [--parser-mode builtin|agent] [--model MODEL]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-o, --output-dir` | `<PAPER2SPEC_LIBRARY_PATH>/<slug>/` | Output directory |
-| `--parser-mode` | `builtin` | `builtin` (fast, <40 pages) or `agent` (FAISS semantic retrieval, for long/dense papers). See **Parser Mode Selection** below. |
-| `--extractor-mode` | `multilayer` | `multilayer` (recommended) or `single` (legacy) |
-| `--model` | env `PAPER2SPEC_MODEL` | Override LLM model |
-
-**Outputs**: `content.json`, `content.md`, `spec.json`, `spec.md`, `metadata.json`
-
-### `scripts/parse.py` — PDF → PaperContent
-
-```
-uv run python scripts/parse.py <pdf> [--mode builtin|agent] [--model MODEL] [-o FILE]
-```
-
-If `-o` is not provided, default output is:
-
-```
-<PAPER2SPEC_LIBRARY_PATH>/<pdf_stem>/content.json
-```
-
-### `scripts/extract.py` — PaperContent → ExtractionResult
-
-```
-uv run python scripts/extract.py <content.json> [--mode multilayer|single] [--model MODEL] [-o FILE]
-```
-
-### `scripts/search.py` — Academic Paper Search
-
-```
-uv run python scripts/search.py <query> [--sources arxiv ssrn] [-n 10] [-o FILE]
-```
-
-## Output Formats
-
-### ExtractionResult (from extract.py / analyze.py)
-
-```json
-{
-  "paper_title": "Pairs Trading: Does Volatility Timing Matter?",
-  "num_detected": 3,
-  "strategies": [
-    {
-      "strategy_name": "Minimum Distance Pairs Trading",
-      "strategy_type": "technical",
-      "asset_class": ["equity"],
-      "description": "...",
-      "indicators": [...],
-      "logic_pipeline": [...],
-      "execution_plan": [...],
-      "risk_management": [...]
-    },
-    ...
-  ]
-}
-```
-
-### PaperContent (from parse.py / analyze.py)
-
-```json
-{
-  "title": "...",
-  "abstract": "...",
-  "methodology": "...",
-  "data_description": "...",
-  "signal_logic": "...",
-  "full_text": "..."
-}
-```
-
-### Markdown Outputs
-
-`spec.md` renders each strategy with tables for indicators, numbered logic
-steps, execution plans, and risk rules — designed for quick human review.
-
-`content.md` renders the parsed paper sections for verifying extraction quality.
-
-## Parser Mode Selection
-
-The parser has two modes. **Do not ask the user to choose** — pick
-automatically based on paper length, and explain your choice:
-
-| Condition | Mode | Reason |
-|-----------|------|--------|
-| PDF ≤ 60 pages | `builtin` (Mode A) | Fast. 100K char threshold covers ~33 pages of markdown-extracted text without truncation. 3 parallel LLM calls. |
-| PDF 60-100 pages | `builtin` (Mode A) | Still works — truncation keeps first 90K + last 10K chars, covering methodology (front) + results (back). |
-| PDF > 100 pages, or user reports missing content | `agent` (Mode B) | FAISS semantic retrieval. Chunks text (1500/200), embeds with bge-small-en, retrieves top-k per query. Requires `pip install paper2spec[agent]`. |
-
-**How Mode A works**: Extracts full PDF text → if >100K chars, takes first
-90K + last 10K (skips middle). Sends 3 parallel LLM prompts (methodology,
-data description, signal logic) each with the full context window.
-
-**How Mode B works**: Extracts full PDF text → chunks at 1500 chars /
-200 overlap → builds FAISS index with bge-small-en-v1.5 embeddings →
-for each section, runs 5 semantic queries to retrieve the most relevant
-chunks → sends retrieved chunks (not full text) to LLM. Better recall
-for buried details in very long papers, but slower (embedding + retrieval
-overhead) and requires ~500MB extra dependencies.
-
-**Rule of thumb**: Mode A works for 95% of papers. Only switch to Mode B
-if the user says "the spec is missing something I can see in the paper"
-or the PDF is genuinely book-length (>100 pages).
-
-## Multi-Strategy Detection
-
-The extractor automatically detects when a paper contains multiple independent
-strategies. For example:
-
-| Paper | Strategies Detected |
-|-------|-------------------|
-| Tactical Asset Allocation (Faber) | 1: GTAA with SMA timing |
-| Pairs Trading (Goncalves-Pinto et al.) | 3: Distance, Stationarity (ADF), Cointegration (Johansen) |
-| Value and Momentum Everywhere (Asness et al.) | 2: Value Factor, Momentum Factor |
-
-**Detection rules** (conservative — false splits are worse than missing a split):
-- Parameter variations (3-month vs 12-month) → same strategy
-- Long-only vs long-short variants → same strategy, different execution plans
-- Fundamentally different signal logic → separate strategies
+Before analyzing a new paper, check for existing entries in `library/`.
+Use descriptive slugs for directories.
 
 ## Configuration
 
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
-| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Default output root for analyze/parse |
-| `PAPER2SPEC_INIT_VERSION` | — | Optional setup marker (`1` recommended after successful setup) |
+| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Default output root |
 | `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | Default LLM model |
-| `OPENAI_API_KEY` | — | For OpenAI / OpenRouter models |
-| `DEEPSEEK_API_KEY` | — | For DeepSeek models |
-| `ANTHROPIC_API_KEY` | — | For Anthropic models |
-| `PAPER2SPEC_ARXIV_MIN_INTERVAL` | `3.0` | Minimum seconds between arXiv API requests |
-| `PAPER2SPEC_SEARCH_MAX_RETRIES` | `3` | Retry count for search HTTP 429/5xx |
-
-Any [litellm-supported model](https://docs.litellm.ai/docs/providers) works.
-The `--model` flag on any script overrides `PAPER2SPEC_MODEL`.
+| `PAPER2SPEC_INIT_VERSION` | — | Setup completion marker |
+| `SPEC2CODE_BACKTEST_TIMEOUT` | `300` | Backtest timeout (seconds) |
+| `SPEC2CODE_DATA_CACHE` | `<library>/data_cache` | Data download cache |
+| `OPENAI_API_KEY` | — | OpenAI / OpenRouter models |
+| `DEEPSEEK_API_KEY` | — | DeepSeek models |
+| `ANTHROPIC_API_KEY` | — | Anthropic models |
+| `PAPER2SPEC_ARXIV_MIN_INTERVAL` | `3.0` | arXiv rate limiting (seconds) |
 
 ## Project Structure
 
 ```
-paper2spec/
-├── __init__.py        # v0.3.0
-├── models.py          # PaperContent, StrategySpec, ExtractionResult, StrategyBrief
-├── parser.py          # PDF → PaperContent (Mode A: builtin, Mode B: FAISS)
-├── extractor.py       # PaperContent → ExtractionResult (Layer 0-4)
-├── render.py          # JSON → Markdown renderers
-├── pdf_utils.py       # Hybrid PDF extraction (pymupdf4llm + fitz)
-├── llm.py             # litellm wrapper
-├── prompts.py         # Layer 0-4 prompt templates
-└── search.py          # arXiv + SSRN search
-scripts/
-├── analyze.py         # Full pipeline: PDF → all outputs
-├── parse.py           # CLI: parse PDF
-├── extract.py         # CLI: extract spec
-├── search.py          # CLI: search papers
-└── generate_schemas.py
-schemas/
-├── paper_content.schema.json
-└── strategy_spec.schema.json
-examples/               # Pre-generated outputs for reference
+paper2spec/          # PDF → structured spec
+├── models.py        #   PaperContent, StrategySpec, ExtractionResult
+├── parser.py        #   PDF → PaperContent
+├── extractor.py     #   PaperContent → ExtractionResult (Layer 0-4)
+├── render.py, llm.py, prompts.py, search.py, pdf_utils.py
+
+spec2code/           # Spec → executable code → backtest → diagnosis
+├── models.py        #   CodeModules, BacktestResult, DiagnosisReport
+├── prompts.py       #   Data/Signal/Backtest/Integration templates
+├── validator.py     #   AST + structural validation
+├── executor.py      #   Subprocess-based backtest execution
+├── analyzer.py      #   Result comparison + report
+
+scripts/             # CLI entry points
+├── analyze.py       #   Full paper2spec pipeline
+├── parse.py         #   PDF → PaperContent
+├── extract.py       #   PaperContent → ExtractionResult
+├── search.py        #   Academic paper search
+├── generate.py      #   Full spec2code pipeline
+├── validate_strategy.py  # Code validation
+├── backtest.py      #   Backtest execution
+
+references/          # Deep-dive documentation (read on demand)
+├── paper2spec.md    #   Paper2spec detailed guide
+├── spec2code.md     #   Spec2code detailed guide
+├── backtrader_patterns.md   # Common Backtrader code patterns
+├── indicator_cookbook.md     # Indicator implementations
+├── data_sources.md          # yfinance/akshare API reference
 ```
 
-## Limitations
+## Technical References
 
-- **Mode A** (builtin): Truncates to first 90K + last 10K chars when text exceeds 100K.
-  For very long papers (>100 pages), use `--parser-mode agent`.
-- **SSRN search**: Best-effort HTML scraping — may break if SSRN changes layout.
-- **Tables/formulas**: Not yet extracted (reserved fields in PaperContent).
-- **Multi-strategy**: Conservative detector — may merge borderline-distinct strategies.
+For detailed implementation guidance, read on demand:
+
+- [references/paper2spec.md](references/paper2spec.md) — Paper2spec internals, parser modes, multi-strategy detection
+- [references/spec2code.md](references/spec2code.md) — Spec2code agent workflow, output formats, diagnosis
+- [references/backtrader_patterns.md](references/backtrader_patterns.md) — Strategy class, data loading, position sizing, cerebro runner
+- [references/indicator_cookbook.md](references/indicator_cookbook.md) — Built-in indicators, custom indicators, signal patterns
+- [references/data_sources.md](references/data_sources.md) — yfinance, akshare, FRED API reference

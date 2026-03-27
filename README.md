@@ -1,57 +1,58 @@
-# paper2spec
+# quant-paper2code
 
-> Extract structured strategy specifications from quantitative finance research papers — with automatic multi-strategy detection.
+> Research paper → Strategy spec → Executable code → Backtest → Diagnosis report.
 
 ```
-PDF → PaperContent → ExtractionResult (N strategies) → JSON + Markdown
+PDF → PaperContent → StrategySpec (N strategies) → Backtrader Code → Backtest → Diagnosis
 ```
 
-**paper2spec** is an [Agent Skill](https://agentskills.io/) that parses quantitative finance PDFs into machine-readable strategy specs. It works as an AI agent skill (VS Code Copilot / Claude Code / Copilot CLI) or as a standalone Python CLI tool.
+**quant-paper2code** is an [Agent Skill](https://agentskills.io/) that takes quantitative finance research papers end-to-end: from PDF to executable, validated backtest code. Two integrated capabilities:
+
+- **paper2spec** — Parse PDFs, detect multiple strategies, extract structured specs
+- **spec2code** — Generate Backtrader code, validate, execute backtests, diagnose results
+
+Works as an AI agent skill (VS Code Copilot / Claude Code) or as standalone Python CLI tools.
 
 ## Install
 
 ### Option A: As an Agent Skill
 
-paper2spec follows the open [Agent Skills standard](https://agentskills.io/specification). Clone it into any supported skill directory — the AI agent auto-discovers the `SKILL.md` file.
+Clone into any supported skill directory — the AI agent auto-discovers `SKILL.md`.
 
 **GitHub Copilot (VS Code / CLI / Coding Agent):**
 ```bash
-git clone https://github.com/alagent-ai/quant-paper2spec.git \
-  ~/.copilot/skills/paper2spec
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
+  ~/.copilot/skills/paper2code
 ```
 
 **Claude Code:**
 ```bash
-git clone https://github.com/alagent-ai/quant-paper2spec.git \
-  ~/.claude/skills/paper2spec
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
+  ~/.claude/skills/paper2code
 ```
 
-**Project-scoped** (shared via repo, add to `.gitignore` or commit):
+**Project-scoped:**
 ```bash
-git clone https://github.com/alagent-ai/quant-paper2spec.git \
-  .github/skills/paper2spec
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
+  .github/skills/paper2code
 ```
 
-Then install Python dependencies:
+Install dependencies:
 ```bash
-cd ~/.copilot/skills/paper2spec   # or wherever you cloned it
-uv sync                            # install core deps
+cd ~/.copilot/skills/paper2code   # or wherever you cloned it
+uv sync --extra codegen            # core + backtrader/yfinance/akshare
 ```
 
-**无需手动配置 API key** — 首次在 chat 中触发该 skill 时，agent 会自动引导你完成 LLM 选择、API key 配置（写入 `.env` 文件），并验证连接。
-
-> **Tip:** You can also add a custom path via VS Code setting `chat.agentSkillsLocations`.
-
-After setup, the skill activates automatically when you mention quant papers, strategy extraction, or PDF analysis in chat.
+首次在 chat 中触发该 skill 时，agent 会自动引导完成 LLM 配置和 API key 设置。
 
 ### Option B: As a Standalone CLI Tool
 
 ```bash
-git clone https://github.com/alagent-ai/quant-paper2spec.git
-cd quant-paper2spec
-uv sync                        # core (litellm + PyMuPDF)
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git
+cd quant-paper2code
+uv sync --extra codegen        # core + backtrader/yfinance/akshare
 uv sync --extra agent          # + FAISS semantic search (for long papers)
-uv sync --extra dev            # + pytest (for development)
+uv sync --extra dev            # + pytest
 ```
 
 <details>
@@ -59,7 +60,7 @@ uv sync --extra dev            # + pytest (for development)
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e .               # core
+pip install -e ".[codegen]"    # core + backtest deps
 pip install -e ".[agent]"      # + FAISS
 pip install -e ".[dev]"        # + pytest
 ```
@@ -67,103 +68,116 @@ pip install -e ".[dev]"        # + pytest
 
 ## Quick Start
 
-> **Agent Skill 用户**：直接在 chat 中提及论文分析即可，agent 首次会引导你完成所有配置。
-
-**CLI 用户**：手动配置环境变量或 `.env` 文件：
+### End-to-End: Paper → Spec → Code → Backtest
 
 ```bash
-# Option 1: .env file (recommended — persists across sessions)
-cp .env.example .env  # then edit .env
+# Configure (first time)
+cp .env.example .env  # then edit with your API key
 
-# Option 2: shell environment
-export PAPER2SPEC_LIBRARY_PATH="/absolute/path/to/library"
-export PAPER2SPEC_MODEL="deepseek/deepseek-chat"
-export DEEPSEEK_API_KEY="sk-..."
-export PAPER2SPEC_INIT_VERSION="1"
-
-# Full pipeline: PDF → content + spec in JSON & Markdown
+# Step 1: Analyze paper → extract specs
 uv run python scripts/analyze.py paper.pdf -o library/my_paper/
+
+# Step 2: Generate code from spec
+uv run python scripts/generate.py library/my_paper/spec.json --strategy-index 0
+
+# Step 3: Validate generated code
+uv run python scripts/validate_strategy.py library/my_paper/strategy.py
+
+# Step 4: Run backtest
+uv run python scripts/backtest.py library/my_paper/strategy.py -o library/my_paper/results/
 ```
 
-Output:
-```
-library/my_paper/
-├── paper.pdf       # Original PDF (auto-copied)
-├── content.json    # Parsed paper (machine-readable)
-├── content.md      # Parsed paper (human-readable)
-├── spec.json       # Extracted strategies (machine-readable)
-├── spec.md         # Strategy summary (human-readable)
-└── metadata.json   # Analysis metadata
-```
+### Paper2Spec Only
 
-Step-by-step alternative:
 ```bash
-uv run python scripts/parse.py paper.pdf -o content.json
-uv run python scripts/extract.py content.json -o spec.json
+uv run python scripts/analyze.py paper.pdf -o library/my_paper/
+# → content.json, content.md, spec.json, spec.md, metadata.json
+```
+
+### Spec2Code Only
+
+```bash
+uv run python scripts/generate.py library/my_paper/spec.json --strategy-index 0
+# → strategy.py, validation report, backtest results, diagnosis
 ```
 
 ## Features
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-strategy detection** | Automatically identifies N independent strategies from a single paper |
-| **5-layer LLM extraction** | L0 (detect) → L1-L4 (metadata, indicators, logic, execution) per strategy |
-| **Dual-format output** | JSON (machine-readable) + Markdown (human-readable) |
-| **Dual-mode parsing** | Mode A: fast direct LLM (≤100 pages); Mode B: FAISS RAG (long papers) |
-| **Any LLM provider** | Any [litellm-supported model](https://docs.litellm.ai/docs/providers) — DeepSeek, OpenAI, Anthropic, etc. |
+| **End-to-end pipeline** | PDF → spec → code → backtest → diagnosis in one workflow |
+| **Multi-strategy detection** | Automatically identifies N independent strategies per paper |
+| **5-layer LLM extraction** | L0 (detect) → L1-L4 (metadata, indicators, logic, execution) |
+| **3-step code generation** | Data module → signal module → backtest module → integration |
+| **AST + structural validation** | Syntax check + Backtrader structure verification |
+| **Automated backtesting** | Subprocess execution with metric extraction |
+| **Result diagnosis** | Compare backtest metrics against paper-reported results |
+| **Any LLM provider** | Any [litellm-supported model](https://docs.litellm.ai/docs/providers) |
 | **~$0.01/paper** | DeepSeek recommended for best cost-performance ratio |
 
 ## Examples
 
-| Paper | Detected |
-|-------|----------|
-| Tactical Asset Allocation (Faber) | 1 strategy: GTAA with SMA timing |
-| Pairs Trading (Goncalves-Pinto et al.) | 3 strategies: Distance, Stationarity, Cointegration |
-| Value and Momentum (Asness et al.) | 2 strategies: Value Factor, Momentum Factor |
+| Paper | Strategies | Status |
+|-------|-----------|--------|
+| Tactical Asset Allocation (Faber) | 1: GTAA with SMA timing | spec + code |
+| Pairs Trading (Goncalves-Pinto et al.) | 3: Distance, Stationarity, Cointegration | spec |
+| Value and Momentum (Asness et al.) | 2: Value Factor, Momentum Factor | spec |
 
 Pre-generated outputs → [`examples/`](examples/)
 
 ## Project Structure
 
 ```
-paper2spec/          # Core library
-  parser.py          # PDF → PaperContent (Mode A / Mode B)
-  extractor.py       # PaperContent → ExtractionResult (L0-L4)
-  models.py          # Pydantic models
-  render.py          # JSON → Markdown
+paper2spec/          # PDF → structured spec
+  parser.py          #   PDF → PaperContent (Mode A / Mode B)
+  extractor.py       #   PaperContent → ExtractionResult (L0-L4)
+  models.py, render.py, llm.py, prompts.py, search.py
+
+spec2code/           # Spec → code → backtest → diagnosis
+  prompts.py         #   Data/Signal/Backtest/Integration templates
+  validator.py       #   AST + structural validation
+  executor.py        #   Subprocess-based backtest execution
+  analyzer.py        #   Result comparison + report
+  models.py, config.py
+
 scripts/             # CLI entry points
-  analyze.py         # Full pipeline
-  parse.py / extract.py / search.py
+  analyze.py         #   Full paper2spec pipeline
+  generate.py        #   Full spec2code pipeline
+  validate_strategy.py, backtest.py, parse.py, extract.py, search.py
+
+references/          # Agent deep-dive docs (read on demand)
+  paper2spec.md, spec2code.md, backtrader_patterns.md,
+  indicator_cookbook.md, data_sources.md
+
 schemas/             # JSON Schema for outputs
 examples/            # Pre-generated reference outputs
-tests/               # Unit + E2E tests (132 tests)
-docs/                # Architecture documentation
+tests/               # Unit + E2E tests
 SKILL.md             # Agent instructions (auto-loaded by Copilot / Claude)
-.env.example         # Environment config template
 ```
 
 ## Documentation
 
 | Doc | Description |
 |-----|-------------|
-| [SKILL.md](SKILL.md) | Full agent operating instructions — setup, scripts, output formats, parser modes, multi-strategy detection, configuration |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Pipeline architecture — Mode A/B data flow, 5-layer extraction, parallelization, performance benchmarks (中英双语) |
+| [SKILL.md](SKILL.md) | Agent operating instructions — routing, setup, workflow |
+| [references/paper2spec.md](references/paper2spec.md) | Paper2spec detailed guide |
+| [references/spec2code.md](references/spec2code.md) | Spec2code detailed guide |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Pipeline architecture (中英双语) |
 
 ## Configuration
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Default output root for `analyze.py` and `parse.py` (resolved to absolute path at runtime) |
-| `PAPER2SPEC_INIT_VERSION` | — | Optional init marker (`1` recommended after first successful setup) |
+| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Default output root |
 | `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | LLM model identifier |
+| `SPEC2CODE_BACKTEST_TIMEOUT` | `300` | Backtest timeout (seconds) |
+| `SPEC2CODE_DATA_CACHE` | `<library>/data_cache` | Data download cache |
 | `DEEPSEEK_API_KEY` | — | For DeepSeek models |
 | `OPENAI_API_KEY` | — | For OpenAI models |
 | `ANTHROPIC_API_KEY` | — | For Anthropic models |
-| `PAPER2SPEC_ARXIV_MIN_INTERVAL` | `3.0` | Minimum seconds between arXiv API requests |
-| `PAPER2SPEC_SEARCH_MAX_RETRIES` | `3` | Retry count for arXiv/SSRN search on 429/5xx |
 
 All scripts accept `--model` to override `PAPER2SPEC_MODEL`.
 
 ## License
 
-Apache-2.0 — Created by [ALAGENT AI](https://github.com/alagent-ai)
+Apache-2.0 — Created by [ALAGENT AI](https://github.com/ALAGENT-HKU)
