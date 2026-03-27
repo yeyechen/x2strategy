@@ -1,205 +1,218 @@
-# Spec2Code — Strategy Specification → Executable Backtest
+# Spec2Code — Agent-Driven Strategy Code Generation
 
-Convert structured strategy specifications into executable Backtrader code,
-run backtests locally, and diagnose results against paper-reported metrics.
+Convert structured strategy specifications into executable Backtrader code.
+The agent generates code, runs it directly, and analyzes the output.
 
-## What This Does
+## Philosophy
 
-Given a **spec.json** produced by paper2spec, spec2code:
+The agent IS the LLM. It does not need prompt templates, executor wrappers,
+or analysis modules — it generates code by reading the spec, runs it in the
+terminal, and reasons about the results natively. The `spec2code/` package
+provides only tools the agent cannot do itself:
 
-1. **Generates** executable Backtrader code in 3 modules (data fetching,
-   signal logic, backtest runner) plus an integration module.
-2. **Validates** the generated code via AST syntax check + structural
-   verification (Strategy class, cerebro runner, etc.).
-3. **Executes** the backtest in a local subprocess with metric extraction.
-4. **Diagnoses** results by comparing backtest metrics against the spec's
-   expected performance (Sharpe, returns, drawdown, etc.).
+- **`validator.py`** — AST parsing + structural checks (agent can't parse AST)
+- **`models.py`** — Serializable data structures for structured output
+- **`config.py`** — Environment variable management
 
-## Quick Start
+## Agent Workflow
 
-### Full Pipeline (agent-driven)
+### Phase 1: Read the Spec
 
-The agent workflow for spec2code:
+Load `spec.json` from the paper's library directory. Each strategy has:
 
-```
-1. Read spec.json from library/<paper>/spec.json
-2. Select strategy index (0 for first strategy)
-3. For each module, generate code using LLM with the appropriate prompt
-4. Validate → fix → execute → diagnose
-```
-
-### CLI Scripts
-
-```bash
-# Validate existing strategy code
-uv run python scripts/validate_strategy.py strategy.py
-
-# Run backtest on existing code
-uv run python scripts/backtest.py strategy.py -o results/ --timeout 600
-
-# Full pipeline (spec → validate → backtest → report)
-uv run python scripts/generate.py library/pairs_trading/spec.json --strategy-index 0
-```
-
-## Agent Workflow (Detailed)
-
-### Phase 1: Data Module
-
-Generate code that fetches the required market data.
-
-**Input**: Strategy spec's `data_description`, asset class, date ranges.
-**Output**: Python script that downloads data via yfinance/akshare and saves to CSV
-or returns a DataFrame.
-
-Read [data_sources.md](data_sources.md) for yfinance/akshare API patterns.
-
-### Phase 2: Signal Module
-
-Generate the signal computation logic.
-
-**Input**: Strategy spec's `indicators` and `logic_pipeline`.
-**Output**: Backtrader Strategy class with `__init__` (indicators) and `next` (signals).
-
-Read [indicator_cookbook.md](indicator_cookbook.md) for indicator implementations.
-
-### Phase 3: Backtest Module
-
-Generate the backtest runner (cerebro setup, broker config, analyzers).
-
-**Input**: Strategy spec's `execution_plan` and `risk_management`.
-**Output**: Complete runnable backtest script with metrics output.
-
-Read [backtrader_patterns.md](backtrader_patterns.md) for common patterns.
-
-### Phase 4: Integration & Validation
-
-Merge all modules into a single self-contained Python script, validate, execute.
-
-```python
-from spec2code.validator import validate_code
-from spec2code.executor import run_backtest
-from spec2code.analyzer import analyze_results, render_report
-
-# 1. Validate
-result = validate_code(combined_code)
-if not result.valid:
-    # Fix errors and retry
-
-# 2. Execute
-backtest = run_backtest(combined_code, output_dir="results/")
-
-# 3. Diagnose
-report = analyze_results(spec, backtest)
-markdown = render_report(report, backtest)
-```
-
-## Scripts Reference
-
-### `scripts/generate.py` — Full Pipeline
-
-```
-uv run python scripts/generate.py <spec.json> [--strategy-index N] [-o DIR] [--timeout SEC]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--strategy-index` | `0` | Which strategy from spec to generate code for |
-| `-o, --output-dir` | `<spec_dir>/` | Where to save generated code and report |
-| `--timeout` | `300` | Backtest execution timeout in seconds |
-
-### `scripts/validate_strategy.py` — Validate Code
-
-```
-uv run python scripts/validate_strategy.py <strategy.py>
-```
-
-Checks: syntax (AST parse), backtrader import, Strategy class definition,
-cerebro runner, `__main__` guard.
-
-### `scripts/backtest.py` — Run Backtest
-
-```
-uv run python scripts/backtest.py <strategy.py> [-o DIR] [--timeout SEC]
-```
-
-Executes in subprocess, extracts metrics (Sharpe, return, drawdown, trades).
-
-## Output Formats
-
-### BacktestResult
-
-The executor returns:
-```json
-{
-  "status": "success",
-  "metrics": {
-    "total_return": 0.234,
-    "annual_return": 0.112,
-    "sharpe_ratio": 1.45,
-    "max_drawdown": -0.089,
-    "num_trades": 47,
-    "win_rate": 0.617,
-    "profit_factor": 1.82,
-    "final_value": 123400.0,
-    "start_value": 100000.0
-  },
-  "execution_time_seconds": 12.3
-}
-```
-
-### DiagnosisReport
-
-The analyzer compares backtest results vs spec expectations:
 ```json
 {
   "strategy_name": "Minimum Distance Pairs Trading",
-  "match_status": "partial_match",
-  "expected": {"sharpe_ratio": 1.8, "annual_return": 0.15},
-  "actual": {"sharpe_ratio": 1.45, "annual_return": 0.112},
-  "deviations": ["Sharpe ratio 19% below expected"],
-  "recommendations": ["Check signal entry/exit thresholds"]
+  "strategy_type": "technical",
+  "asset_class": ["equity"],
+  "indicators": [...],
+  "logic_pipeline": [...],
+  "execution_plan": [...],
+  "risk_management": [...],
+  "expected_performance": {"sharpe": 1.8, "annual_return": 0.15}
 }
 ```
 
-## Module Structure
+**Key fields to understand before generating code:**
+
+#### Indicators
+Each indicator has: `name`, `formula`, `inputs`, `parameters`, `scope`.
+Map these to Backtrader indicators in `__init__()`.
+
+Example spec indicators → code mapping:
+```
+Spec: {"name": "SMA_20", "formula": "SMA(close, 20)", "inputs": ["close"], "parameters": {"period": 20}}
+Code: self.sma20 = bt.indicators.SMA(self.data.close, period=20)
+
+Spec: {"name": "spread_zscore", "formula": "(spread - mean(spread, N)) / std(spread, N)"}
+Code: Custom indicator class or inline computation
+```
+
+#### Logic Pipeline
+Each step has: `function`, `description`, `expression`, `inputs`, `output`.
+Map these to the `next()` method's decision logic.
+
+Example:
+```
+Spec: {"function": "compare_sma", "expression": "close > SMA_200", "output": "trend_filter"}
+Code: if self.data.close[0] > self.sma200[0]:  # trend_filter
+```
+
+#### Execution Plan
+Each plan entry has: `trigger`, `action`, `position_sizing`.
+Map trigger → entry/exit conditions, action → order logic, sizing → position management.
+
+### Phase 2: Generate Code
+
+Generate a **single self-contained Python file** (`strategy.py`) that includes:
+
+1. **Imports** — `backtrader as bt`, `yfinance`, `datetime`, etc.
+2. **Data loading** — Download OHLCV data via yfinance/akshare
+3. **Strategy class** — `class MyStrategy(bt.Strategy)` with `__init__` and `next`
+4. **Cerebro setup** — Broker config, analyzers, initial cash
+5. **Metrics output** — Print key metrics as JSON to stdout
+6. **`if __name__ == "__main__"` guard**
+
+Read [backtrader_patterns.md](backtrader_patterns.md) for canonical patterns.
+Read [indicator_cookbook.md](indicator_cookbook.md) for indicator implementations.
+Read [data_sources.md](data_sources.md) for data API usage.
+
+#### Strategy File Template Structure
+
+```python
+import backtrader as bt
+import yfinance as yf
+import json
+import datetime
+
+class MyStrategy(bt.Strategy):
+    params = (...)
+
+    def __init__(self):
+        # Map spec indicators to bt.indicators
+        ...
+
+    def next(self):
+        # Map spec logic_pipeline to trading decisions
+        ...
+
+def run_backtest():
+    cerebro = bt.Cerebro()
+
+    # Load data
+    data = bt.feeds.PandasData(dataname=df)
+    cerebro.adddata(data)
+
+    # Configure
+    cerebro.broker.setcash(100000)
+    cerebro.addstrategy(MyStrategy)
+
+    # Add standard analyzers for metrics
+    cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name='trades')
+    cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe')
+    cerebro.addanalyzer(bt.analyzers.DrawDown, _name='drawdown')
+    cerebro.addanalyzer(bt.analyzers.AnnualReturn, _name='annual')
+
+    results = cerebro.run()
+    strat = results[0]
+
+    # Extract and print metrics as JSON
+    metrics = extract_metrics(strat, cerebro)
+    print(json.dumps(metrics, indent=2))
+
+if __name__ == '__main__':
+    run_backtest()
+```
+
+### Phase 3: Validate
+
+Before running, validate the code:
+
+```bash
+uv run python scripts/validate_strategy.py library/<paper>/strategy_1.py
+```
+
+This checks:
+- AST syntax (parses without error)
+- `import backtrader` present
+- `bt.Strategy` subclass defined
+- `cerebro` runner exists
+- `if __name__` guard present
+
+If validation fails, fix the errors and re-validate.
+
+### Phase 4: Run Directly
+
+Run the strategy file directly in the terminal:
+
+```bash
+cd library/<paper>/
+uv run python strategy_1.py
+```
+
+Read stdout for metrics JSON. Read stderr for errors.
+
+**Important**: The strategy file should be self-contained — it fetches its
+own data, runs the backtest, and prints results. No external executor needed.
+
+### Phase 5: Diagnose
+
+Compare the backtest output against the spec's `expected_performance`:
+
+1. Read the metrics from stdout (JSON)
+2. Read `expected_performance` from spec.json (sharpe, annual_return, max_drawdown)
+3. Compare and report deviations
+
+**Deviation thresholds** (guidelines, not hard rules):
+- Sharpe ratio: >20% deviation → investigate signal logic
+- Annual return: >20% deviation → check data source and time period
+- Max drawdown: >10pp absolute difference → check risk management
+- Zero trades → strategy logic is likely broken
+
+**Common causes of deviation:**
+- Different data source (paper used Bloomberg, we use yfinance)
+- Different time period
+- Transaction costs / slippage not modeled
+- Survivorship bias in paper's data
+
+## Output Structure
 
 ```
-spec2code/
-├── __init__.py     # v0.1.0
-├── config.py       # Shared config (reuses paper2spec .env)
-├── models.py       # CodeModules, ValidationResult, BacktestResult, DiagnosisReport
-├── prompts.py      # Data/Signal/Backtest/Integration prompt templates
-├── validator.py    # AST + structural validation
-├── executor.py     # Subprocess-based backtest execution
-└── analyzer.py     # Result comparison + Markdown report
+library/<paper>/
+├── spec.json              # From paper2spec
+├── strategy_1.py          # Generated code (self-contained)
+├── strategy_1_spec.json   # Individual strategy spec (for reference)
+└── metadata.json
 ```
 
-## Code Generation Prompts
+## Tools Reference
 
-The agent uses 4 prompt templates (in `spec2code/prompts.py`):
+### `spec2code.validator.validate_code(code: str) → ValidationResult`
 
-1. **DATA_MODULE_PROMPT** — Generates data fetching code from spec's data requirements
-2. **SIGNAL_MODULE_PROMPT** — Generates indicator computation + signal logic
-3. **BACKTEST_MODULE_PROMPT** — Generates cerebro runner + broker config
-4. **INTEGRATION_PROMPT** — Merges 3 modules into one self-contained script
+```python
+from spec2code.validator import validate_code
 
-Each prompt receives the strategy spec as structured context and produces
-a Python code block. The agent extracts the code and passes it through
-validation before execution.
+result = validate_code(code_string)
+result.valid       # bool
+result.errors      # list[str] — blocking issues
+result.warnings    # list[str] — non-blocking concerns
+```
+
+### Data Models (`spec2code.models`)
+
+- **`CodeModules`** — Container for data/signal/backtest code strings
+- **`ValidationResult`** — valid + errors + warnings
+- **`BacktestMetrics`** — total_return, annual_return, sharpe_ratio, max_drawdown, etc.
+- **`BacktestResult`** — status + metrics + stdout/stderr
+- **`DiagnosisReport`** — match_status + expected/actual + deviations + recommendations
+
+All models have `to_dict()`, `from_dict()`, `to_json()` for serialization.
 
 ## Configuration
 
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
-| `SPEC2CODE_BACKTEST_TIMEOUT` | `300` | Max seconds for backtest execution |
-| `SPEC2CODE_DATA_CACHE` | `<library>/data_cache` | Cache dir for downloaded data |
+| `SPEC2CODE_BACKTEST_TIMEOUT` | `300` | Timeout guidance for agent (not enforced by code) |
+| `SPEC2CODE_DATA_CACHE` | `<library>/data_cache` | Suggested cache dir for downloaded data |
 
-These are in addition to the shared paper2spec config (LLM model, API keys, etc.).
-
-## Limitations (v0.1)
-
-- **Single strategy**: Generates code for one strategy at a time (structure supports multi).
-- **Local execution only**: No Docker isolation — runs in subprocess.
-- **Data sources**: yfinance + akshare only (no Bloomberg/Reuters).
-- **Code generation**: Agent-driven (LLM generates code interactively); no fully
-  automatic code synthesis without agent mediation yet.
+These supplement the shared paper2spec config (LLM model, API keys, etc.).

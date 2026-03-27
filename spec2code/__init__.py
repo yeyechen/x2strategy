@@ -1,10 +1,12 @@
-"""spec2code — Generate executable Backtrader strategies from StrategySpec.
+"""spec2code — Tools for agent-driven Backtrader strategy generation.
 
-Pipeline stages:
-  Stage 1 (Generator): StrategySpec → data/signal/backtest code modules
-  Stage 2 (Validator): AST syntax check + common error detection
-  Stage 3 (Executor):  Run backtest locally → metrics + equity curve
-  Stage 4 (Analyzer):  Compare results vs spec expectations → diagnosis report
+Provides:
+  - models: Data structures (CodeModules, ValidationResult, BacktestMetrics, etc.)
+  - validator: AST syntax check + structural validation
+  - config: Shared configuration (reuses paper2spec .env)
+
+The agent itself generates code, runs backtests, and analyzes results.
+These modules provide only the tools the agent cannot do natively.
 """
 
 __version__ = "0.1.0"
