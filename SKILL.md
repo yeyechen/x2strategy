@@ -1,5 +1,5 @@
 ---
-name: paper2spec
+name: quant-paper-reader
 description: >
   Extract structured, executable strategy specifications from quantitative
   finance research papers (PDF). Multi-strategy detection, 5-layer LLM
