@@ -18,16 +18,12 @@ is installed.  The file is gitignored by default.
 """
 
 import os
-from pathlib import Path
 from typing import Optional
 
+from paper2spec.config import load_project_env
+
 # Auto-load .env from project root (best-effort; python-dotenv is optional)
-try:
-    from dotenv import load_dotenv
-    _env_path = Path(__file__).resolve().parent.parent / ".env"
-    load_dotenv(_env_path)
-except ImportError:
-    pass
+load_project_env()
 
 import litellm
 

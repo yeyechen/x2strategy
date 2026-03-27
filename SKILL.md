@@ -39,8 +39,8 @@ The output is designed to be directly consumable by code generation agents
 ## First-Run Setup
 
 On first use, walk the user through these three steps. Skip any step
-that's already configured. Save choices to `.paper2spec.json` in the
-project root so future runs remember them.
+that's already configured. Persist choices in the project `.env` so
+future runs remain stable across sessions.
 
 ### Step 1: Workspace Location
 
@@ -48,6 +48,17 @@ Ask the user where they want to store PDFs and analysis results.
 Default: `./library/` in the current working directory.
 
 ```
+
+Persist this choice to `.env`:
+
+```
+PAPER2SPEC_LIBRARY_PATH=./library
+```
+
+If `.env` does not exist, create it from `.env.example` first.
+
+On every run, scripts should read `PAPER2SPEC_LIBRARY_PATH` as the default
+output root. This avoids path drift across sessions.
 Where should I store paper analyses?
   1. ./library/  (default, recommended)
   2. Custom path
@@ -82,6 +93,7 @@ cp .env.example .env
 
 The `.env` file format:
 ```
+PAPER2SPEC_LIBRARY_PATH=./library
 PAPER2SPEC_MODEL=deepseek/deepseek-chat
 DEEPSEEK_API_KEY=sk-...
 ```
@@ -125,18 +137,18 @@ pip install -e ".[agent]"           # + Mode B deps
 pip install -e ".[dev]"             # + test deps
 ```
 
-### Config File (`.paper2spec.json`)
+### Persistent Config (Environment)
 
-After setup, write this to the project root:
-```json
-{
-  "library_path": "./library",
-  "model": "deepseek/deepseek-chat",
-  "default_parser_mode": "auto"
-}
+Primary persistent config is `.env` (gitignored):
+
+```
+PAPER2SPEC_LIBRARY_PATH=./library
+PAPER2SPEC_MODEL=deepseek/deepseek-chat
+DEEPSEEK_API_KEY=sk-...
 ```
 
-On subsequent runs, read this file first and skip setup.
+On subsequent runs, read `.env` first and skip setup questions for already
+configured values.
 
 ## Quick Start
 
@@ -241,7 +253,7 @@ uv run python scripts/analyze.py <pdf> [-o DIR] [--parser-mode builtin|agent] [-
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-o, --output-dir` | `./<slug>/` | Output directory |
+| `-o, --output-dir` | `<PAPER2SPEC_LIBRARY_PATH>/<slug>/` | Output directory |
 | `--parser-mode` | `builtin` | `builtin` (fast, <40 pages) or `agent` (FAISS semantic retrieval, for long/dense papers). See **Parser Mode Selection** below. |
 | `--extractor-mode` | `multilayer` | `multilayer` (recommended) or `single` (legacy) |
 | `--model` | env `PAPER2SPEC_MODEL` | Override LLM model |
@@ -252,6 +264,12 @@ uv run python scripts/analyze.py <pdf> [-o DIR] [--parser-mode builtin|agent] [-
 
 ```
 uv run python scripts/parse.py <pdf> [--mode builtin|agent] [--model MODEL] [-o FILE]
+```
+
+If `-o` is not provided, default output is:
+
+```
+<PAPER2SPEC_LIBRARY_PATH>/<pdf_stem>/content.json
 ```
 
 ### `scripts/extract.py` — PaperContent → ExtractionResult
@@ -356,10 +374,13 @@ strategies. For example:
 
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
+| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Default output root for analyze/parse |
 | `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | Default LLM model |
 | `OPENAI_API_KEY` | — | For OpenAI / OpenRouter models |
 | `DEEPSEEK_API_KEY` | — | For DeepSeek models |
 | `ANTHROPIC_API_KEY` | — | For Anthropic models |
+| `PAPER2SPEC_ARXIV_MIN_INTERVAL` | `3.0` | Minimum seconds between arXiv API requests |
+| `PAPER2SPEC_SEARCH_MAX_RETRIES` | `3` | Retry count for search HTTP 429/5xx |
 
 Any [litellm-supported model](https://docs.litellm.ai/docs/providers) works.
 The `--model` flag on any script overrides `PAPER2SPEC_MODEL`.

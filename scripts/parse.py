@@ -5,6 +5,7 @@ Usage (CLI):
     python scripts/parse.py paper.pdf                    # Mode A (builtin)
     python scripts/parse.py paper.pdf --mode agent       # Mode B (FAISS)
     python scripts/parse.py paper.pdf -o content.json    # custom output path
+    # default output if -o omitted: <PAPER2SPEC_LIBRARY_PATH>/<pdf_stem>/content.json
 
 Usage (agent):
     The agent reads SKILL.md, then runs this script on the user's PDF.
@@ -22,6 +23,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from paper2spec.parser import parse_pdf
+from paper2spec.config import get_library_path
 
 
 def main():
@@ -31,7 +33,7 @@ def main():
     parser.add_argument("pdf", help="Path to the PDF file")
     parser.add_argument(
         "-o", "--output",
-        help="Output JSON path (default: <pdf_stem>_content.json)",
+        help="Output JSON path (default: <PAPER2SPEC_LIBRARY_PATH>/<pdf_stem>/content.json)",
     )
     parser.add_argument(
         "--mode",
@@ -67,7 +69,13 @@ def main():
         out_path = args.output
     else:
         stem = os.path.splitext(os.path.basename(args.pdf))[0]
-        out_path = f"{stem}_content.json"
+        base_library = get_library_path()
+        paper_dir = os.path.join(base_library, stem)
+        out_path = os.path.join(paper_dir, "content.json")
+
+    out_parent = os.path.dirname(out_path)
+    if out_parent:
+        os.makedirs(out_parent, exist_ok=True)
 
     # Write
     with open(out_path, "w", encoding="utf-8") as f:

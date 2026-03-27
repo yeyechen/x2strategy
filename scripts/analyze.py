@@ -8,7 +8,7 @@ Runs the full paper2spec pipeline:
 All outputs are written to the specified output directory.
 
 Usage:
-    python scripts/analyze.py paper.pdf                     # outputs to ./paper/
+    python scripts/analyze.py paper.pdf                     # outputs to <library>/<paper_slug>/
     python scripts/analyze.py paper.pdf -o library/paper/    # custom output dir
     python scripts/analyze.py paper.pdf --parser-mode agent  # Mode B (FAISS)
 """
@@ -24,6 +24,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from paper2spec.extractor import extract_spec
+from paper2spec.config import get_library_path
 from paper2spec.models import PaperContent
 from paper2spec.parser import parse_pdf
 from paper2spec.render import content_to_markdown, spec_to_markdown
@@ -44,7 +45,7 @@ def main():
     parser.add_argument("pdf", help="Path to the PDF file")
     parser.add_argument(
         "-o", "--output-dir",
-        help="Output directory (default: ./<slugified_title>/)",
+        help="Output directory (default: <PAPER2SPEC_LIBRARY_PATH>/<slugified_title>/)",
     )
     parser.add_argument(
         "--parser-mode",
@@ -80,7 +81,9 @@ def main():
     if args.output_dir:
         out_dir = args.output_dir
     else:
-        out_dir = _slugify(pc.title or os.path.splitext(os.path.basename(args.pdf))[0])
+        base_library = get_library_path()
+        slug = _slugify(pc.title or os.path.splitext(os.path.basename(args.pdf))[0])
+        out_dir = os.path.join(base_library, slug)
     os.makedirs(out_dir, exist_ok=True)
 
     # Write PaperContent JSON

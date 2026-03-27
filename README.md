@@ -76,6 +76,7 @@ pip install -e ".[dev]"        # + pytest
 cp .env.example .env  # then edit .env
 
 # Option 2: shell environment
+export PAPER2SPEC_LIBRARY_PATH="./library"
 export PAPER2SPEC_MODEL="deepseek/deepseek-chat"
 export DEEPSEEK_API_KEY="sk-..."
 
@@ -151,10 +152,13 @@ SKILL.md             # Agent instructions (auto-loaded by Copilot / Claude)
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
+| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Default output root for `analyze.py` and `parse.py` |
 | `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | LLM model identifier |
 | `DEEPSEEK_API_KEY` | — | For DeepSeek models |
 | `OPENAI_API_KEY` | — | For OpenAI models |
 | `ANTHROPIC_API_KEY` | — | For Anthropic models |
+| `PAPER2SPEC_ARXIV_MIN_INTERVAL` | `3.0` | Minimum seconds between arXiv API requests |
+| `PAPER2SPEC_SEARCH_MAX_RETRIES` | `3` | Retry count for arXiv/SSRN search on 429/5xx |
 
 All scripts accept `--model` to override `PAPER2SPEC_MODEL`.
 
