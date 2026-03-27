@@ -76,9 +76,10 @@ pip install -e ".[dev]"        # + pytest
 cp .env.example .env  # then edit .env
 
 # Option 2: shell environment
-export PAPER2SPEC_LIBRARY_PATH="./library"
+export PAPER2SPEC_LIBRARY_PATH="/absolute/path/to/library"
 export PAPER2SPEC_MODEL="deepseek/deepseek-chat"
 export DEEPSEEK_API_KEY="sk-..."
+export PAPER2SPEC_INIT_VERSION="1"
 
 # Full pipeline: PDF → content + spec in JSON & Markdown
 uv run python scripts/analyze.py paper.pdf -o library/my_paper/
@@ -152,7 +153,8 @@ SKILL.md             # Agent instructions (auto-loaded by Copilot / Claude)
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Default output root for `analyze.py` and `parse.py` |
+| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Default output root for `analyze.py` and `parse.py` (resolved to absolute path at runtime) |
+| `PAPER2SPEC_INIT_VERSION` | — | Optional init marker (`1` recommended after first successful setup) |
 | `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | LLM model identifier |
 | `DEEPSEEK_API_KEY` | — | For DeepSeek models |
 | `OPENAI_API_KEY` | — | For OpenAI models |

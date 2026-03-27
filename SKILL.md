@@ -11,9 +11,10 @@ description: >
   to know what's in it, compare strategies across papers, or build a
   library of strategy specifications. Even if they just say "look at this
   paper" or "what strategies does this use" — this skill handles it.
-version: 0.3.0
-author: ALAGENT AI (alagent-ai)
-tags: [quantitative-finance, paper-parsing, strategy-extraction, research, multi-strategy]
+metadata:
+  version: 0.3.0
+  author: ALAGENT AI (alagent-ai)
+  tags: [quantitative-finance, paper-parsing, strategy-extraction, research, multi-strategy]
 ---
 
 # paper2spec
@@ -52,13 +53,15 @@ Default: `./library/` in the current working directory.
 Persist this choice to `.env`:
 
 ```
-PAPER2SPEC_LIBRARY_PATH=./library
+PAPER2SPEC_LIBRARY_PATH=/absolute/path/to/library
 ```
 
 If `.env` does not exist, create it from `.env.example` first.
 
 On every run, scripts should read `PAPER2SPEC_LIBRARY_PATH` as the default
 output root. This avoids path drift across sessions.
+Prefer absolute paths so custom user directories remain stable regardless of
+current working directory.
 Where should I store paper analyses?
   1. ./library/  (default, recommended)
   2. Custom path
@@ -97,9 +100,10 @@ cp .env.example .env
 
 For example, if the user provides a DeepSeek key, the `.env` should contain:
 ```
-PAPER2SPEC_LIBRARY_PATH=./library
+PAPER2SPEC_LIBRARY_PATH=/absolute/path/to/library
 PAPER2SPEC_MODEL=deepseek/deepseek-chat
 DEEPSEEK_API_KEY=sk-actualKeyFromUser
+PAPER2SPEC_INIT_VERSION=1
 ```
 
 If the user provides an OpenAI key:
@@ -155,13 +159,19 @@ pip install -e ".[dev]"             # + test deps
 Primary persistent config is `.env` (gitignored):
 
 ```
-PAPER2SPEC_LIBRARY_PATH=./library
+PAPER2SPEC_LIBRARY_PATH=/absolute/path/to/library
 PAPER2SPEC_MODEL=deepseek/deepseek-chat
 DEEPSEEK_API_KEY=sk-...
+PAPER2SPEC_INIT_VERSION=1
 ```
 
 On subsequent runs, read `.env` first and skip setup questions for already
 configured values.
+
+Initialization completion policy:
+- `PAPER2SPEC_INIT_VERSION` is a quick marker (recommended value: `1`).
+- Do not trust marker alone. Always verify runtime capability:
+  `PAPER2SPEC_LIBRARY_PATH`, `PAPER2SPEC_MODEL`, and at least one provider API key.
 
 ## Quick Start
 
@@ -197,6 +207,17 @@ uv run python scripts/extract.py content.json -o spec.json
 ```
 
 ## Agent Workflow
+
+### User-Facing Interaction Policy
+
+- Commands and scripts in this skill are internal implementation details.
+- In user conversations, present these as agent capabilities (search, parse,
+  extract, summarize, compare) rather than exposing raw command sequences by default.
+- Run tools internally, then report outcomes, key findings, and next actions.
+- Show exact commands only when the user explicitly asks for reproducibility,
+  debugging, or CLI instructions.
+- Combine this skill with broader agent reasoning to resolve ambiguity and
+  choose sensible defaults before asking users extra questions.
 
 When using this skill as an AI agent, follow this workflow:
 
@@ -388,6 +409,7 @@ strategies. For example:
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
 | `PAPER2SPEC_LIBRARY_PATH` | `./library` | Default output root for analyze/parse |
+| `PAPER2SPEC_INIT_VERSION` | — | Optional setup marker (`1` recommended after successful setup) |
 | `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | Default LLM model |
 | `OPENAI_API_KEY` | — | For OpenAI / OpenRouter models |
 | `DEEPSEEK_API_KEY` | — | For DeepSeek models |
