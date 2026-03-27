@@ -1,5 +1,5 @@
 ---
-name: paper2spec
+name: quant-paper-reader
 description: >
   Extract structured, executable strategy specifications from quantitative
   finance research papers (PDF). Multi-strategy detection, 5-layer LLM
@@ -69,34 +69,47 @@ detect previously analyzed papers. Report what's already there.
 
 ### Step 2: LLM API Key
 
-Check if any API key is already set (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`,
-`ANTHROPIC_API_KEY`). If none found, guide the user:
+Check if any API key is already set in the environment (`DEEPSEEK_API_KEY`,
+`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`). If none found, **you must ask the
+user to provide their API key** before proceeding — do not silently skip
+this step or assume they will set it later. Prompt the user like this:
 
 ```
 No LLM API key detected. paper2spec needs one to extract strategies.
 
 Recommended: DeepSeek (best cost-performance ratio for this task)
   → ~$0.01 per paper, API key from https://platform.deepseek.com
-  → Set: export DEEPSEEK_API_KEY="sk-..."
-  → Set: export PAPER2SPEC_MODEL="deepseek/deepseek-chat"
 
 Alternatives: OpenAI GPT-4o, Anthropic Claude, any litellm-supported model.
+
+Please paste your API key now (e.g. sk-...) and tell me which provider
+it belongs to (DeepSeek / OpenAI / Anthropic):
 ```
 
-**Preferred: write a `.env` file** so keys persist across sessions. The project
-auto-loads `.env` from the project root (gitignored by default):
+Wait for the user to reply with their key. Once received, **write it into
+a `.env` file** at the project root so the key persists across sessions.
+The project auto-loads `.env` (gitignored by default):
 
 ```bash
 cp .env.example .env
-# Then edit .env with the user's chosen model + API key
+# Then replace the placeholder values with the user's actual key and model
 ```
 
-The `.env` file format:
+For example, if the user provides a DeepSeek key, the `.env` should contain:
 ```
 PAPER2SPEC_LIBRARY_PATH=./library
 PAPER2SPEC_MODEL=deepseek/deepseek-chat
-DEEPSEEK_API_KEY=sk-...
+DEEPSEEK_API_KEY=sk-actualKeyFromUser
 ```
+
+If the user provides an OpenAI key:
+```
+PAPER2SPEC_MODEL=openai/gpt-4o-mini
+OPENAI_API_KEY=sk-actualKeyFromUser
+```
+
+**Important**: Never write a `.env` with placeholder values like `sk-...`.
+Always wait until you have the real key from the user, then write the file.
 
 Verify the key works by running:
 ```bash
