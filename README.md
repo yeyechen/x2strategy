@@ -1,47 +1,55 @@
 # quant-paper2code
 
-> Research paper → Strategy spec → Executable code → Backtest → Diagnosis report.
+> Any research input → Strategy spec → Executable code → Backtest → Diagnosis report.
 
 ```
-PDF → PaperContent → StrategySpec (N strategies) → Backtrader Code → Backtest → Diagnosis
+PDF / Markdown / DOCX / Text → PaperContent → StrategySpec (N strategies) → Backtrader Code → Backtest → Diagnosis
 ```
 
-**quant-paper2code** is an [Agent Skill](https://agentskills.io/) that takes quantitative finance research papers end-to-end: from PDF to executable, validated backtest code. Two integrated capabilities:
+**quant-paper2code** (skill name: `anything2strategy`) is an [Agent Skill](https://agentskills.io/) that takes quantitative finance research — papers, drafts, reports, or strategy ideas — end-to-end: from any document to executable, validated backtest code. Two integrated capabilities:
 
-- **paper2spec** — Parse PDFs, detect multiple strategies, extract structured specs
+- **paper2spec** — Parse any document (PDF/MD/DOCX/TXT), detect multiple strategies, extract structured specs
 - **spec2code** — Generate Backtrader code, validate, execute backtests, diagnose results
 
-Works as an AI agent skill (VS Code Copilot / Claude Code) or as standalone Python CLI tools.
+Works as an AI agent skill (VS Code Copilot / Claude Code / any [Agent Skills](https://agentskills.io/)-compatible agent) or as standalone Python CLI tools.
 
 ## Install
 
-### Option A: As an Agent Skill
+### Option A: As an Agent Skill (recommended)
 
-Clone into any supported skill directory — the AI agent auto-discovers `SKILL.md`.
+Clone into any supported skill directory — the AI agent auto-discovers `SKILL.md` and registers `/anything2strategy` as a slash command.
 
 **GitHub Copilot (VS Code / CLI / Coding Agent):**
 ```bash
 git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
-  ~/.copilot/skills/paper2code
+  ~/.copilot/skills/anything2strategy
 ```
 
 **Claude Code:**
 ```bash
 git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
-  ~/.claude/skills/paper2code
+  ~/.claude/skills/anything2strategy
 ```
 
-**Project-scoped:**
+**Generic (any Agent Skills-compatible tool):**
 ```bash
 git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
-  .github/skills/paper2code
+  ~/.agents/skills/anything2strategy
+```
+
+**Project-scoped (shared with team via repo):**
+```bash
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
+  .github/skills/anything2strategy
 ```
 
 Install dependencies:
 ```bash
-cd ~/.copilot/skills/paper2code   # or wherever you cloned it
+cd ~/.copilot/skills/anything2strategy   # or wherever you cloned it
 uv sync --extra codegen            # core + backtrader/yfinance/akshare
 ```
+
+> **Note:** The directory name (`anything2strategy`) must match the `name` field in `SKILL.md`. After install, type `/anything2strategy` in chat to invoke the skill, or the agent auto-loads it when relevant.
 
 首次在 chat 中触发该 skill 时，agent 会自动引导完成 LLM 配置和 API key 设置。
 
@@ -68,14 +76,16 @@ pip install -e ".[dev]"        # + pytest
 
 ## Quick Start
 
-### End-to-End: Paper → Spec → Code → Backtest
+### End-to-End: Any Input → Spec → Code → Backtest
 
 ```bash
 # Configure (first time)
 cp .env.example .env  # then edit with your API key
 
-# Step 1: Analyze paper → extract specs
+# Step 1: Analyze document → extract specs (auto-detects format)
 uv run python scripts/analyze.py paper.pdf -o library/my_paper/
+uv run python scripts/analyze.py strategy_draft.md -o library/my_draft/
+uv run python scripts/analyze.py report.docx -o library/my_report/
 
 # Step 2: Generate code from spec
 uv run python scripts/generate.py library/my_paper/spec.json --strategy-index 0
@@ -91,6 +101,7 @@ uv run python scripts/backtest.py library/my_paper/strategy.py -o library/my_pap
 
 ```bash
 uv run python scripts/analyze.py paper.pdf -o library/my_paper/
+uv run python scripts/analyze.py strategy.md -o library/my_draft/
 # → content.json, content.md, spec.json, spec.md, metadata.json
 ```
 
@@ -105,7 +116,8 @@ uv run python scripts/generate.py library/my_paper/spec.json --strategy-index 0
 
 | Feature | Description |
 |---------|-------------|
-| **End-to-end pipeline** | PDF → spec → code → backtest → diagnosis in one workflow |
+| **Multi-format input** | PDF, Markdown, DOCX, plain text — auto-detected |
+| **End-to-end pipeline** | Document → spec → code → backtest → diagnosis in one workflow |
 | **Multi-strategy detection** | Automatically identifies N independent strategies per paper |
 | **5-layer LLM extraction** | L0 (detect) → L1-L4 (metadata, indicators, logic, execution) |
 | **3-step code generation** | Data module → signal module → backtest module → integration |

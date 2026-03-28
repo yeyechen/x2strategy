@@ -1,36 +1,49 @@
 ---
-name: quant-paper2code
+name: anything2strategy
 description: >
-  End-to-end pipeline: quantitative finance research paper (PDF) →
-  structured strategy specification → executable Backtrader code →
-  backtest → diagnosis report. Two capabilities: (1) paper2spec extracts
-  multi-strategy specs from PDFs via 5-layer LLM extraction, and
-  (2) spec2code: the agent generates validated Backtrader code from specs,
-  runs it directly, and compares results against paper-reported metrics.
-  Use this skill when the user wants to analyze a quant paper, extract
-  trading strategies from a PDF, generate executable strategy code,
-  run a backtest, or go end-to-end from paper to results. Covers any
-  request about parsing finance research, building strategy specifications,
-  implementing strategies as code, or validating backtest performance.
-  Also use when the user just says "look at this paper" or "what strategies
-  does this use" — this skill handles it.
+  ALAGENT Anything2Strategy: any research input (PDF paper, Markdown draft,
+  DOCX report, text notes, or keyword search) → structured strategy
+  specification → executable Backtrader code → backtest → diagnosis report.
+  Two core capabilities: (1) paper2spec extracts multi-strategy specs from
+  any document via 5-layer LLM extraction, and (2) spec2code generates
+  validated Backtrader code, runs backtests, and compares against paper
+  metrics. Use this skill whenever the user wants to analyze a quant paper,
+  extract trading strategies, generate strategy code, run a backtest, search
+  for papers, or go end-to-end from any input to executable results. Also
+  triggers on: "look at this paper", "what strategies does this use",
+  "implement this strategy", "search for momentum papers", "turn this into
+  code", or any request about quantitative finance research → implementation.
+  Even if the user doesn't mention "strategy" explicitly — if they provide a
+  finance paper or research document, use this skill.
+argument-hint: "[paper.pdf | strategy.md | report.docx | search query]"
 metadata:
-  version: 0.4.0
+  version: 0.5.0
   author: ALAGENT AI (alagent-ai)
   tags: [quantitative-finance, paper-parsing, strategy-extraction, code-generation, backtesting]
 ---
 
-# quant-paper2code
+# Anything2Strategy
 
-Research paper → Strategy spec → Executable code → Backtest → Diagnosis.
-End-to-end quantitative strategy implementation from academic papers.
+Any research input → Strategy spec → Executable code → Backtest → Diagnosis.
+End-to-end quantitative strategy implementation from papers, drafts, or ideas.
 
 ## Capabilities
 
 | Capability | Description | Reference |
 |-----------|-------------|-----------|
-| **paper2spec** | PDF → structured strategy specification (multi-strategy detection, JSON + Markdown) | [references/paper2spec.md](references/paper2spec.md) |
+| **paper2spec** | Any document (PDF/MD/DOCX/TXT) → structured strategy specification (multi-strategy detection, JSON + Markdown) | [references/paper2spec.md](references/paper2spec.md) |
 | **spec2code** | Agent generates Backtrader code from spec → validates → runs backtest → diagnoses results | [references/spec2code.md](references/spec2code.md) |
+
+### Supported Input Formats
+
+| Format | Extension | How It Works |
+|--------|-----------|-------------|
+| **PDF** (papers) | `.pdf` | PyMuPDF extraction → Mode A (direct) or Mode B (FAISS) |
+| **Markdown** (drafts, notes) | `.md`, `.markdown` | Direct text read — ideal for strategy drafts or formatted notes |
+| **DOCX** (Word reports) | `.docx` | python-docx extraction (requires `uv sync --extra docx`) |
+| **Plain text** | `.txt` | Direct read — for raw strategy descriptions |
+
+The parser auto-detects format from file extension. No user action needed.
 
 ## First-Run Setup
 
@@ -197,11 +210,13 @@ Initialization completion policy:
 
 ## Quick Start
 
-### End-to-End: Paper → Spec → Code → Backtest
+### End-to-End: Any Document → Spec → Code → Backtest
 
 ```bash
-# Step 1: Analyze paper → extract specs
+# Step 1: Analyze document → extract specs (auto-detects format)
 uv run python scripts/analyze.py paper.pdf -o library/my_paper/
+uv run python scripts/analyze.py strategy_draft.md -o library/my_draft/
+uv run python scripts/analyze.py report.docx -o library/my_report/
 
 # Step 2: Read spec.json, generate strategy code (agent-driven)
 # Step 3: Validate code
@@ -214,8 +229,9 @@ uv run python library/my_paper/strategy_1.py
 ### Paper2Spec Only
 
 ```bash
-# Full pipeline: PDF → content (JSON+MD) + spec (JSON+MD) + metadata
+# Full pipeline: Document → content (JSON+MD) + spec (JSON+MD) + metadata
 uv run python scripts/analyze.py paper.pdf -o library/my_paper/
+uv run python scripts/analyze.py strategy.md -o library/my_draft/
 ```
 
 This produces:
@@ -267,17 +283,174 @@ When the user's request arrives, route to the appropriate capability:
 
 | User Intent | Route To | Action |
 |-------------|----------|--------|
-| "Analyze this paper" / "What strategies does this use" | **paper2spec** | Run `scripts/analyze.py`, read spec.md |
-| "Search for papers about X" | **paper2spec** | Run `scripts/search.py` |
+| "Analyze this paper/doc" / "What strategies does this use" | **paper2spec** | Run `scripts/analyze.py`, read spec.md |
+| "Search for papers about X" | **paper2spec** | Run `scripts/search.py` → **Gate 1** |
+| "Here's my strategy draft" (MD/DOCX/TXT) | **paper2spec** | Auto-detect format, parse, extract |
 | "Generate code for this strategy" / "Implement this" | **spec2code** | Read spec.json → generate code → validate → run |
 | "Run a backtest" / "Test this strategy" | **spec2code** | Run strategy.py directly |
-| "Take this paper end to end" | **both** | paper2spec → spec2code pipeline |
+| "Take this paper end to end" | **both** | paper2spec → **Gate 2** → spec2code pipeline |
 | "Compare results with the paper" | **spec2code** | Read backtest output + spec, compare natively |
+
+---
+
+## Interaction Gates (HITL Checkpoints)
+
+Two mandatory human-in-the-loop gates ensure the user stays in control.
+These are NOT optional — always pause at these gates unless the user
+explicitly said "fully automatic" or "end to end without stopping".
+
+### Gate 1: Input Confirmation
+
+**When**: After receiving or finding the input, BEFORE running spec extraction.
+
+This gate covers three scenarios:
+
+**Scenario A — User provided a file (PDF/MD/DOCX):**
+
+After receiving the file, do a quick preliminary scan (title, page count,
+abstract if available) and present to the user:
+
+```
+📄 Received: "Tactical Asset Allocation" (Faber, 2007)
+   Format: PDF, 18 pages
+   Abstract: [first 2 sentences of abstract]
+
+I'll extract the trading strategies from this paper.
+This typically takes 30-60 seconds and costs ~$0.01.
+
+→ Proceed with extraction?
+→ Or would you like to adjust settings first?
+  (parser mode, LLM model, output location)
+```
+
+If the document is straightforward, keep this gate light — one question
+with a default-proceed option. The user can just say "go" or "yes".
+
+**Scenario B — User searched for papers:**
+
+After search results come back, present a numbered list:
+
+```
+🔍 Found 8 papers for "momentum trading strategy":
+
+  1. ⭐ "Time Series Momentum" (Moskowitz et al., 2012) — 847 citations
+  2. "Momentum Crashes" (Daniel & Moskowitz, 2016) — 523 citations
+  3. "Cross-Sectional Momentum" (Jegadeesh & Titman, 1993) — 12k citations
+  ...
+
+Which paper would you like me to analyze?
+  → Pick a number (or multiple: "1, 3")
+  → "download 1" to just save the PDF without analysis
+  → Refine search with different keywords
+```
+
+Do NOT auto-analyze. Always let the user pick.
+
+**Scenario C — User provided raw text or a strategy idea:**
+
+```
+📝 I see you've described a strategy concept:
+   "[brief summary of what you understood]"
+
+   I'll structure this into a formal strategy specification.
+
+   → Proceed?
+   → Want to add more details first?
+```
+
+### Gate 2: Spec Review & Next Steps
+
+**When**: After spec extraction completes, BEFORE any code generation.
+
+This is the most important gate. Always present it as a structured
+decision point, not a yes/no question.
+
+First, show the extraction summary:
+
+```
+✅ Strategy Extraction Complete
+
+📋 Paper: "Pairs Trading: Does Volatility Timing Matter?"
+   Detected: 3 independent strategies
+
+   [1] Minimum Distance Method
+       • 4 indicators (spread, SMA, Z-score, distance)
+       • Entry: spread Z-score > 2σ, Exit: mean reversion
+       • Assets: equity pairs (S&P 500 universe)
+
+   [2] Stationarity-Based (ADF Test)
+       • 3 indicators (ADF statistic, half-life, spread)
+       • Entry: cointegrated pair + spread deviation
+       • Assets: equity pairs
+
+   [3] Cointegration (Johansen)
+       • 5 indicators (eigenvalue, trace stat, β-weights, spread, Z-score)
+       • Entry: Johansen test + Z-score threshold
+       • Assets: equity pairs
+
+   Full spec: library/pairs_trading/spec.md
+```
+
+Then present the action menu:
+
+```
+What would you like to do next?
+
+  1. 🚀 Implement → Generate executable code
+     (pick strategy number, or "all" for all 3)
+
+  2. 🔍 Deep dive → Explore a strategy in detail
+     (I'll explain the logic, indicators, and assumptions)
+
+  3. 📊 Compare → How do these strategies differ?
+     (side-by-side comparison of the 3 approaches)
+
+  4. ✏️ Adjust → Modify a strategy spec
+     (change parameters, add constraints, tweak logic)
+
+  5. 💾 Export only → Save specs and stop here
+     (spec.json + spec.md already saved)
+
+  6. 🔄 Re-extract → Try with different settings
+     (different model, parser mode, or focus)
+
+Pick a number or describe what you want:
+```
+
+Wait for the user's choice before proceeding.
+
+**Key behaviors at Gate 2:**
+
+- If user picks "Implement", confirm which strategy index before generating code.
+- If user picks "Deep dive", read and present the relevant section of spec.json
+  with explanations, then return to the same action menu.
+- After code generation + backtest, present results and offer another decision point
+  (diagnose, adjust, try another strategy, etc.).
+- Never silently proceed from spec extraction to code generation.
+
+### Gate Bypass
+
+If the user explicitly indicates they want the full pipeline without stops:
+- "End to end" / "fully automatic" / "don't stop" / "just do everything"
+
+Then collapse both gates into brief inline status updates:
+```
+📄 Parsing paper... ✓ (3 strategies detected)
+💻 Generating code for strategy 1... ✓
+📊 Running backtest... ✓
+📈 Results ready — see below.
+```
+
+Even in bypass mode, if something unexpected happens (0 strategies detected,
+extraction errors, validation failures), stop and consult the user.
+
+---
 
 ### Standard Analysis
 
 ```
-1. Run: uv run python scripts/analyze.py <pdf_path> -o library/<slug>/
+1. Run: uv run python scripts/analyze.py <file> -o library/<slug>/
+   (auto-detects PDF/MD/DOCX/TXT format)
 2. Read the generated spec.md for a quick summary
 3. Read spec.json for machine-readable details
 ```
@@ -285,19 +458,23 @@ When the user's request arrives, route to the appropriate capability:
 ### Full Pipeline Agent Flow
 
 ```
-1. Receive PDF from user
-2. [paper2spec] Parse and extract specs
+1. Receive input from user (file, search query, or text)
+2. ── Gate 1: Input Confirmation ──
+   Present what was received, confirm proceeding
+3. [paper2spec] Parse and extract specs
    → Read references/paper2spec.md for details
-3. Present extracted strategies to user for review
-4. User selects strategy (or all)
-5. [spec2code] For each selected strategy:
+4. ── Gate 2: Spec Review & Next Steps ──
+   Present strategies, offer action menu
+5. User selects strategy and action
+6. [spec2code] For each selected strategy:
    a. Read spec.json + references/backtrader_patterns.md + indicator_cookbook.md
    b. Generate self-contained strategy.py (data + signal + backtest in one file)
    c. Validate with: uv run python scripts/validate_strategy.py strategy.py
    d. Run directly: uv run python strategy.py
    e. Read stdout/stderr, compare metrics vs spec's expected_performance
    → Read references/spec2code.md for details
-6. Present results and diagnosis to user
+7. Present results and diagnosis to user
+8. Offer next actions (adjust, try another strategy, re-run, etc.)
 ```
 
 ### Managing Multiple Papers (Library Pattern)
@@ -354,8 +531,11 @@ strategy = result["strategies"][0]  # Pick strategy by index
 ### `scripts/analyze.py` — Full Pipeline (recommended)
 
 ```
-uv run python scripts/analyze.py <pdf> [-o DIR] [--parser-mode builtin|agent] [--model MODEL]
+uv run python scripts/analyze.py <file> [-o DIR] [--parser-mode builtin|agent] [--model MODEL]
 ```
+
+Accepts any supported format: `.pdf`, `.md`, `.markdown`, `.docx`, `.txt`.
+Auto-detects from file extension.
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -559,3 +739,5 @@ For detailed implementation guidance, read on demand:
 - **Multi-strategy**: Conservative detector — may merge borderline-distinct strategies.
 - **Spec2code**: Agent-driven only — no fully automatic CLI pipeline. The agent
   generates code, runs it, and analyzes results interactively.
+- **DOCX**: Extracts paragraph text only. Tables, images, and complex
+  formatting in DOCX files are not preserved (use PDF for richly formatted papers).
