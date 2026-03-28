@@ -1,195 +1,300 @@
-# quant-paper2code
+<div align="center">
 
-> Any research input → Strategy spec → Executable code → Backtest → Diagnosis report.
+<img src="assets/alagent_logo.svg" alt="ALAGENT Logo" width="120">
+
+# Anything2Strategy
+
+**Any Research Input → Strategy Spec → Executable Code → Backtest → Diagnosis**
+
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://python.org)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-green.svg)](LICENSE)
+[![Agent Skills](https://img.shields.io/badge/Agent_Skills-compatible-blueviolet?logo=visualstudiocode)](https://agentskills.io/)
+[![Tests](https://img.shields.io/badge/tests-180_passed-brightgreen)]()
+[![LiteLLM](https://img.shields.io/badge/LLM-any_provider-orange?logo=openai)](https://docs.litellm.ai/docs/providers)
+
+[Getting Started](#-getting-started) · [How It Works](#-how-it-works) · [Examples](#-examples) · [Docs](#-documentation) · [简体中文](README_CN.md)
+
+---
+
+*Turn quantitative finance research — papers, drafts, reports, or strategy ideas — into validated, executable trading strategies. Automatically.*
+
+</div>
+
+## Highlights
+
+- **🔬 Multi-Format Input** — PDF papers, Markdown drafts, DOCX reports, plain text. Auto-detected.
+- **🧠 5-Layer LLM Extraction** — Multi-strategy detection → indicators → signal logic → execution plan → risk controls.
+- **✅ Verified Code Generation** — AST validation + Backtrader structural checks + indicator registry, not just "generate and hope".
+- **📊 Automated Backtesting** — Execute, extract metrics, and diagnose against paper-reported performance.
+- **🤖 Agent-Native** — Works as an [Agent Skill](https://agentskills.io/) (`/anything2strategy`) in VS Code Copilot, Claude Code, or any compatible agent.
+- **💰 ~$0.01 per paper** — DeepSeek-powered. Any [LiteLLM-supported provider](https://docs.litellm.ai/docs/providers) works.
+
+## How It Works
 
 ```
-PDF / Markdown / DOCX / Text → PaperContent → StrategySpec (N strategies) → Backtrader Code → Backtest → Diagnosis
+                        ┌──────────────────────────────────────────────────────────────┐
+                        │                    Anything2Strategy                         │
+                        │                                                              │
+  PDF / MD / DOCX / TXT │   ┌─────────┐   ┌───────────┐   ┌──────────┐   ┌─────────┐ │
+  ─────────────────────►│   │  Parse   ├──►│  Extract   ├──►│ Generate ├──►│Backtest │ │
+                        │   │ (parser) │   │ (L0 → L4) │   │  (code)  │   │+ Diagnose││
+                        │   └─────────┘   └───────────┘   └──────────┘   └─────────┘ │
+                        │        ▼              ▼               ▼             ▼        │
+                        │   PaperContent   StrategySpec   Backtrader.py   Report.md   │
+                        └──────────────────────────────────────────────────────────────┘
 ```
 
-**quant-paper2code** (skill name: `anything2strategy`) is an [Agent Skill](https://agentskills.io/) that takes quantitative finance research — papers, drafts, reports, or strategy ideas — end-to-end: from any document to executable, validated backtest code. Two integrated capabilities:
+| Stage | Input | Output | What Happens |
+|:------|:------|:-------|:-------------|
+| **Parse** | Any document | `PaperContent` | Format-aware extraction (PyMuPDF / direct read / python-docx) |
+| **Extract** | PaperContent | `StrategySpec[]` | 5-layer LLM: detect strategies → extract indicators, logic, execution, risk |
+| **Generate** | StrategySpec | `strategy.py` | Data module → signal module → backtest module → integration |
+| **Validate** | strategy.py | Pass / Fail | AST syntax + Backtrader structure + indicator existence checks |
+| **Backtest** | strategy.py | Metrics | Subprocess execution with timeout, metric extraction |
+| **Diagnose** | Metrics | `report.md` | Compare against paper-reported results, flag deviations |
 
-- **paper2spec** — Parse any document (PDF/MD/DOCX/TXT), detect multiple strategies, extract structured specs
-- **spec2code** — Generate Backtrader code, validate, execute backtests, diagnose results
+## Getting Started
 
-Works as an AI agent skill (VS Code Copilot / Claude Code / any [Agent Skills](https://agentskills.io/)-compatible agent) or as standalone Python CLI tools.
+### Option A: As an Agent Skill (Recommended)
 
-## Install
+> [Agent Skills](https://agentskills.io/) is an open standard. Clone into the agent's skill directory — it auto-discovers `SKILL.md` and registers the `/anything2strategy` slash command.
 
-### Option A: As an Agent Skill (recommended)
+<table>
+<tr><td><b>GitHub Copilot</b></td><td>
 
-Clone into any supported skill directory — the AI agent auto-discovers `SKILL.md` and registers `/anything2strategy` as a slash command.
-
-**GitHub Copilot (VS Code / CLI / Coding Agent):**
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
-  ~/.copilot/skills/anything2strategy
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.copilot/skills/anything2strategy
 ```
 
-**Claude Code:**
+</td></tr>
+<tr><td><b>Claude Code</b></td><td>
+
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
-  ~/.claude/skills/anything2strategy
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.claude/skills/anything2strategy
 ```
 
-**Generic (any Agent Skills-compatible tool):**
+</td></tr>
+<tr><td><b>Project-scoped</b></td><td>
+
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
-  ~/.agents/skills/anything2strategy
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/anything2strategy
 ```
 
-**Project-scoped (shared with team via repo):**
+</td></tr>
+</table>
+
+Then install dependencies:
+
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git \
-  .github/skills/anything2strategy
+cd ~/.copilot/skills/anything2strategy   # or wherever you cloned
+uv sync --extra codegen                  # core + backtrader + yfinance + akshare
 ```
 
-Install dependencies:
-```bash
-cd ~/.copilot/skills/anything2strategy   # or wherever you cloned it
-uv sync --extra codegen            # core + backtrader/yfinance/akshare
-```
+> [!IMPORTANT]
+> The directory name **must** be `anything2strategy` (matching the `name` field in `SKILL.md`). Once installed, type `/anything2strategy` in chat or the agent auto-activates when relevant.
 
-> **Note:** The directory name (`anything2strategy`) must match the `name` field in `SKILL.md`. After install, type `/anything2strategy` in chat to invoke the skill, or the agent auto-loads it when relevant.
-
-首次在 chat 中触发该 skill 时，agent 会自动引导完成 LLM 配置和 API key 设置。
-
-### Option B: As a Standalone CLI Tool
+### Option B: Standalone CLI
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git
-cd quant-paper2code
-uv sync --extra codegen        # core + backtrader/yfinance/akshare
-uv sync --extra agent          # + FAISS semantic search (for long papers)
-uv sync --extra dev            # + pytest
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git && cd quant-paper2code
+uv sync --extra codegen    # core + backtest
+uv sync --extra agent      # + FAISS semantic search (for 100+ page papers)
+uv sync --extra dev        # + pytest
 ```
 
 <details>
-<summary>Alternative: pip instead of uv</summary>
+<summary>pip alternative</summary>
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[codegen]"    # core + backtest deps
-pip install -e ".[agent]"      # + FAISS
-pip install -e ".[dev]"        # + pytest
+pip install -e ".[codegen,agent,dev]"
 ```
+
 </details>
 
-## Quick Start
-
-### End-to-End: Any Input → Spec → Code → Backtest
+### Quick Start
 
 ```bash
-# Configure (first time)
-cp .env.example .env  # then edit with your API key
+# 1. Configure
+cp .env.example .env          # add your API key (DEEPSEEK_API_KEY recommended)
 
-# Step 1: Analyze document → extract specs (auto-detects format)
+# 2. Extract strategy specs from any input format
 uv run python scripts/analyze.py paper.pdf -o library/my_paper/
 uv run python scripts/analyze.py strategy_draft.md -o library/my_draft/
 uv run python scripts/analyze.py report.docx -o library/my_report/
 
-# Step 2: Generate code from spec
+# 3. Generate Backtrader code from spec
 uv run python scripts/generate.py library/my_paper/spec.json --strategy-index 0
 
-# Step 3: Validate generated code
+# 4. Validate + backtest
 uv run python scripts/validate_strategy.py library/my_paper/strategy.py
-
-# Step 4: Run backtest
 uv run python scripts/backtest.py library/my_paper/strategy.py -o library/my_paper/results/
 ```
 
-### Paper2Spec Only
+Or use the **agent skill** — just say:
 
-```bash
-uv run python scripts/analyze.py paper.pdf -o library/my_paper/
-uv run python scripts/analyze.py strategy.md -o library/my_draft/
-# → content.json, content.md, spec.json, spec.md, metadata.json
-```
+> *"Analyze this paper and implement the main strategy"* + attach a PDF
 
-### Spec2Code Only
+The agent handles everything: parsing, extraction, code generation, validation, backtesting, and diagnosis.
 
-```bash
-uv run python scripts/generate.py library/my_paper/spec.json --strategy-index 0
-# → strategy.py, validation report, backtest results, diagnosis
-```
+## Supported Input Formats
 
-## Features
+| Format | Extensions | Parser | Notes |
+|:-------|:-----------|:-------|:------|
+| **PDF** | `.pdf` | PyMuPDF → Mode A (direct) or Mode B (FAISS) | Full support, covers 95%+ of papers |
+| **Markdown** | `.md` `.markdown` | Direct text read | Ideal for strategy drafts and notes |
+| **Word** | `.docx` | python-docx (`uv sync --extra docx`) | Internal research reports |
+| **Plain text** | `.txt` | Direct read | Raw strategy descriptions |
 
-| Feature | Description |
-|---------|-------------|
-| **Multi-format input** | PDF, Markdown, DOCX, plain text — auto-detected |
-| **End-to-end pipeline** | Document → spec → code → backtest → diagnosis in one workflow |
-| **Multi-strategy detection** | Automatically identifies N independent strategies per paper |
-| **5-layer LLM extraction** | L0 (detect) → L1-L4 (metadata, indicators, logic, execution) |
-| **3-step code generation** | Data module → signal module → backtest module → integration |
-| **AST + structural validation** | Syntax check + Backtrader structure verification |
-| **Automated backtesting** | Subprocess execution with metric extraction |
-| **Result diagnosis** | Compare backtest metrics against paper-reported results |
-| **Any LLM provider** | Any [litellm-supported model](https://docs.litellm.ai/docs/providers) |
-| **~$0.01/paper** | DeepSeek recommended for best cost-performance ratio |
+Format is auto-detected from file extension. No configuration needed.
 
 ## Examples
 
-| Paper | Strategies | Status |
-|-------|-----------|--------|
-| Tactical Asset Allocation (Faber) | 1: GTAA with SMA timing | spec + code |
-| Pairs Trading (Goncalves-Pinto et al.) | 3: Distance, Stationarity, Cointegration | spec |
-| Value and Momentum (Asness et al.) | 2: Value Factor, Momentum Factor | spec |
+Pre-generated outputs from real papers are available in [`examples/`](examples/):
 
-Pre-generated outputs → [`examples/`](examples/)
+| Paper | Strategies Detected | Artifacts |
+|:------|:-------------------|:----------|
+| **Tactical Asset Allocation** (Faber 2007) | 1 — GTAA with SMA timing | spec + code |
+| **Pairs Trading** (Goncalves-Pinto et al.) | 3 — Distance, Stationarity, Cointegration | spec |
+| **Value and Momentum** (Asness et al.) | 2 — Value Factor, Momentum Factor | spec |
+
+<details>
+<summary>Example output structure</summary>
+
+```
+library/tactical_aa/
+├── content.json          # Parsed paper content
+├── content.md            # Human-readable paper summary
+├── spec.json             # Structured strategy specification
+├── spec.md               # Human-readable spec
+├── metadata.json         # Run metadata (model, timing, etc.)
+├── strategy.py           # Generated Backtrader code
+├── validation_report.md  # AST + structural validation results
+└── results/
+    ├── backtest_output.txt
+    └── diagnosis_report.md
+```
+
+</details>
 
 ## Project Structure
 
 ```
-paper2spec/          # PDF → structured spec
-  parser.py          #   PDF → PaperContent (Mode A / Mode B)
-  extractor.py       #   PaperContent → ExtractionResult (L0-L4)
-  models.py, render.py, llm.py, prompts.py, search.py
-
-spec2code/           # Spec → code → backtest → diagnosis
-  prompts.py         #   Data/Signal/Backtest/Integration templates
-  validator.py       #   AST + structural validation
-  executor.py        #   Subprocess-based backtest execution
-  analyzer.py        #   Result comparison + report
-  models.py, config.py
-
-scripts/             # CLI entry points
-  analyze.py         #   Full paper2spec pipeline
-  generate.py        #   Full spec2code pipeline
-  validate_strategy.py, backtest.py, parse.py, extract.py, search.py
-
-references/          # Agent deep-dive docs (read on demand)
-  paper2spec.md, spec2code.md, backtrader_patterns.md,
-  indicator_cookbook.md, data_sources.md
-
-schemas/             # JSON Schema for outputs
-examples/            # Pre-generated reference outputs
-tests/               # Unit + E2E tests
-SKILL.md             # Agent instructions (auto-loaded by Copilot / Claude)
+anything2strategy/
+├── paper2spec/                 # Phase 1: Document → Structured Spec
+│   ├── parser.py               #   Multi-format parser (PDF / MD / DOCX / TXT)
+│   ├── extractor.py            #   PaperContent → ExtractionResult (L0-L4)
+│   ├── models.py               #   Data models (PaperContent, StrategySpec, etc.)
+│   ├── prompts.py              #   5-layer extraction prompt templates
+│   ├── llm.py                  #   LiteLLM unified interface
+│   ├── render.py               #   JSON → Markdown rendering
+│   └── search.py               #   arXiv + SSRN paper search
+│
+├── spec2code/                  # Phase 2: Spec → Code → Backtest → Diagnosis
+│   ├── prompts.py              #   Data / Signal / Backtest / Integration templates
+│   ├── validator.py            #   AST + structural + indicator validation
+│   ├── executor.py             #   Subprocess-based backtest execution
+│   ├── analyzer.py             #   Result comparison + diagnosis report
+│   └── models.py               #   CodeModules, ValidationResult
+│
+├── references/                 # Verified domain knowledge (not LLM hallucinations)
+│   ├── backtrader_patterns.md  #   Source-verified Backtrader patterns
+│   ├── indicator_cookbook.md    #   Official indicator params (from bt source code)
+│   ├── data_sources.md         #   yfinance + akshare API docs
+│   ├── paper2spec.md           #   Paper2Spec deep-dive guide
+│   └── spec2code.md            #   Spec2Code deep-dive guide
+│
+├── scripts/                    # CLI entry points
+│   ├── analyze.py              #   Full paper2spec pipeline
+│   ├── generate.py             #   Full spec2code pipeline
+│   └── validate_strategy.py    #   Standalone validation
+│
+├── schemas/                    # JSON Schema definitions
+├── examples/                   # Pre-generated reference outputs
+├── tests/                      # 180+ unit & integration tests
+├── SKILL.md                    # Agent Skill entry point
+└── pyproject.toml              # Project config & dependencies
 ```
 
-## Documentation
+## Key Design Decisions
 
-| Doc | Description |
-|-----|-------------|
-| [SKILL.md](SKILL.md) | Agent operating instructions — routing, setup, workflow |
-| [references/paper2spec.md](references/paper2spec.md) | Paper2spec detailed guide |
-| [references/spec2code.md](references/spec2code.md) | Spec2code detailed guide |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Pipeline architecture (中英双语) |
+<table>
+<tr>
+<td width="50%">
+
+### Why Reference Docs, Not Prompts?
+
+LLMs frequently hallucinate Backtrader API details:
+- SMA default `period` is `30`, not `20`
+- RSI uses `SmoothedMovingAverage`, not EMA
+- BollingerBands lines are `.top/.mid/.bot`, not `.upper/.lower`
+
+Our `references/` directory contains **source-code-verified** knowledge. The agent reads these docs on demand — zero hallucination on API details.
+
+</td>
+<td width="50%">
+
+### Why Structured Specs as Intermediate?
+
+Going directly from paper → code loses auditability. The `StrategySpec` intermediate:
+1. **Auditable** — humans can review the spec before code generation
+2. **Reusable** — same spec can target different backtest engines
+3. **Testable** — spec extraction and code generation are independently verifiable
+
+</td>
+</tr>
+</table>
 
 ## Configuration
 
-| Environment Variable | Default | Description |
-|---------------------|---------|-------------|
-| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Default output root |
-| `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | LLM model identifier |
-| `SPEC2CODE_BACKTEST_TIMEOUT` | `300` | Backtest timeout (seconds) |
-| `SPEC2CODE_DATA_CACHE` | `<library>/data_cache` | Data download cache |
-| `DEEPSEEK_API_KEY` | — | For DeepSeek models |
-| `OPENAI_API_KEY` | — | For OpenAI models |
-| `ANTHROPIC_API_KEY` | — | For Anthropic models |
+| Variable | Default | Description |
+|:---------|:--------|:------------|
+| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Output root directory |
+| `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | LLM model ([LiteLLM format](https://docs.litellm.ai/docs/providers)) |
+| `SPEC2CODE_BACKTEST_TIMEOUT` | `300` | Backtest timeout in seconds |
+| `DEEPSEEK_API_KEY` | — | DeepSeek (recommended: best cost/quality) |
+| `OPENAI_API_KEY` | — | OpenAI models |
+| `ANTHROPIC_API_KEY` | — | Anthropic models |
 
 All scripts accept `--model` to override `PAPER2SPEC_MODEL`.
 
+## Documentation
+
+| Resource | Description |
+|:---------|:------------|
+| [SKILL.md](SKILL.md) | Agent skill instructions — routing, setup, interaction gates |
+| [references/paper2spec.md](references/paper2spec.md) | Paper → Spec extraction deep-dive |
+| [references/spec2code.md](references/spec2code.md) | Spec → Code generation deep-dive |
+| [references/backtrader_patterns.md](references/backtrader_patterns.md) | Source-verified Backtrader patterns |
+| [references/indicator_cookbook.md](references/indicator_cookbook.md) | Official indicator parameter reference |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Pipeline architecture |
+
+## Testing
+
+```bash
+pytest tests/ -v              # 180+ deterministic tests
+pytest tests/ -v --run-real   # + real API tests (requires DEEPSEEK_API_KEY)
+```
+
+## Roadmap
+
+- [ ] Multi-engine support (Zipline, VectorBT)
+- [ ] Table & formula extraction from PDFs
+- [ ] Batch processing (multiple papers in parallel)
+- [ ] [qsa-benchmark](https://github.com/ALAGENT-HKU) integration (50-paper regression suite)
+- [ ] Canonical `StrategySpec` schema unification with QSA platform
+
+## Contributing
+
+We welcome contributions! Please see the [Architecture Doc](docs/ARCHITECTURE.md) for codebase orientation.
+
+```bash
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git && cd quant-paper2code
+uv sync --all-extras
+cp .env.example .env  # add API key
+pytest tests/ -v      # verify everything passes
+```
+
 ## License
 
-Apache-2.0 — Created by [ALAGENT AI](https://github.com/ALAGENT-HKU)
+[Apache-2.0](LICENSE) · Built by **[ALAGENT AI 优彦智能](https://github.com/ALAGENT-HKU)** — Verifiable & Trustworthy Financial AI

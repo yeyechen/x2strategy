@@ -1,0 +1,59 @@
+<svg
+  width="200"
+  height="200"
+  viewBox="0 0 200 200"
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <defs>
+    <linearGradient id="techBlue" x1="0" y1="0" x2="200" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0EA5E9"/>
+    </linearGradient>
+  </defs>
+  <!-- Shield -->
+  <path
+    d="M100 15 L165 42 C167 43 168 45 168 47 L168 95 C168 118 162 138 150 154 C138 170 121 182 100 188 C79 182 62 170 50 154 C38 138 32 118 32 95 L32 47 C32 45 33 43 35 42 L100 15 Z"
+    fill="none"
+    stroke="url(#techBlue)"
+    stroke-width="10"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+  <!-- Left diagonal -->
+  <path
+    d="M100 55 L70 145"
+    stroke="url(#techBlue)"
+    stroke-width="18"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Right diagonal -->
+  <path
+    d="M100 55 L130 145"
+    stroke="url(#techBlue)"
+    stroke-width="18"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <!-- Horizontal bar -->
+  <path
+    d="M82 110 L118 110"
+    stroke="url(#techBlue)"
+    stroke-width="16"
+    stroke-linecap="round"
+  />
+  <!-- Top accent -->
+  <path
+    d="M100 42 L105 52 L95 52 Z"
+    fill="#38BDF8"
+  />
+  <!-- Bottom foundation -->
+  <path
+    d="M85 155 L100 165 L115 155"
+    stroke="url(#techBlue)"
+    stroke-width="8"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>
