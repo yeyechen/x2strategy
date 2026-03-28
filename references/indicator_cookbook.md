@@ -1,38 +1,73 @@
 # Indicator Implementation Cookbook
 
+> Sources: backtrader.com/docu/indautoref/ (verified indicator parameters, aliases,
+> output line names). All defaults below are from the actual source code.
+
 Quick reference for translating common technical indicators into Backtrader code.
 Used during signal module code generation.
 
-## Built-in Indicators (bt.indicators)
+## Built-in Indicators — Verified Params & Lines
+
+### Moving Averages
+
+| Indicator | Code | Default Params | Output Lines | Aliases |
+|-----------|------|----------------|-------------|---------|
+| SMA | `bt.indicators.SMA(data, period=30)` | period=30 | `sma` | MovingAverageSimple, SimpleMovingAverage |
+| EMA | `bt.indicators.EMA(data, period=30)` | period=30 | `ema` | MovingAverageExponential, ExponentialMovingAverage |
+| WMA | `bt.indicators.WMA(data, period=30)` | period=30 | `wma` | MovingAverageWeighted, WeightedMovingAverage |
+| DEMA | `bt.indicators.DEMA(data, period=30)` | period=30 | `dema` | DoubleExponentialMovingAverage |
+| TEMA | `bt.indicators.TEMA(data, period=30)` | period=30 | `tema` | TripleExponentialMovingAverage |
+| HMA | `bt.indicators.HullMA(data, period=30)` | period=30 | `hma` | HullMovingAverage |
+| KAMA | `bt.indicators.KAMA(data, period=30)` | period=30, fast=2, slow=30 | `kama` | AdaptiveMovingAverage |
+| ZLEMA | `bt.indicators.ZeroLagExponentialMovingAverage(data)` | period=30 | `zlema` | ZeroLagEma |
+| SMMA | `bt.indicators.SmoothedMovingAverage(data)` | period=30 | `smma` | WilderMA, MovingAverageSmoothed |
+
+**Key MA fact**: ATR and RSI internally use `SmoothedMovingAverage` (Wilder's), not EMA.
 
 ### Trend
-| Indicator | Code | Notes |
-|-----------|------|-------|
-| SMA | `bt.indicators.SMA(data, period=20)` | Simple Moving Average |
-| EMA | `bt.indicators.EMA(data, period=12)` | Exponential Moving Average |
-| MACD | `bt.indicators.MACD(data)` | Returns macd, signal, histo |
-| Bollinger | `bt.indicators.BollingerBands(data, period=20)` | .top, .mid, .bot |
-| ADX | `bt.indicators.ADX(data, period=14)` | Average Directional Index |
+
+| Indicator | Code | Params | Lines | Notes |
+|-----------|------|--------|-------|-------|
+| MACD | `bt.indicators.MACD(data)` | period_me1=12, period_me2=26, period_signal=9 | `macd`, `signal` | MACDHisto adds `histo` line |
+| ADX | `bt.indicators.ADX(data, period=14)` | period=14, movav=SmoothedMovingAverage | `adx` | Also: `plus`/`minus` via DirectionalIndicator |
+| Ichimoku | `bt.indicators.Ichimoku(data)` | tenkan=9, kijun=26, senkou=52, senkou_lead=26, chikou=26 | `tenkan_sen`, `kijun_sen`, `senkou_span_a`, `senkou_span_b`, `chikou_span` | |
 
 ### Momentum
-| Indicator | Code | Notes |
-|-----------|------|-------|
-| RSI | `bt.indicators.RSI(data, period=14)` | Relative Strength Index |
-| Stochastic | `bt.indicators.Stochastic(data)` | %K and %D |
-| MFI | `bt.indicators.MFI(data, period=14)` | Money Flow Index |
-| ROC | `bt.indicators.ROC(data, period=12)` | Rate of Change |
+
+| Indicator | Code | Params | Lines | Notes |
+|-----------|------|--------|-------|-------|
+| RSI | `bt.indicators.RSI(data, period=14)` | period=14, movav=SmoothedMovingAverage, upperband=70, lowerband=30, safediv=False, safehigh=100.0, safelow=50.0 | `rsi` | Uses SmoothedMovingAverage (**NOT EMA**) |
+| RSI_EMA | `bt.indicators.RSI_EMA(data)` | Same but movav=EMA | `rsi` | Variant using EMA |
+| RSI_SMA | `bt.indicators.RSI_SMA(data)` | Same but movav=SMA | `rsi` | Cutler's RSI variant |
+| Stochastic | `bt.indicators.Stochastic(data)` | period=14, period_dfast=3, movav=SMA, upperband=80, lowerband=20, safediv=False | `percK`, `percD` | %K and %D |
+| StochasticFull | `bt.indicators.StochasticFull(data)` | period=14, period_dfast=3, period_dslow=3 | `percK`, `percD`, `percDSlow` | Full stochastic |
+| MFI | `bt.indicators.MFI(data, period=14)` | period=14 | `mfi` | MoneyFlowIndicator |
+| ROC | `bt.indicators.ROC(data, period=12)` | period=12 | `roc` | RateOfChange100 |
+| CCI | `bt.indicators.CCI(data, period=20)` | period=20, factor=0.015, movav=SMA, upperband=100, lowerband=-100 | `cci` | CommodityChannelIndex |
+| Williams %R | `bt.indicators.WilliamsR(data)` | period=14, upperband=-20, lowerband=-80 | `percR` | |
 
 ### Volatility
-| Indicator | Code | Notes |
-|-----------|------|-------|
-| ATR | `bt.indicators.ATR(data, period=14)` | Average True Range |
-| StdDev | `bt.indicators.StdDev(data, period=20)` | Standard Deviation |
+
+| Indicator | Code | Params | Lines | Notes |
+|-----------|------|--------|-------|-------|
+| ATR | `bt.indicators.ATR(data, period=14)` | period=14, movav=SmoothedMovingAverage | `atr` | AverageTrueRange; uses Wilder MA |
+| BollingerBands | `bt.indicators.BollingerBands(data)` | period=20, devfactor=2.0, movav=SMA | `mid`, `top`, `bot` | Alias: BBands |
+| StdDev | `bt.indicators.StdDev(data, period=20)` | period=20, movav=SMA, safepow=False | `stddev` | |
 
 ### Volume
-| Indicator | Code | Notes |
-|-----------|------|-------|
-| OBV | `bt.indicators.OBV(data)` | On-Balance Volume |
-| VWAP | custom (see below) | Volume-Weighted Average Price |
+
+| Indicator | Code | Params | Lines | Notes |
+|-----------|------|--------|-------|-------|
+| OBV | `bt.indicators.OBV(data)` | | `obv` | OnBalanceVolume |
+| VWAP | *custom* (see below) | | | Not built-in |
+
+### Signal Detection (CrossOver family)
+
+| Indicator | Code | Output | Meaning |
+|-----------|------|--------|---------|
+| CrossOver | `bt.indicators.CrossOver(fast, slow)` | `crossover` | +1 when fast crosses above slow, -1 when below, 0 otherwise |
+| CrossUp | `bt.indicators.CrossUp(fast, slow)` | `crossup` | 1 when fast crosses above slow |
+| CrossDown | `bt.indicators.CrossDown(fast, slow)` | `crossdown` | 1 when fast crosses below slow |
 
 ## Custom Indicator Patterns
 
@@ -48,7 +83,7 @@ class ZScore(bt.Indicator):
         self.lines.zscore = (self.data - mean) / std
 ```
 
-### VWAP
+### VWAP (not built-in)
 ```python
 class VWAP(bt.Indicator):
     lines = ('vwap',)
@@ -95,9 +130,8 @@ class RollingBeta(bt.Indicator):
 
 ## Signal Generation Patterns
 
-### Crossover
+### Crossover (using built-in)
 ```python
-# Built-in crossover detection
 self.cross = bt.indicators.CrossOver(self.fast_ma, self.slow_ma)
 
 def next(self):
@@ -124,22 +158,19 @@ def __init__(self):
     self.quality = bt.indicators.RSI(self.data.close, period=14) - 50
 
 def next(self):
-    score = (0.4 * self.momentum[0] + 0.3 * self.value[0] + 0.3 * self.quality[0])
+    score = 0.4 * self.momentum[0] + 0.3 * self.value[0] + 0.3 * self.quality[0]
     if score > self.p.threshold:
         self.buy()
 ```
 
-## Common Spec-to-Code Mappings
+## Indicator Gotchas (From Source Code)
 
-| Spec Description | Backtrader Code |
-|-----------------|-----------------|
-| "20-day moving average" | `bt.indicators.SMA(data.close, period=20)` |
-| "MACD signal line" | `bt.indicators.MACD(data).signal` |
-| "upper Bollinger band" | `bt.indicators.BollingerBands(data).top` |
-| "momentum score" | `bt.indicators.ROC(data.close, period=N)` |
-| "volatility-adjusted" | divide by `bt.indicators.ATR(data, period=14)` |
-| "z-score normalization" | custom ZScore indicator (see above) |
-| "pairs trading" | PairSpread + zscore on ratio of two feeds |
-| "buy at open, sell at close" | use `exectype=bt.Order.Market`, check bar timing |
-| "stop loss at 2%" | `self.sell(exectype=bt.Order.Stop, price=entry*0.98)` |
-| "trailing stop" | `bt.observers.StopTrail` or manual tracking in `next()` |
+1. **RSI default MA**: `SmoothedMovingAverage` (Wilder's smoothing), NOT EMA.
+   Use `RSI_EMA` if you need EMA-based RSI. Use `RSI_SMA` for Cutler's RSI.
+2. **SMA/EMA default period**: 30 (not 20). Always set period explicitly.
+3. **BollingerBands lines**: `.top`, `.mid`, `.bot` — NOT `.upper`, `.lower`.
+4. **MACD lines**: `.macd`, `.signal` — add `MACDHisto` for `.histo` line.
+5. **Stochastic lines**: `.percK`, `.percD` — NOT `.k`, `.d`.
+6. **ATR smoothing**: Uses Wilder/SmoothedMovingAverage by default, not SMA.
+7. **CCI factor**: Default is 0.015 (Lambert's constant).
+8. **CrossOver returns**: +1, -1, or 0 — NOT boolean True/False.

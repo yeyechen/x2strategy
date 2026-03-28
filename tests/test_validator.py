@@ -1,7 +1,7 @@
 """Tests for spec2code.validator — AST + structural validation."""
 
 import pytest
-from spec2code.validator import validate_code
+from spec2code.validator import validate_code, _VALID_INDICATORS
 
 
 # ── Valid Code ────────────────────────────────────────────────
@@ -134,3 +134,119 @@ cerebro.run()
         assert result.valid is True
         # Should have multiple warnings
         assert len(result.warnings) >= 3
+
+
+# ── Indicator Existence Check ─────────────────────────────────
+
+# These tests only run when backtrader is installed (codegen extra).
+_has_bt = len(_VALID_INDICATORS) > 0
+
+
+@pytest.mark.skipif(not _has_bt, reason="backtrader not installed")
+class TestIndicatorCheck:
+    """Validate that non-existent bt.indicators references are caught."""
+
+    def test_valid_indicator_passes(self):
+        code = '''
+import backtrader as bt
+
+class MyStrat(bt.Strategy):
+    def __init__(self):
+        self.sma = bt.indicators.SMA(self.data.close, period=20)
+        self.rsi = bt.ind.RSI(self.data.close)
+
+    def next(self):
+        pass
+
+if __name__ == '__main__':
+    cerebro = bt.Cerebro()
+    cerebro.addstrategy(MyStrat)
+    cerebro.run()
+'''
+        result = validate_code(code)
+        assert result.valid is True
+        assert result.errors == []
+
+    def test_invalid_indicator_caught(self):
+        code = '''
+import backtrader as bt
+
+class MyStrat(bt.Strategy):
+    def __init__(self):
+        self.x = bt.indicators.NonExistentFoo(self.data.close)
+
+    def next(self):
+        pass
+
+if __name__ == '__main__':
+    cerebro = bt.Cerebro()
+    cerebro.addstrategy(MyStrat)
+    cerebro.run()
+'''
+        result = validate_code(code)
+        assert result.valid is False
+        assert any("NonExistentFoo" in e for e in result.errors)
+
+    def test_invalid_indicator_via_bt_ind(self):
+        code = '''
+import backtrader as bt
+
+class MyStrat(bt.Strategy):
+    def __init__(self):
+        self.x = bt.ind.FakeIndicator123(self.data.close)
+
+    def next(self):
+        pass
+
+if __name__ == '__main__':
+    cerebro = bt.Cerebro()
+    cerebro.addstrategy(MyStrat)
+    cerebro.run()
+'''
+        result = validate_code(code)
+        assert result.valid is False
+        assert any("FakeIndicator123" in e for e in result.errors)
+
+    def test_invalid_indicator_via_btind(self):
+        code = '''
+import backtrader as bt
+import backtrader.indicators as btind
+
+class MyStrat(bt.Strategy):
+    def __init__(self):
+        self.x = btind.NotARealThing(self.data.close)
+
+    def next(self):
+        pass
+
+if __name__ == '__main__':
+    cerebro = bt.Cerebro()
+    cerebro.addstrategy(MyStrat)
+    cerebro.run()
+'''
+        result = validate_code(code)
+        assert result.valid is False
+        assert any("NotARealThing" in e for e in result.errors)
+
+    def test_mixed_valid_and_invalid(self):
+        code = '''
+import backtrader as bt
+
+class MyStrat(bt.Strategy):
+    def __init__(self):
+        self.sma = bt.indicators.SMA(self.data.close)
+        self.x = bt.indicators.BogusMA(self.data.close)
+
+    def next(self):
+        pass
+
+if __name__ == '__main__':
+    cerebro = bt.Cerebro()
+    cerebro.addstrategy(MyStrat)
+    cerebro.run()
+'''
+        result = validate_code(code)
+        assert result.valid is False
+        assert any("BogusMA" in e for e in result.errors)
+        # SMA should NOT be in errors
+        assert not any("SMA" in e for e in result.errors)
