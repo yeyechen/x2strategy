@@ -2,7 +2,7 @@
 
 <img src="assets/alagent_logo.svg" alt="ALAGENT Logo" width="120">
 
-# Anything2Strategy
+# X2Strategy
 
 **Any Research Input → Strategy Spec → Executable Code → Backtest → Diagnosis**
 
@@ -26,14 +26,14 @@
 - **🧠 5-Layer LLM Extraction** — Multi-strategy detection → indicators → signal logic → execution plan → risk controls.
 - **✅ Verified Code Generation** — AST validation + Backtrader structural checks + indicator registry, not just "generate and hope".
 - **📊 Automated Backtesting** — Execute, extract metrics, and diagnose against paper-reported performance.
-- **🤖 Agent-Native** — Works as an [Agent Skill](https://agentskills.io/) (`/anything2strategy`) in VS Code Copilot, Claude Code, or any compatible agent.
+- **🤖 Agent-Native** — Works as an [Agent Skill](https://agentskills.io/) (`/x2strategy`) in VS Code Copilot, Claude Code, or any compatible agent.
 - **💰 ~$0.01 per paper** — DeepSeek-powered. Any [LiteLLM-supported provider](https://docs.litellm.ai/docs/providers) works.
 
 ## How It Works
 
 ```
                         ┌──────────────────────────────────────────────────────────────┐
-                        │                    Anything2Strategy                         │
+                        │                    X2Strategy                              │
                         │                                                              │
   PDF / MD / DOCX / TXT │   ┌─────────┐   ┌───────────┐   ┌──────────┐   ┌─────────┐ │
   ─────────────────────►│   │  Parse   ├──►│  Extract   ├──►│ Generate ├──►│Backtest │ │
@@ -57,27 +57,27 @@
 
 ### Option A: As an Agent Skill (Recommended)
 
-> [Agent Skills](https://agentskills.io/) is an open standard. Clone into the agent's skill directory — it auto-discovers `SKILL.md` and registers the `/anything2strategy` slash command.
+> [Agent Skills](https://agentskills.io/) is an open standard. Clone into the agent's skill directory — it auto-discovers `SKILL.md` and registers the `/x2strategy` slash command.
 
 <table>
 <tr><td><b>GitHub Copilot</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.copilot/skills/anything2strategy
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.copilot/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>Claude Code</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.claude/skills/anything2strategy
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.claude/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>Project-scoped</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/anything2strategy
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/x2strategy
 ```
 
 </td></tr>
@@ -86,12 +86,12 @@ git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/any
 Then install dependencies:
 
 ```bash
-cd ~/.copilot/skills/anything2strategy   # or wherever you cloned
+cd ~/.copilot/skills/x2strategy   # or wherever you cloned
 uv sync --extra codegen                  # core + backtrader + yfinance + akshare
 ```
 
 > [!IMPORTANT]
-> The directory name **must** be `anything2strategy` (matching the `name` field in `SKILL.md`). Once installed, type `/anything2strategy` in chat or the agent auto-activates when relevant.
+> The directory name **must** be `x2strategy` (matching the `name` field in `SKILL.md`). Once installed, type `/x2strategy` in chat or the agent auto-activates when relevant.
 
 ### Option B: Standalone CLI
 
@@ -180,7 +180,7 @@ library/tactical_aa/
 ## Project Structure
 
 ```
-anything2strategy/
+x2strategy/
 ├── paper2spec/                 # Phase 1: Document → Structured Spec
 │   ├── parser.py               #   Multi-format parser (PDF / MD / DOCX / TXT)
 │   ├── extractor.py            #   PaperContent → ExtractionResult (L0-L4)

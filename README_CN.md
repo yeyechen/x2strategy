@@ -2,7 +2,7 @@
 
 <img src="assets/alagent_logo.svg" alt="ALAGENT Logo" width="120">
 
-# Anything2Strategy
+# X2Strategy
 
 **任意研究输入 → 策略规格 → 可执行代码 → 回测 → 诊断报告**
 
@@ -26,14 +26,14 @@
 - **🧠 5 层 LLM 提取** — 多策略检测 → 指标提取 → 信号逻辑 → 执行计划 → 风控规则。
 - **✅ 可验证的代码生成** — AST 语法校验 + Backtrader 结构检查 + 指标注册表核查，而非"生成然后祈祷"。
 - **📊 自动化回测** — 自动执行回测、提取指标，并与论文报告的结果进行对照诊断。
-- **🤖 Agent 原生** — 作为 [Agent Skill](https://agentskills.io/) (`/anything2strategy`) 运行在 VS Code Copilot、Claude Code 或任何兼容的 Agent 平台。
+- **🤖 Agent 原生** — 作为 [Agent Skill](https://agentskills.io/) (`/x2strategy`) 运行在 VS Code Copilot、Claude Code 或任何兼容的 Agent 平台。
 - **💰 每篇论文约 ¥0.07** — 推荐使用 DeepSeek，支持任意 [LiteLLM 兼容模型](https://docs.litellm.ai/docs/providers)。
 
 ## 工作原理
 
 ```
                         ┌──────────────────────────────────────────────────────────────┐
-                        │                    Anything2Strategy                         │
+                        │                    X2Strategy                              │
                         │                                                              │
   PDF / MD / DOCX / TXT │   ┌─────────┐   ┌───────────┐   ┌──────────┐   ┌─────────┐ │
   ─────────────────────►│   │  解析    ├──►│  提取      ├──►│  生成    ├──►│  回测   │ │
@@ -57,27 +57,27 @@
 
 ### 方式 A：作为 Agent Skill（推荐）
 
-> [Agent Skills](https://agentskills.io/) 是开放标准。Clone 到 Agent 的 skill 目录后，Agent 自动发现 `SKILL.md` 并注册 `/anything2strategy` 斜杠命令。
+> [Agent Skills](https://agentskills.io/) 是开放标准。Clone 到 Agent 的 skill 目录后，Agent 自动发现 `SKILL.md` 并注册 `/x2strategy` 斜杠命令。
 
 <table>
 <tr><td><b>GitHub Copilot</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.copilot/skills/anything2strategy
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.copilot/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>Claude Code</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.claude/skills/anything2strategy
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.claude/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>项目级共享</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/anything2strategy
+git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/x2strategy
 ```
 
 </td></tr>
@@ -86,12 +86,12 @@ git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/any
 安装依赖：
 
 ```bash
-cd ~/.copilot/skills/anything2strategy   # 或你 clone 到的路径
+cd ~/.copilot/skills/x2strategy   # 或你 clone 到的路径
 uv sync --extra codegen                  # 核心 + backtrader + yfinance + akshare
 ```
 
 > [!IMPORTANT]
-> 目录名**必须**为 `anything2strategy`（与 `SKILL.md` 中的 `name` 字段一致）。安装后，在对话中输入 `/anything2strategy` 即可调用，或 Agent 在相关上下文中自动激活。
+> 目录名**必须**为 `x2strategy`（与 `SKILL.md` 中的 `name` 字段一致）。安装后，在对话中输入 `/x2strategy` 即可调用，或 Agent 在相关上下文中自动激活。
 
 ### 方式 B：独立 CLI 工具
 
@@ -180,7 +180,7 @@ library/tactical_aa/
 ## 项目结构
 
 ```
-anything2strategy/
+x2strategy/
 ├── paper2spec/                 # 阶段 1：文档 → 结构化规格
 │   ├── parser.py               #   多格式解析器（PDF / MD / DOCX / TXT）
 │   ├── extractor.py            #   PaperContent → ExtractionResult (L0-L4)

@@ -1,7 +1,7 @@
 ---
-name: anything2strategy
+name: x2strategy
 description: >
-  ALAGENT Anything2Strategy: any research input (PDF paper, Markdown draft,
+  ALAGENT X2Strategy: any research input (PDF paper, Markdown draft,
   DOCX report, text notes, or keyword search) → structured strategy
   specification → executable Backtrader code → backtest → diagnosis report.
   Two core capabilities: (1) paper2spec extracts multi-strategy specs from
@@ -22,7 +22,7 @@ metadata:
   tags: [quantitative-finance, paper-parsing, strategy-extraction, code-generation, backtesting]
 ---
 
-# Anything2Strategy
+# X2Strategy
 
 Any research input → Strategy spec → Executable code → Backtest → Diagnosis.
 
