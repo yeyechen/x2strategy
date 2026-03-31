@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
-"""analyze.py — One-shot PDF → all outputs (content + spec + markdown).
+"""analyze.py — One-shot document → all outputs (content + spec + markdown).
 
 Runs the full paper2spec pipeline:
-  1. Parse PDF → PaperContent JSON + Markdown
+  1. Parse document (PDF/MD/DOCX/TXT) → PaperContent JSON + Markdown
   2. Extract PaperContent → ExtractionResult JSON + Markdown
 
 All outputs are written to the specified output directory.
 
 Usage:
-    python scripts/analyze.py paper.pdf                     # outputs to <library>/<paper_slug>/
+    python scripts/analyze.py paper.pdf                     # PDF input
+    python scripts/analyze.py strategy.md                   # Markdown input
+    python scripts/analyze.py report.docx                   # DOCX input
     python scripts/analyze.py paper.pdf -o library/paper/    # custom output dir
     python scripts/analyze.py paper.pdf --parser-mode agent  # Mode B (FAISS)
 """
@@ -26,7 +28,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from paper2spec.extractor import extract_spec
 from paper2spec.config import get_library_path
 from paper2spec.models import PaperContent
-from paper2spec.parser import parse_pdf
+from paper2spec.parser import parse_document
 from paper2spec.render import content_to_markdown, spec_to_markdown
 
 
@@ -40,9 +42,9 @@ def _slugify(text: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Full pipeline: PDF → PaperContent + StrategySpec (JSON + Markdown)."
+        description="Full pipeline: Document (PDF/MD/DOCX/TXT) → PaperContent + StrategySpec (JSON + Markdown)."
     )
-    parser.add_argument("pdf", help="Path to the PDF file")
+    parser.add_argument("input", help="Path to document file (PDF, .md, .docx, or .txt)")
     parser.add_argument(
         "-o", "--output-dir",
         help="Output directory (default: <PAPER2SPEC_LIBRARY_PATH>/<slugified_title>/)",
@@ -68,13 +70,13 @@ def main():
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    if not os.path.isfile(args.pdf):
-        print(f"Error: file not found: {args.pdf}", file=sys.stderr)
+    if not os.path.isfile(args.input):
+        print(f"Error: file not found: {args.input}", file=sys.stderr)
         sys.exit(1)
 
     # ── Stage 1: Parse ──
-    print(f"📄 Parsing {args.pdf}...")
-    pc = parse_pdf(args.pdf, mode=args.parser_mode, model=args.model)
+    print(f"📄 Parsing {args.input}...")
+    pc = parse_document(args.input, mode=args.parser_mode, model=args.model)
     print(f"   Title: {pc.title}")
 
     # Determine output directory
@@ -82,7 +84,7 @@ def main():
         out_dir = args.output_dir
     else:
         base_library = get_library_path()
-        slug = _slugify(pc.title or os.path.splitext(os.path.basename(args.pdf))[0])
+        slug = _slugify(pc.title or os.path.splitext(os.path.basename(args.input))[0])
         out_dir = os.path.join(base_library, slug)
     os.makedirs(out_dir, exist_ok=True)
 
@@ -116,17 +118,19 @@ def main():
     print(f"   → {spec_json_path} ({os.path.getsize(spec_json_path):,} bytes)")
     print(f"   → {spec_md_path}")
 
-    # Copy original PDF into output directory for self-contained library
-    pdf_basename = os.path.basename(args.pdf)
-    pdf_dest = os.path.join(out_dir, pdf_basename)
-    if os.path.abspath(args.pdf) != os.path.abspath(pdf_dest):
-        shutil.copy2(args.pdf, pdf_dest)
-        print(f"   → {pdf_dest} (original PDF)")
+    # Copy original source file into output directory for self-contained library
+    src_basename = os.path.basename(args.input)
+    src_dest = os.path.join(out_dir, src_basename)
+    if os.path.abspath(args.input) != os.path.abspath(src_dest):
+        shutil.copy2(args.input, src_dest)
+        print(f"   → {src_dest} (original source)")
 
     # Write metadata
     metadata = {
-        "source_pdf": os.path.abspath(args.pdf),
-        "pdf_file": pdf_basename,
+        "source_file": os.path.abspath(args.input),
+        "source_filename": src_basename,
+        "source_format": os.path.splitext(src_basename)[1].lower(),
+        "paper_title": pc.title,
         "paper_title": pc.title,
         "parser_mode": args.parser_mode,
         "extractor_mode": args.extractor_mode,
@@ -147,7 +151,7 @@ def main():
         print(f"       {len(spec.indicators)} indicators, {len(spec.logic_pipeline)} logic steps")
 
     print(f"\n   Files:")
-    print(f"     {pdf_basename:<16s} — Original PDF")
+    print(f"     {src_basename:<16s} — Original document")
     print(f"     content.json   — PaperContent (machine-readable)")
     print(f"     content.md     — PaperContent (human-readable)")
     print(f"     spec.json      — StrategySpec (machine-readable)")

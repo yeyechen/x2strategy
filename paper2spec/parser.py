@@ -1,8 +1,10 @@
-"""Semantic paper parser — PDF → PaperContent.
+"""Semantic paper parser — Document → PaperContent.
+
+Supported formats: PDF, Markdown (.md), DOCX, plain text.
 
 Two modes (eng decision: dual-mode):
-  - Mode A (builtin / lightweight): PDF extraction + LLM direct extraction (no embeddings)
-  - Mode B (agent / full):  PDF extraction + FAISS semantic search + LLM extraction
+  - Mode A (builtin / lightweight): text extraction + LLM direct extraction (no embeddings)
+  - Mode B (agent / full):  text extraction + FAISS semantic search + LLM extraction
 """
 
 import asyncio
@@ -86,6 +88,82 @@ async def aparse_pdf(
 def parse_text(text: str, *, source: str = "text", mode: str = "builtin", model: Optional[str] = None) -> PaperContent:
     """Sync: raw text → PaperContent."""
     return asyncio.run(_parse_text(text, source=source, mode=mode, model=model))
+
+
+def parse_markdown(md_path: str, *, mode: str = "builtin", model: Optional[str] = None) -> PaperContent:
+    """Sync: Markdown file → PaperContent."""
+    return asyncio.run(aparse_markdown(md_path, mode=mode, model=model))
+
+
+async def aparse_markdown(
+    md_path: str, *, mode: str = "builtin", model: Optional[str] = None
+) -> PaperContent:
+    """Async: Markdown file → PaperContent."""
+    logger.info("Parsing Markdown %s (mode=%s)", md_path, mode)
+    with open(md_path, "r", encoding="utf-8") as f:
+        full_text = f.read()
+    logger.info("Read %d chars from Markdown", len(full_text))
+    return await _parse_text(full_text, source=md_path, mode=mode, model=model)
+
+
+def parse_docx(docx_path: str, *, mode: str = "builtin", model: Optional[str] = None) -> PaperContent:
+    """Sync: DOCX file → PaperContent. Requires python-docx."""
+    return asyncio.run(aparse_docx(docx_path, mode=mode, model=model))
+
+
+async def aparse_docx(
+    docx_path: str, *, mode: str = "builtin", model: Optional[str] = None
+) -> PaperContent:
+    """Async: DOCX file → PaperContent. Requires python-docx."""
+    logger.info("Parsing DOCX %s (mode=%s)", docx_path, mode)
+    try:
+        import docx
+    except ImportError as e:
+        raise ImportError(
+            "DOCX support requires: pip install python-docx  "
+            "(or: uv sync --extra docx)"
+        ) from e
+
+    doc = await asyncio.to_thread(docx.Document, docx_path)
+    paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+    full_text = "\n\n".join(paragraphs)
+    logger.info("Extracted %d chars from DOCX (%d paragraphs)", len(full_text), len(paragraphs))
+    return await _parse_text(full_text, source=docx_path, mode=mode, model=model)
+
+
+_FORMAT_DISPATCH = {
+    ".pdf": aparse_pdf,
+    ".md": aparse_markdown,
+    ".markdown": aparse_markdown,
+    ".docx": aparse_docx,
+    ".txt": None,  # handled specially
+}
+
+
+def parse_document(path: str, *, mode: str = "builtin", model: Optional[str] = None) -> PaperContent:
+    """Sync: auto-detect format from extension and parse.
+
+    Supported: .pdf, .md, .markdown, .docx, .txt
+    """
+    return asyncio.run(aparse_document(path, mode=mode, model=model))
+
+
+async def aparse_document(
+    path: str, *, mode: str = "builtin", model: Optional[str] = None
+) -> PaperContent:
+    """Async: auto-detect format from extension and parse."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext not in _FORMAT_DISPATCH:
+        raise ValueError(
+            f"Unsupported file format '{ext}'. "
+            f"Supported: {', '.join(sorted(_FORMAT_DISPATCH.keys()))}"
+        )
+    if ext == ".txt":
+        with open(path, "r", encoding="utf-8") as f:
+            text = f.read()
+        return await _parse_text(text, source=path, mode=mode, model=model)
+    handler = _FORMAT_DISPATCH[ext]
+    return await handler(path, mode=mode, model=model)
 
 
 async def _parse_text(

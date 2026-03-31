@@ -841,16 +841,28 @@ class TestExtractorMultiStrategy:
     @pytest.mark.asyncio
     @patch("paper2spec.extractor.achat", new_callable=AsyncMock)
     async def test_multi_strategy_names_preserved(self, mock_achat, pairs_paper_content):
-        """Each strategy should retain its Layer 0 name."""
-        mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_MULTI)
+        """Each strategy should retain its Layer 0 name when L1 returns paper title."""
+        # Override logic triggers when L1 returns strategy_name == paper title.
+        # Create a Layer 1 mock that returns the paper title to trigger override.
+        l1_data = json.loads(_MOCK_LAYER1)
+        l1_data["strategy_name"] = pairs_paper_content.title
+        l1_with_paper_title = json.dumps(l1_data)
+
+        base_router = _make_layer_router(_MOCK_LAYER0_MULTI)
+
+        async def router_with_title_override(prompt, *, system="", model=None, **kwargs):
+            p = prompt.lower()
+            if "metadata and data" in p[:500] or "asset_class" in p[:800]:
+                return l1_with_paper_title
+            return await base_router(prompt, system=system, model=model, **kwargs)
+
+        mock_achat.side_effect = router_with_title_override
         from paper2spec.extractor import aextract_spec
         result = await aextract_spec(pairs_paper_content, mode="multilayer")
 
         names = [s.strategy_name for s in result.strategies]
-        # At least one should have its brief name (where layer1 returns generic)
-        # Since our mock always returns "Time-Series Momentum" from L1,
-        # the override logic should kick in
-        assert any(n != "Time-Series Momentum" for n in names)
+        brief_names = {"Distance Method Pairs Trading", "Cointegration Pairs Trading", "Copula Pairs Trading"}
+        assert set(names) == brief_names
 
     @pytest.mark.asyncio
     @patch("paper2spec.extractor.achat", new_callable=AsyncMock)
