@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/alagent_logo.svg" alt="ALAGENT Logo" width="120">
+<img src="assets/alagent_logo.png" alt="ALAGENT Logo" width="120">
 
 # X2Strategy
 
@@ -293,4 +293,20 @@ pytest tests/ -v      # 验证所有测试通过
 
 ## 许可证
 
-[Apache-2.0](LICENSE) · 由 **[ALAGENT AI 优彦智能](https://github.com/ALAGENT-HKU)** 构建 — 可验证、可信赖的金融 AI
+[Apache-2.0](LICENSE) · 由 **[ALAGENT AI 优彦智能](https://home.alagent.cloud)** 构建 — 可验证、可信赖的金融 AI
+
+---
+
+<div align="center">
+
+## 💬 加入社区
+
+<a href="https://home.alagent.cloud">🌐 官网</a> &nbsp;·&nbsp; <a href="https://github.com/ALAGENT-HKU">GitHub</a>
+
+<br>
+
+<img src="assets/wechat_qr.jpg" alt="微信交流群二维码" width="260">
+
+**扫码加入 ALAGENT 开源交流群**
+
+</div>

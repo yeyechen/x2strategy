@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="assets/alagent_logo.svg" alt="ALAGENT Logo" width="120">
+<img src="assets/alagent_logo.png" alt="ALAGENT Logo" width="120">
 
 # X2Strategy
 
@@ -141,7 +141,7 @@ The agent handles everything: parsing, extraction, code generation, validation, 
 
 | Format | Extensions | Parser | Notes |
 |:-------|:-----------|:-------|:------|
-| **PDF** | `.pdf` | PyMuPDF → Mode A (direct) or Mode B (FAISS) | Full support, covers 95%+ of papers |
+| **PDF** | `.pdf` | PyMuPDF → Mode A (direct) or Mode B (FAISS) | Full support, covering 95%+ of papers |
 | **Markdown** | `.md` `.markdown` | Direct text read | Ideal for strategy drafts and notes |
 | **Word** | `.docx` | python-docx (`uv sync --extra docx`) | Internal research reports |
 | **Plain text** | `.txt` | Direct read | Raw strategy descriptions |
@@ -297,4 +297,20 @@ pytest tests/ -v      # verify everything passes
 
 ## License
 
-[Apache-2.0](LICENSE) · Built by **[ALAGENT AI 优彦智能](https://github.com/ALAGENT-HKU)** — Verifiable & Trustworthy Financial AI
+[Apache-2.0](LICENSE) · Built by **[ALAGENT AI 优彦智能](https://home.alagent.cloud)** — Verifiable & Trustworthy Financial AI
+
+---
+
+<div align="center">
+
+## 💬 Join the Community
+
+<a href="https://home.alagent.cloud">🌐 Website</a> &nbsp;·&nbsp; <a href="https://github.com/ALAGENT-HKU">GitHub</a>
+
+<br>
+
+<img src="assets/wechat_qr.jpg" alt="WeChat Group QR" width="260">
+
+**Scan to join the ALAGENT Open-Source WeChat Group**
+
+</div>
