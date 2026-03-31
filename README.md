@@ -253,8 +253,8 @@ Going directly from paper → code loses auditability. The `StrategySpec` interm
 | `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | LLM model ([LiteLLM format](https://docs.litellm.ai/docs/providers)) |
 | `SPEC2CODE_BACKTEST_TIMEOUT` | `300` | Backtest timeout in seconds |
 | `DEEPSEEK_API_KEY` | — | DeepSeek (recommended: best cost/quality) |
-| `OPENAI_API_KEY` | — | OpenAI models |
-| `ANTHROPIC_API_KEY` | — | Anthropic models |
+| `OPENROUTER_API_KEY` | — | OpenRouter (one key, all models) |
+| `OPENAI_API_KEY` | — | OpenAI direct |
 
 All scripts accept `--model` to override `PAPER2SPEC_MODEL`.
 

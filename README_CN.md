@@ -249,8 +249,8 @@ LLM 经常在 Backtrader API 细节上产生幻觉：
 | `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | LLM 模型（[LiteLLM 格式](https://docs.litellm.ai/docs/providers)） |
 | `SPEC2CODE_BACKTEST_TIMEOUT` | `300` | 回测超时（秒） |
 | `DEEPSEEK_API_KEY` | — | DeepSeek（推荐：最佳性价比） |
-| `OPENAI_API_KEY` | — | OpenAI 模型 |
-| `ANTHROPIC_API_KEY` | — | Anthropic 模型 |
+| `OPENROUTER_API_KEY` | — | OpenRouter（一个 Key 访问所有模型） |
+| `OPENAI_API_KEY` | — | OpenAI 直连 |
 
 所有脚本支持 `--model` 参数覆盖 `PAPER2SPEC_MODEL`。
 
