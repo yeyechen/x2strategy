@@ -27,7 +27,7 @@
 - **✅ Verified Code Generation** — AST validation + Backtrader structural checks + indicator registry, not just "generate and hope".
 - **📊 Automated Backtesting** — Execute, extract metrics, and diagnose against paper-reported performance.
 - **🤖 Agent-Native** — Works as an [Agent Skill](https://agentskills.io/) (`/x2strategy`) in VS Code Copilot, Claude Code, or any compatible agent.
-- **💰 ~$0.01 per paper** — DeepSeek-powered. Any [LiteLLM-supported provider](https://docs.litellm.ai/docs/providers) works.
+- **💰 ~$0.1 per paper** — DeepSeek-powered. Any [LiteLLM-supported provider](https://docs.litellm.ai/docs/providers) works.
 
 ## How It Works
 
