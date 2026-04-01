@@ -63,21 +63,21 @@
 <tr><td><b>GitHub Copilot</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.copilot/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git ~/.copilot/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>Claude Code</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.claude/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git ~/.claude/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>项目级共享</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git .github/skills/x2strategy
 ```
 
 </td></tr>
@@ -96,7 +96,7 @@ uv sync --extra codegen                  # 核心 + backtrader + yfinance + aksh
 ### 方式 B：独立 CLI 工具
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git && cd quant-paper2code
+git clone https://github.com/ALAGENT-HKU/x2strategy.git && cd x2strategy
 uv sync --extra codegen    # 核心 + 回测
 uv sync --extra agent      # + FAISS 语义搜索（适合 100+ 页的长论文）
 uv sync --extra dev        # + pytest
@@ -285,7 +285,7 @@ pytest tests/ -v --run-real   # + 真实 API 测试（需要 DEEPSEEK_API_KEY）
 欢迎贡献！请参阅[架构文档](docs/ARCHITECTURE.md)了解代码库。
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git && cd quant-paper2code
+git clone https://github.com/ALAGENT-HKU/x2strategy.git && cd x2strategy
 uv sync --all-extras
 cp .env.example .env  # 填入 API Key
 pytest tests/ -v      # 验证所有测试通过
