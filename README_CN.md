@@ -302,7 +302,7 @@ pytest tests/ -v      # 验证所有测试通过
 
 ## 💬 加入社区
 
-<a href="http://home.alagent.cloud">🌐 官网</a> &nbsp;·&nbsp; <a href="https://github.com/ALAGENT-HKU">GitHub</a>
+<a href="https://home.alagent.cloud">🌐 官网</a> &nbsp;·&nbsp; <a href="https://github.com/ALAGENT-HKU">GitHub</a> &nbsp;·&nbsp; <a href="mailto:contact@alagent.cloud">📧 contact@alagent.cloud</a>
 
 <br>
 

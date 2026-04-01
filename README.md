@@ -306,7 +306,7 @@ pytest tests/ -v      # verify everything passes
 
 ## 💬 Join the Community
 
-<a href="https://home.alagent.cloud">🌐 Website</a> &nbsp;·&nbsp; <a href="https://github.com/ALAGENT-HKU">GitHub</a>
+<a href="https://home.alagent.cloud">🌐 Website</a> &nbsp;·&nbsp; <a href="https://github.com/ALAGENT-HKU">GitHub</a> &nbsp;·&nbsp; <a href="mailto:contact@alagent.cloud">📧 contact@alagent.cloud</a>
 
 <br>
 
