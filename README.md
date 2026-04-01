@@ -297,7 +297,7 @@ pytest tests/ -v      # verify everything passes
 
 ## License
 
-[Apache-2.0](LICENSE) · Built by **[ALAGENT AI 优彦智能](https://home.alagent.cloud)** — Verifiable & Trustworthy Financial AI
+[Apache-2.0](LICENSE) · Built by **[ALAGENT AI 优彦智能](http://home.alagent.cloud)** — Verifiable & Trustworthy Financial AI
 
 ---
 
