@@ -87,6 +87,7 @@ git clone https://github.com/ALAGENT-HKU/x2strategy.git .github/skills/x2strateg
 
 ```bash
 cd ~/.copilot/skills/x2strategy   # 或你 clone 到的路径
+# 如果没有安装uv，请执行 pip install uv
 uv sync --extra codegen                  # 核心 + backtrader + yfinance + akshare
 ```
 
