@@ -27,7 +27,7 @@
 - **✅ 可验证的代码生成** — AST 语法校验 + Backtrader 结构检查 + 指标注册表核查，而非"生成然后祈祷"。
 - **📊 自动化回测** — 自动执行回测、提取指标，并与论文报告的结果进行对照诊断。
 - **🤖 Agent 原生** — 作为 [Agent Skill](https://agentskills.io/) (`/x2strategy`) 运行在 VS Code Copilot、Claude Code 或任何兼容的 Agent 平台。
-- **💰 每篇论文约 ¥0.07** — 推荐使用 DeepSeek，支持任意 [LiteLLM 兼容模型](https://docs.litellm.ai/docs/providers)。
+- **💰 每篇论文约 ¥0.7** — 推荐使用 DeepSeek，支持任意 [LiteLLM 兼容模型](https://docs.litellm.ai/docs/providers)。
 
 ## 工作原理
 

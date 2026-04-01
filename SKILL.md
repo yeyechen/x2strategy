@@ -97,7 +97,7 @@ If none found, present via interactive tool:
 
 ```
 需要一个 LLM API Key 来驱动策略提取和代码生成。推荐方案（二选一）：
-  1. DeepSeek（性价比最优，每篇论文约 ¥0.07）→ https://platform.deepseek.com
+  1. DeepSeek（性价比最优，每篇论文约 ¥0.7）→ https://platform.deepseek.com
   2. OpenRouter（一个 Key 访问所有模型）→ https://openrouter.ai/keys
 请把你的 API Key 发给我，并告诉我是哪个平台的。
 ```
