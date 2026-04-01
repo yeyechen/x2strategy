@@ -63,21 +63,21 @@
 <tr><td><b>GitHub Copilot</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.copilot/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git ~/.copilot/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>Claude Code</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.claude/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git ~/.claude/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>Project-scoped</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git .github/skills/x2strategy
 ```
 
 </td></tr>
@@ -96,7 +96,7 @@ uv sync --extra codegen                  # core + backtrader + yfinance + akshar
 ### Option B: Standalone CLI
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git && cd quant-paper2code
+git clone https://github.com/ALAGENT-HKU/x2strategy.git && cd x2strategy
 uv sync --extra codegen    # core + backtest
 uv sync --extra agent      # + FAISS semantic search (for 100+ page papers)
 uv sync --extra dev        # + pytest
@@ -289,7 +289,7 @@ pytest tests/ -v --run-real   # + real API tests (requires DEEPSEEK_API_KEY)
 We welcome contributions! Please see the [Architecture Doc](docs/ARCHITECTURE.md) for codebase orientation.
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git && cd quant-paper2code
+git clone https://github.com/ALAGENT-HKU/x2strategy.git && cd x2strategy
 uv sync --all-extras
 cp .env.example .env  # add API key
 pytest tests/ -v      # verify everything passes
