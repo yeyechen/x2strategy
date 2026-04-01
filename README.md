@@ -87,6 +87,7 @@ Then install dependencies:
 
 ```bash
 cd ~/.copilot/skills/x2strategy   # or wherever you cloned
+# if you haven't installed uv, run `pip install uv`
 uv sync --extra codegen                  # core + backtrader + yfinance + akshare
 ```
 
