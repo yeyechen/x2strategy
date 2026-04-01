@@ -293,7 +293,7 @@ pytest tests/ -v      # 验证所有测试通过
 
 ## 许可证
 
-[Apache-2.0](LICENSE) · 由 **[ALAGENT AI 优彦智能](https://home.alagent.cloud)** 构建 — 可验证、可信赖的金融 AI
+[Apache-2.0](LICENSE) · 由 **[ALAGENT AI 优彦智能](http://home.alagent.cloud)** 构建 — 可验证、可信赖的金融 AI
 
 ---
 
@@ -301,7 +301,7 @@ pytest tests/ -v      # 验证所有测试通过
 
 ## 💬 加入社区
 
-<a href="https://home.alagent.cloud">🌐 官网</a> &nbsp;·&nbsp; <a href="https://github.com/ALAGENT-HKU">GitHub</a>
+<a href="http://home.alagent.cloud">🌐 官网</a> &nbsp;·&nbsp; <a href="https://github.com/ALAGENT-HKU">GitHub</a>
 
 <br>
 
