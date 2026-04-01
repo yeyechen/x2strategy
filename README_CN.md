@@ -27,7 +27,7 @@
 - **✅ 可验证的代码生成** — AST 语法校验 + Backtrader 结构检查 + 指标注册表核查，而非"生成然后祈祷"。
 - **📊 自动化回测** — 自动执行回测、提取指标，并与论文报告的结果进行对照诊断。
 - **🤖 Agent 原生** — 作为 [Agent Skill](https://agentskills.io/) (`/x2strategy`) 运行在 VS Code Copilot、Claude Code 或任何兼容的 Agent 平台。
-- **💰 每篇论文约 ¥0.07** — 推荐使用 DeepSeek，支持任意 [LiteLLM 兼容模型](https://docs.litellm.ai/docs/providers)。
+- **💰 每篇论文约 ¥0.7** — 推荐使用 DeepSeek，支持任意 [LiteLLM 兼容模型](https://docs.litellm.ai/docs/providers)。
 
 ## 工作原理
 
@@ -63,21 +63,21 @@
 <tr><td><b>GitHub Copilot</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.copilot/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git ~/.copilot/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>Claude Code</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.claude/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git ~/.claude/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>项目级共享</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git .github/skills/x2strategy
 ```
 
 </td></tr>
@@ -87,6 +87,7 @@ git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/x2s
 
 ```bash
 cd ~/.copilot/skills/x2strategy   # 或你 clone 到的路径
+# 如果没有安装uv，请执行 pip install uv
 uv sync --extra codegen                  # 核心 + backtrader + yfinance + akshare
 ```
 
@@ -96,7 +97,7 @@ uv sync --extra codegen                  # 核心 + backtrader + yfinance + aksh
 ### 方式 B：独立 CLI 工具
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git && cd quant-paper2code
+git clone https://github.com/ALAGENT-HKU/x2strategy.git && cd x2strategy
 uv sync --extra codegen    # 核心 + 回测
 uv sync --extra agent      # + FAISS 语义搜索（适合 100+ 页的长论文）
 uv sync --extra dev        # + pytest
@@ -285,7 +286,7 @@ pytest tests/ -v --run-real   # + 真实 API 测试（需要 DEEPSEEK_API_KEY）
 欢迎贡献！请参阅[架构文档](docs/ARCHITECTURE.md)了解代码库。
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git && cd quant-paper2code
+git clone https://github.com/ALAGENT-HKU/x2strategy.git && cd x2strategy
 uv sync --all-extras
 cp .env.example .env  # 填入 API Key
 pytest tests/ -v      # 验证所有测试通过
@@ -293,7 +294,7 @@ pytest tests/ -v      # 验证所有测试通过
 
 ## 许可证
 
-[Apache-2.0](LICENSE) · 由 **[ALAGENT AI 优彦智能](https://home.alagent.cloud)** 构建 — 可验证、可信赖的金融 AI
+[Apache-2.0](LICENSE) · 由 **[ALAGENT AI 优彦智能](http://home.alagent.cloud)** 构建 — 可验证、可信赖的金融 AI
 
 ---
 

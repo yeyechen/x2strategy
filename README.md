@@ -63,21 +63,21 @@
 <tr><td><b>GitHub Copilot</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.copilot/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git ~/.copilot/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>Claude Code</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git ~/.claude/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git ~/.claude/skills/x2strategy
 ```
 
 </td></tr>
 <tr><td><b>Project-scoped</b></td><td>
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git .github/skills/x2strategy
+git clone https://github.com/ALAGENT-HKU/x2strategy.git .github/skills/x2strategy
 ```
 
 </td></tr>
@@ -87,6 +87,7 @@ Then install dependencies:
 
 ```bash
 cd ~/.copilot/skills/x2strategy   # or wherever you cloned
+# if you haven't installed uv, run `pip install uv`
 uv sync --extra codegen                  # core + backtrader + yfinance + akshare
 ```
 
@@ -96,7 +97,7 @@ uv sync --extra codegen                  # core + backtrader + yfinance + akshar
 ### Option B: Standalone CLI
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git && cd quant-paper2code
+git clone https://github.com/ALAGENT-HKU/x2strategy.git && cd x2strategy
 uv sync --extra codegen    # core + backtest
 uv sync --extra agent      # + FAISS semantic search (for 100+ page papers)
 uv sync --extra dev        # + pytest
@@ -289,7 +290,7 @@ pytest tests/ -v --run-real   # + real API tests (requires DEEPSEEK_API_KEY)
 We welcome contributions! Please see the [Architecture Doc](docs/ARCHITECTURE.md) for codebase orientation.
 
 ```bash
-git clone https://github.com/ALAGENT-HKU/quant-paper2code.git && cd quant-paper2code
+git clone https://github.com/ALAGENT-HKU/x2strategy.git && cd x2strategy
 uv sync --all-extras
 cp .env.example .env  # add API key
 pytest tests/ -v      # verify everything passes
@@ -297,7 +298,7 @@ pytest tests/ -v      # verify everything passes
 
 ## License
 
-[Apache-2.0](LICENSE) · Built by **[ALAGENT AI 优彦智能](https://home.alagent.cloud)** — Verifiable & Trustworthy Financial AI
+[Apache-2.0](LICENSE) · Built by **[ALAGENT AI 优彦智能](http://home.alagent.cloud)** — Verifiable & Trustworthy Financial AI
 
 ---
 
