@@ -310,7 +310,7 @@ pytest tests/ -v      # 验证所有测试通过
 
 <br>
 
-<img src="assets/wechat_qr.jpg" alt="微信交流群二维码" width="260">
+<img src="assets/wechat_QR.jpg" alt="微信交流群二维码" width="260">
 
 **扫码加入 ALAGENT 开源交流群**
 

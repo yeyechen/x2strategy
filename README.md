@@ -311,7 +311,7 @@ pytest tests/ -v      # verify everything passes
 
 <br>
 
-<img src="assets/wechat_qr.jpg" alt="WeChat Group QR" width="260">
+<img src="assets/wechat_QR.jpg" alt="WeChat Group QR" width="260">
 
 **Scan to join the ALAGENT Open-Source WeChat Group**
 
