@@ -59,6 +59,33 @@
 
 > [Agent Skills](https://agentskills.io/) is an open standard. Clone into the agent's skill directory — it auto-discovers `SKILL.md` and registers the `/x2strategy` slash command.
 
+#### Install to OpenClaw / OpenClaw Users
+
+For OpenClaw users, install directly from ClawHub:
+
+```bash
+openclaw skills install patrick-lew/x2strategy
+```
+
+Or use the ClawHub CLI:
+
+```bash
+npx clawhub@latest install x2strategy
+```
+
+For remote or guided setup, paste this prompt into OpenClaw:
+
+```text
+Install the skill "X2strategy" (patrick-lew/x2strategy) from ClawHub.
+Skill page: https://clawhub.ai/patrick-lew/x2strategy
+Keep the work scoped to this skill only.
+After install, inspect the skill metadata and help me finish setup.
+Use only the metadata you can verify from ClawHub; do not invent missing requirements.
+Ask before making any broader environment changes.
+```
+
+#### Install to Claude Code / Codex / Copilot 
+
 <table>
 <tr><td><b>GitHub Copilot</b></td><td>
 
@@ -83,7 +110,7 @@ git clone https://github.com/ALAGENT-HKU/x2strategy.git .github/skills/x2strateg
 </td></tr>
 </table>
 
-Then install dependencies:
+Then install dependencies (After successful skill installation, the agent auto-installs dependencies on initialization, but you can also install manually):
 
 ```bash
 cd ~/.copilot/skills/x2strategy   # or wherever you cloned

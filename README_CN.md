@@ -59,6 +59,33 @@
 
 > [Agent Skills](https://agentskills.io/) 是开放标准。Clone 到 Agent 的 skill 目录后，Agent 自动发现 `SKILL.md` 并注册 `/x2strategy` 斜杠命令。
 
+#### OpenClaw用户 / 安装到OpenClaw
+
+OpenClaw 用户可以直接从 ClawHub 安装：
+
+```bash
+openclaw skills install patrick-lew/x2strategy
+```
+
+也可以使用 ClawHub CLI：
+
+```bash
+npx clawhub@latest install x2strategy
+```
+
+如果需要远程或引导式安装，可以将下面的提示词粘贴到 OpenClaw：
+
+```text
+Install the skill "X2strategy" (patrick-lew/x2strategy) from ClawHub.
+Skill page: https://clawhub.ai/patrick-lew/x2strategy
+Keep the work scoped to this skill only.
+After install, inspect the skill metadata and help me finish setup.
+Use only the metadata you can verify from ClawHub; do not invent missing requirements.
+Ask before making any broader environment changes.
+```
+
+#### Claude Code/Codex/Copilot 用户 可以将技能直接 clone 到本地 Agent 的技能目录：
+
 <table>
 <tr><td><b>GitHub Copilot</b></td><td>
 
@@ -83,7 +110,7 @@ git clone https://github.com/ALAGENT-HKU/x2strategy.git .github/skills/x2strateg
 </td></tr>
 </table>
 
-安装依赖：
+安装依赖（安装Skill成功后，初始化时Agent会自动完成，也可也手动安装依赖）：
 
 ```bash
 cd ~/.copilot/skills/x2strategy   # 或你 clone 到的路径
