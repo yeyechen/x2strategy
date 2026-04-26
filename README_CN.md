@@ -124,12 +124,8 @@ uv run python scripts/analyze.py paper.pdf -o library/my_paper/
 uv run python scripts/analyze.py strategy_draft.md -o library/my_draft/
 uv run python scripts/analyze.py report.docx -o library/my_report/
 
-# 3. 从规格生成 Backtrader 代码
-uv run python scripts/generate.py library/my_paper/spec.json --strategy-index 0
-
-# 4. 验证 + 回测
+# 3. 验证已有或生成的 Backtrader 策略文件
 uv run python scripts/validate_strategy.py library/my_paper/strategy.py
-uv run python scripts/backtest.py library/my_paper/strategy.py -o library/my_paper/results/
 ```
 
 或者直接使用 **Agent Skill** — 只需说：
@@ -183,7 +179,9 @@ library/tactical_aa/
 ```
 x2strategy/
 ├── paper2spec/                 # 阶段 1：文档 → 结构化规格
+│   ├── config.py               #   环境变量与 library 路径配置
 │   ├── parser.py               #   多格式解析器（PDF / MD / DOCX / TXT）
+│   ├── pdf_utils.py            #   PDF 提取辅助函数
 │   ├── extractor.py            #   PaperContent → ExtractionResult (L0-L4)
 │   ├── models.py               #   数据模型（PaperContent, StrategySpec 等）
 │   ├── prompts.py              #   5 层提取 prompt 模板
@@ -192,10 +190,8 @@ x2strategy/
 │   └── search.py               #   arXiv + SSRN 论文搜索
 │
 ├── spec2code/                  # 阶段 2：规格 → 代码 → 回测 → 诊断
-│   ├── prompts.py              #   数据 / 信号 / 回测 / 整合模板
 │   ├── validator.py            #   AST + 结构 + 指标验证
-│   ├── executor.py             #   基于子进程的回测执行
-│   ├── analyzer.py             #   结果对比 + 诊断报告
+│   ├── config.py               #   代码生成与回测配置
 │   └── models.py               #   CodeModules, ValidationResult
 │
 ├── references/                 # 经过验证的领域知识（非 LLM 幻觉）
@@ -203,9 +199,17 @@ x2strategy/
 │   ├── indicator_cookbook.md    #   官方指标参数参考（来自 bt 源码）
 │   ├── data_sources.md         #   yfinance + akshare API 文档
 │   ├── paper2spec.md           #   Paper2Spec 深入指南
-│   └── spec2code.md            #   Spec2Code 深入指南
+│   ├── spec2code.md            #   Spec2Code 深入指南
+│   └── skill-internals.md      #   Skill 配置与环境细节
 │
 ├── scripts/                    # CLI 入口
+│   ├── analyze.py              #   完整 paper2spec 管线
+│   ├── extract.py              #   从解析内容提取规格
+│   ├── parse.py                #   将文档解析为 PaperContent
+│   ├── search.py               #   搜索论文
+│   ├── generate_schemas.py     #   生成 JSON Schema
+│   ├── run_full_tests.sh       #   测试运行辅助脚本
+│   └── validate_strategy.py    #   独立策略验证
 ├── schemas/                    # JSON Schema 定义
 ├── examples/                   # 预生成的参考输出
 ├── tests/                      # 180+ 单元测试和集成测试

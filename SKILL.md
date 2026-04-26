@@ -50,13 +50,13 @@ Input format auto-detected from extension:
 
 - Run tools silently, present results and insights in natural language.
 - Never show CLI commands (`uv run python scripts/...`) unless user asks.
-- Offer next actions conversationally: "要不要我也把第二个策略实现出来？"
+- Offer next actions conversationally: "Would you like me to implement the second strategy as well?"
 
 When reporting results, focus on **what you found**, not how:
 
 ```
 ❌ Bad:  "I ran `uv run python scripts/analyze.py paper.pdf` and got 3 strategies."
-✅ Good: "这篇论文包含 3 个独立策略：[1] 最小距离法 [2] ADF 平稳性 [3] Johansen 协整。要我实现哪个？"
+✅ Good: "This paper contains 3 independent strategies: [1] minimum distance method, [2] ADF stationarity, and [3] Johansen cointegration. Which one should I implement?"
 ```
 
 **Use interactive tools aggressively.** When your platform provides
@@ -96,10 +96,10 @@ Check env for `DEEPSEEK_API_KEY`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`.
 If none found, present via interactive tool:
 
 ```
-需要一个 LLM API Key 来驱动策略提取和代码生成。推荐方案（二选一）：
-  1. DeepSeek（性价比最优，每篇论文约 ¥0.7）→ https://platform.deepseek.com
-  2. OpenRouter（一个 Key 访问所有模型）→ https://openrouter.ai/keys
-请把你的 API Key 发给我，并告诉我是哪个平台的。
+An LLM API key is required for strategy extraction and code generation. Recommended options:
+  1. DeepSeek (best cost-performance, about ¥0.7 per paper) → https://platform.deepseek.com
+  2. OpenRouter (one key for access to multiple models) → https://openrouter.ai/keys
+Please provide your API key and tell me which provider it belongs to.
 ```
 
 > Do NOT check for or suggest `ANTHROPIC_API_KEY`.
@@ -128,15 +128,15 @@ selective install options and non-uv alternatives.
 Once configured, confirm naturally with examples:
 
 ```
-✅ 配置完成！你现在可以直接向我提需求，比如：
+✅ Setup complete. You can now ask me for tasks directly, for example:
 
-  • "帮我分析这篇论文" + 拖入 PDF 文件
-  • "搜一下 momentum trading 相关的论文"
-  • "把这个策略实现出来，参考这篇论文" + 附上文件路径
-  • "用 Markdown 写了个策略草稿，帮我提取规格并生成代码"
-  • "对比一下这两篇论文里的策略有什么区别"
+  • "Analyze this paper" + attach a PDF file
+  • "Search for papers about momentum trading"
+  • "Implement this strategy based on this paper" + provide the file path
+  • "I wrote a strategy draft in Markdown; extract the spec and generate code"
+  • "Compare the strategy differences between these two papers"
 
-直接说你想做什么就好，我来处理剩下的。
+Just tell me what you want to do, and I will handle the rest.
 ```
 
 ---

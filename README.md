@@ -124,12 +124,8 @@ uv run python scripts/analyze.py paper.pdf -o library/my_paper/
 uv run python scripts/analyze.py strategy_draft.md -o library/my_draft/
 uv run python scripts/analyze.py report.docx -o library/my_report/
 
-# 3. Generate Backtrader code from spec
-uv run python scripts/generate.py library/my_paper/spec.json --strategy-index 0
-
-# 4. Validate + backtest
+# 3. Validate an existing or generated Backtrader strategy file
 uv run python scripts/validate_strategy.py library/my_paper/strategy.py
-uv run python scripts/backtest.py library/my_paper/strategy.py -o library/my_paper/results/
 ```
 
 Or use the **agent skill** — just say:
@@ -183,7 +179,9 @@ library/tactical_aa/
 ```
 x2strategy/
 ├── paper2spec/                 # Phase 1: Document → Structured Spec
+│   ├── config.py               #   Environment and library path configuration
 │   ├── parser.py               #   Multi-format parser (PDF / MD / DOCX / TXT)
+│   ├── pdf_utils.py            #   PDF extraction helpers
 │   ├── extractor.py            #   PaperContent → ExtractionResult (L0-L4)
 │   ├── models.py               #   Data models (PaperContent, StrategySpec, etc.)
 │   ├── prompts.py              #   5-layer extraction prompt templates
@@ -192,10 +190,8 @@ x2strategy/
 │   └── search.py               #   arXiv + SSRN paper search
 │
 ├── spec2code/                  # Phase 2: Spec → Code → Backtest → Diagnosis
-│   ├── prompts.py              #   Data / Signal / Backtest / Integration templates
 │   ├── validator.py            #   AST + structural + indicator validation
-│   ├── executor.py             #   Subprocess-based backtest execution
-│   ├── analyzer.py             #   Result comparison + diagnosis report
+│   ├── config.py               #   Codegen and backtest configuration
 │   └── models.py               #   CodeModules, ValidationResult
 │
 ├── references/                 # Verified domain knowledge (not LLM hallucinations)
@@ -203,11 +199,16 @@ x2strategy/
 │   ├── indicator_cookbook.md    #   Official indicator params (from bt source code)
 │   ├── data_sources.md         #   yfinance + akshare API docs
 │   ├── paper2spec.md           #   Paper2Spec deep-dive guide
-│   └── spec2code.md            #   Spec2Code deep-dive guide
+│   ├── spec2code.md            #   Spec2Code deep-dive guide
+│   └── skill-internals.md      #   Skill setup and environment details
 │
 ├── scripts/                    # CLI entry points
 │   ├── analyze.py              #   Full paper2spec pipeline
-│   ├── generate.py             #   Full spec2code pipeline
+│   ├── extract.py              #   Extract specs from parsed content
+│   ├── parse.py                #   Parse documents into PaperContent
+│   ├── search.py               #   Search for papers
+│   ├── generate_schemas.py     #   Generate JSON schemas
+│   ├── run_full_tests.sh       #   Test runner helper
 │   └── validate_strategy.py    #   Standalone validation
 │
 ├── schemas/                    # JSON Schema definitions
