@@ -4,6 +4,7 @@ Supports any model string that litellm understands, e.g.:
   - openai/gpt-4o
   - anthropic/claude-sonnet-4-20250514
   - deepseek/deepseek-chat
+  - openrouter/deepseek/deepseek-chat-v3-0324
   - openai/qwen2.5-72b-instruct  (vLLM-served, via OPENAI_API_BASE)
 
 Environment variables (set in shell or .env file):
@@ -11,6 +12,7 @@ Environment variables (set in shell or .env file):
   OPENAI_API_KEY     — required for OpenAI models
   ANTHROPIC_API_KEY  — required for Anthropic models
   DEEPSEEK_API_KEY   — required for DeepSeek models
+  OPENROUTER_API_KEY — required for OpenRouter models
   (litellm reads provider keys automatically)
 
 A `.env` file in the project root is loaded automatically if python-dotenv
@@ -39,7 +41,7 @@ def chat(
     system: str = "",
     model: Optional[str] = None,
     temperature: float = 0.2,
-    max_tokens: int = 4096,
+    max_tokens: int = 16384,
 ) -> str:
     """Send a single prompt to the LLM and return the text response."""
     model = model or DEFAULT_MODEL
@@ -63,7 +65,7 @@ async def achat(
     system: str = "",
     model: Optional[str] = None,
     temperature: float = 0.2,
-    max_tokens: int = 4096,
+    max_tokens: int = 16384,
 ) -> str:
     """Async version of :func:`chat`."""
     model = model or DEFAULT_MODEL

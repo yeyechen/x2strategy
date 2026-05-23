@@ -329,6 +329,7 @@ def extract_metrics(strat, cerebro):
     final_val = cerebro.broker.getvalue()
     metrics['start_value'] = start_val
     metrics['final_value'] = round(final_val, 2)
+    metrics['return_value'] = round(final_val, 2)
     metrics['total_return'] = round((final_val / start_val - 1) * 100, 2)
 
     # --- Sharpe Ratio ---

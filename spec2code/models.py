@@ -52,6 +52,7 @@ class BacktestMetrics:
     win_rate: Optional[float] = None
     profit_factor: Optional[float] = None
     final_value: Optional[float] = None
+    return_value: Optional[float] = None  # Alias/explicit report field for final portfolio value
     start_value: float = 100000.0
 
     def to_dict(self) -> dict:

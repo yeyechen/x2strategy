@@ -143,6 +143,7 @@ def run_backtest():
 
     metrics = {
         'final_value': round(final_value, 2),
+        'return_value': round(final_value, 2),
         'total_return': round((final_value / initial_cash - 1) * 100, 2),
         'sharpe_ratio': round(sharpe.get('sharperatio'), 4)
                         if sharpe.get('sharperatio') is not None else None,
@@ -160,6 +161,8 @@ def run_backtest():
 if __name__ == '__main__':
     run_backtest()
 ```
+
+At minimum, every runnable Spec2Code output should report `sharpe_ratio`, `max_drawdown` or `max_drawdown_pct`, `total_return`, and `return_value`/`final_value`. If the confirmed target is not a broker-style strategy, compute the same metrics from the research return series when meaningful.
 
 ### Phase 3: Validate
 

@@ -8,7 +8,15 @@ import pytest
 from unittest.mock import AsyncMock, patch
 
 from paper2spec.extractor import _build_strategy_focus, extract_spec
+from paper2spec.operator_pitfall import (
+    load_operator_pitfall_entries,
+    operator_pitfall_queries_from_spec,
+)
 from paper2spec.models import (
+    ExecutionAction,
+    ExecutionPlan,
+    LogicStep,
+    PositionSizing,
     ExtractionResult,
     PaperContent,
     StrategyBrief,
@@ -158,3 +166,85 @@ class TestExtractSpecSingleMode:
         assert result.num_detected == 1
         assert result.strategies[0].strategy_name == "Legacy"
         mock_single.assert_called_once()
+
+
+class TestCanonicalPostprocess:
+    """Tests for deterministic QSA-style canonical fixes."""
+
+    @patch("paper2spec.extractor._detect_strategies")
+    @patch("paper2spec.extractor._extract_multilayer")
+    def test_portfolio_weight_output_and_direct_sizing(self, mock_multilayer, mock_detect, paper_content):
+        mock_detect.return_value = [StrategyBrief(name="Allocation")]
+        mock_multilayer.return_value = StrategySpec(
+            strategy_name="Allocation",
+            strategy_type="allocation",
+            logic_pipeline=[
+                LogicStep(
+                    step_id="step1",
+                    description="Compute final portfolio allocation weights",
+                    output="upsa_weights",
+                    output_type="vector",
+                )
+            ],
+            execution_plan=[
+                ExecutionPlan(
+                    action=ExecutionAction(signal_source="upsa_weights"),
+                    position_sizing=PositionSizing(method="equal_weight"),
+                )
+            ],
+        )
+
+        result = extract_spec(paper_content, mode="multilayer")
+        spec = result.strategies[0]
+
+        assert spec.logic_pipeline[0].output == "portfolio_weights"
+        assert spec.execution_plan[0].action.signal_source == "portfolio_weights"
+        assert spec.execution_plan[0].position_sizing.method == "direct_weight"
+        assert spec.execution_plan[0].position_sizing.steps[0].output == "order_weights"
+
+
+class TestOperatorPitfallRetrievalInputs:
+    """Tests for deterministic retrieval inputs (no FAISS dependency)."""
+
+    def test_corpus_contains_qsa_operator_entries(self):
+        entries = load_operator_pitfall_entries()
+        operator_ids = {entry["operator_id"] for entry in entries}
+
+        assert "second_moment" in operator_ids
+        assert "ensemble_weight_optimization" in operator_ids
+        assert "shrinkage_normalization" in operator_ids
+        assert "loo_closed_form" in operator_ids
+
+    def test_queries_include_component_paths(self):
+        spec = {
+            "indicators": [
+                {"indicator_id": "second_moment", "formula": "M = R.T @ R / T"}
+            ],
+            "logic_pipeline": [
+                {
+                    "step_id": "step1",
+                    "description": "Compute LOO ridge portfolio returns with Sherman-Morrison correction",
+                    "expression": "Use alpha * lambda_i + z_l denominators",
+                    "output": "loo_returns",
+                }
+            ],
+            "execution_plan": [
+                {
+                    "position_sizing": {
+                        "steps": [
+                            {
+                                "description": "Map portfolio_weights to order weights",
+                                "expression": "order_weights = portfolio_weights",
+                                "output": "order_weights",
+                            }
+                        ]
+                    }
+                }
+            ],
+        }
+
+        paths = [path for path, _ in operator_pitfall_queries_from_spec(spec)]
+
+        assert any(path.startswith("indicators[0]") for path in paths)
+        assert any(path.startswith("logic_pipeline[0]") for path in paths)
+        assert any(path.startswith("execution_plan[0].position_sizing.steps[0]") for path in paths)

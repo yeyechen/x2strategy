@@ -24,6 +24,7 @@
 
 - **🔬 Multi-Format Input** — PDF papers, Markdown drafts, DOCX reports, plain text. Auto-detected.
 - **🧠 5-Layer LLM Extraction** — Multi-strategy detection → indicators → signal logic → execution plan → risk controls.
+- **🧾 Grounded Extraction Quality** — Optional instruction/customization/clarification context, retrieved repair-time operator-pitfall checks, canonical `portfolio_weights`, and structured `needs_human_review` flags.
 - **✅ Verified Code Generation** — AST validation + Backtrader structural checks + indicator registry, not just "generate and hope".
 - **📊 Automated Backtesting** — Execute, extract metrics, and diagnose against paper-reported performance.
 - **🤖 Agent-Native** — Works as an [Agent Skill](https://agentskills.io/) (`/x2strategy`) in VS Code Copilot, Claude Code, or any compatible agent.
@@ -47,7 +48,7 @@
 | Stage | Input | Output | What Happens |
 |:------|:------|:-------|:-------------|
 | **Parse** | Any document | `PaperContent` | Format-aware extraction (PyMuPDF / direct read / python-docx) |
-| **Extract** | PaperContent | `StrategySpec[]` | 5-layer LLM: detect strategies → extract indicators, logic, execution, risk |
+| **Extract** | PaperContent | `StrategySpec[]` | 5-layer LLM with optional instruction grounding: detect strategies → extract indicators, logic, execution, risk |
 | **Generate** | StrategySpec | `strategy.py` | Data module → signal module → backtest module → integration |
 | **Validate** | strategy.py | Pass / Fail | AST syntax + Backtrader structure + indicator existence checks |
 | **Backtest** | strategy.py | Metrics | Subprocess execution with timeout, metric extraction |
@@ -55,9 +56,9 @@
 
 ## Getting Started
 
-### Option A: As an Agent Skill (Recommended)
+### As an Agent Skill
 
-> [Agent Skills](https://agentskills.io/) is an open standard. Clone into the agent's skill directory — it auto-discovers `SKILL.md` and registers the `/x2strategy` slash command.
+[Agent Skills](https://agentskills.io/) is an open standard. Clone into the agent's skill directory — it auto-discovers `SKILL.md` and registers the `/x2strategy` slash command.
 
 #### Install to OpenClaw / OpenClaw Users
 
@@ -110,56 +111,70 @@ git clone https://github.com/ALAGENT-HKU/x2strategy.git .github/skills/x2strateg
 </td></tr>
 </table>
 
-Then install dependencies (After successful skill installation, the agent auto-installs dependencies on initialization, but you can also install manually):
+Then install dependencies. After successful skill installation, the agent may auto-install them during initialization, but manual setup is the most predictable path:
 
 ```bash
 cd ~/.copilot/skills/x2strategy   # or wherever you cloned
 # if you haven't installed uv, run `pip install uv`
-uv sync --extra codegen                  # core + backtrader + yfinance + akshare
-```
-
-> [!IMPORTANT]
-> The directory name **must** be `x2strategy` (matching the `name` field in `SKILL.md`). Once installed, type `/x2strategy` in chat or the agent auto-activates when relevant.
-
-### Option B: Standalone CLI
-
-```bash
-git clone https://github.com/ALAGENT-HKU/x2strategy.git && cd x2strategy
-uv sync --extra codegen    # core + backtest
-uv sync --extra agent      # + FAISS semantic search (for 100+ page papers)
-uv sync --extra dev        # + pytest
+uv sync --all-extras
 ```
 
 <details>
-<summary>pip alternative</summary>
+<summary>Manual dependency variants</summary>
 
 ```bash
+# minimum skill runtime
+uv sync --extra agent --extra codegen
+
+# add DOCX parsing support
+uv sync --extra agent --extra codegen --extra docx
+
+# pip alternative
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[codegen,agent,dev]"
+pip install -e ".[codegen,agent,docx,dev]"
 ```
 
 </details>
 
-### Quick Start
+> [!IMPORTANT]
+> The directory name **must** be `x2strategy` (matching the `name` field in `SKILL.md`). Once installed, type `/x2strategy` in chat or the agent auto-activates when relevant.
+
+### Skill Quick Start
 
 ```bash
-# 1. Configure
+# 1. Configure the skill workspace
 cp .env.example .env          # add your API key (DEEPSEEK_API_KEY recommended)
 
-# 2. Extract strategy specs from any input format
-uv run python scripts/analyze.py paper.pdf -o library/my_paper/
-uv run python scripts/analyze.py strategy_draft.md -o library/my_draft/
-uv run python scripts/analyze.py report.docx -o library/my_report/
-
-# 3. Validate an existing or generated Backtrader strategy file
-uv run python scripts/validate_strategy.py library/my_paper/strategy.py
+# 2. Start the skill in your agent
+# /x2strategy
 ```
 
-Or use the **agent skill** — just say:
+Then ask for work in natural language, for example:
 
 > *"Analyze this paper and implement the main strategy"* + attach a PDF
 
-The agent handles everything: parsing, extraction, code generation, validation, backtesting, and diagnosis.
+The skill handles parsing, extraction, code generation, validation, backtesting, and diagnosis.
+Before extraction, it should ask whether you want to add custom instructions, implementation constraints, known pitfalls, or reference files.
+After extraction and strategy/plan selection, it must read [references/extraction_quality.md](references/extraction_quality.md) before any repair, code generation, or deterministic local implementation.
+It should also use the same interactive flow when you pick search results, add repair-time pitfall notes or clarifications, approve inferred defaults, or resolve any `needs_human_review` items surfaced by compare/repair.
+After code generation and diagnosis, it should present an interactive next-action menu instead of assuming the workflow is finished.
+
+Generated files should be written under `PAPER2SPEC_LIBRARY_PATH/<slug>/` by default, for example `content.json`, `spec.json`, the generated implementation file, and `results/metrics.json`. If a referenced Copilot/VS Code log path is empty or incomplete, regenerate the artifacts from the original paper, instructions, and data instead of relying on the log summary.
+
+Spec2Code outputs should include Sharpe ratio, maximum drawdown, total return, and return value/final portfolio value whenever those metrics are meaningful for the confirmed implementation target.
+
+Here, “custom instructions” means extra extraction requirements you want the skill to follow, not shell commands or implementation details.
+
+- Use them to say which rules or assumptions must be preserved.
+- Use them to point out mistakes or pitfalls the skill should avoid.
+- Use them to add background context that you have already confirmed.
+
+Examples:
+"Only implement the main strategy in the paper, not the appendix variants."
+"If the weighting rule is ambiguous, prefer equal weight."
+"Treat the rebalance frequency as monthly, not weekly."
+
+If extraction, compare, or repair leaves `needs_human_review` questions, it should ask them through an interactive dialog before generating code. In VS Code Copilot, that means `vscode_askQuestions` when available rather than only writing the questions in prose. If validation or diagnosis still leaves unresolved decisions, it should ask again before silently retrying or stopping.
 
 ## Supported Input Formats
 
@@ -174,57 +189,70 @@ Format is auto-detected from file extension. No configuration needed.
 
 ## Examples
 
-Pre-generated outputs from real papers are available in [`examples/`](examples/):
+The primary shipped example in [`examples/`](examples/) is the UPSA paper2code case, generated by Copilot GPT-5.4:
 
 | Paper | Strategies Detected | Artifacts |
 |:------|:-------------------|:----------|
-| **Tactical Asset Allocation** (Faber 2007) | 1 — GTAA with SMA timing | spec + code |
-| **Pairs Trading** (Goncalves-Pinto et al.) | 3 — Distance, Stationarity, Cointegration | spec |
-| **Value and Momentum** (Asness et al.) | 2 — Value Factor, Momentum Factor | spec |
+| **Universal Portfolio Shrinkage Approximation** (Kelly, Malamud, Pourmohammadi & Trojani 2025) | 1 — UPSA ridge-ensemble portfolio | content + spec + paper2code contract |
+
+The UPSA example lives in `examples/upsa/`. Reproducible inputs are stored in `examples/upsa/input/`, and the generated implementation is `examples/upsa/universal_portfolio_shrinkage_approximation.py`.
 
 <details>
 <summary>Example output structure</summary>
 
 ```
-library/tactical_aa/
-├── content.json          # Parsed paper content
-├── content.md            # Human-readable paper summary
-├── spec.json             # Structured strategy specification
-├── spec.md               # Human-readable spec
-├── metadata.json         # Run metadata (model, timing, etc.)
-├── strategy.py           # Generated Backtrader code
-├── validation_report.md  # AST + structural validation results
-└── results/
-    ├── backtest_output.txt
-    └── diagnosis_report.md
+examples/upsa/
+├── README.md
+├── upsa_content.json
+├── upsa_content.md
+├── upsa_spec.json
+├── upsa_spec.md
+├── upsa_operator_pitfall_context.md
+├── upsa_review_and_diagnosis.md
+├── upsa_metadata.json
+├── universal_portfolio_shrinkage_approximation.py
+└── input/
+    ├── P10_Kelly_Malamud_Pourmohammadi_Trojani_2025_NBER.pdf
+    ├── sample_instruction.md
+    ├── jkp_factors_wide.csv
+    ├── jkp_factors_long.csv
+    └── upsa_weights.csv
 ```
 
 </details>
+
+Not every strategy extracted by this skill is suitable for direct broker-connected paper trading. Many research strategies consume factor returns, synthetic portfolios, ranking panels, or other non-tradable inputs; some are portfolio-construction or SDF/asset-pricing procedures rather than order-generating live strategies. The open-source skill focuses on grounded extraction, code generation, validation, and research backtests. ALAGENT's website can generate broker-connected strategies when the selected strategy and data contract are suitable for live/paper trading.
 
 ## Project Structure
 
 ```
 x2strategy/
 ├── paper2spec/                 # Phase 1: Document → Structured Spec
+│   ├── __init__.py
 │   ├── config.py               #   Environment and library path configuration
 │   ├── parser.py               #   Multi-format parser (PDF / MD / DOCX / TXT)
 │   ├── pdf_utils.py            #   PDF extraction helpers
 │   ├── extractor.py            #   PaperContent → ExtractionResult (L0-L4)
 │   ├── models.py               #   Data models (PaperContent, StrategySpec, etc.)
 │   ├── prompts.py              #   5-layer extraction prompt templates
+│   ├── operator_pitfall.py      #   Semantic retrieval for repair pitfall checks
+│   ├── resources/
+│   │   └── operator_pitfall_index.md # Editable pitfall corpus for retrieval
 │   ├── llm.py                  #   LiteLLM unified interface
 │   ├── render.py               #   JSON → Markdown rendering
 │   └── search.py               #   arXiv + SSRN paper search
 │
-├── spec2code/                  # Phase 2: Spec → Code → Backtest → Diagnosis
+├── spec2code/                  # Phase 2 support: agent-driven codegen validation
+│   ├── __init__.py
 │   ├── validator.py            #   AST + structural + indicator validation
 │   ├── config.py               #   Codegen and backtest configuration
-│   └── models.py               #   CodeModules, ValidationResult
+│   └── models.py               #   CodeModules, ValidationResult, BacktestMetrics
 │
 ├── references/                 # Verified domain knowledge (not LLM hallucinations)
 │   ├── backtrader_patterns.md  #   Source-verified Backtrader patterns
 │   ├── indicator_cookbook.md    #   Official indicator params (from bt source code)
 │   ├── data_sources.md         #   yfinance + akshare API docs
+│   ├── extraction_quality.md    #   Grounded extraction / repair quality rules
 │   ├── paper2spec.md           #   Paper2Spec deep-dive guide
 │   ├── spec2code.md            #   Spec2Code deep-dive guide
 │   └── skill-internals.md      #   Skill setup and environment details
@@ -234,22 +262,27 @@ x2strategy/
 │   ├── extract.py              #   Extract specs from parsed content
 │   ├── parse.py                #   Parse documents into PaperContent
 │   ├── search.py               #   Search for papers
+│   ├── operator_pitfalls.py     #   Retrieve matched operator-pitfall context
 │   ├── generate_schemas.py     #   Generate JSON schemas
 │   ├── run_full_tests.sh       #   Test runner helper
 │   └── validate_strategy.py    #   Standalone validation
 │
+├── docs/                       # Architecture and design docs
+│   └── ARCHITECTURE.md
+│
+├── assets/                     # README / skill images
 ├── schemas/                    # JSON Schema definitions
 ├── examples/                   # Pre-generated reference outputs
 ├── tests/                      # 180+ unit & integration tests
+├── .env.example                # Environment variable template
+├── requirements.txt            # pip fallback dependencies
+├── README_CN.md                # Chinese README
 ├── SKILL.md                    # Agent Skill entry point
-└── pyproject.toml              # Project config & dependencies
+├── pyproject.toml              # Project config & dependencies
+└── uv.lock                     # Locked uv dependency graph
 ```
 
 ## Key Design Decisions
-
-<table>
-<tr>
-<td width="50%">
 
 ### Why Reference Docs, Not Prompts?
 
@@ -258,21 +291,25 @@ LLMs frequently hallucinate Backtrader API details:
 - RSI uses `SmoothedMovingAverage`, not EMA
 - BollingerBands lines are `.top/.mid/.bot`, not `.upper/.lower`
 
-Our `references/` directory contains **source-code-verified** knowledge. The agent reads these docs on demand — zero hallucination on API details.
-
-</td>
-<td width="50%">
+Our `references/` directory contains **source-code-verified** knowledge. The agent reads these docs on demand instead of relying on improvised API recall.
 
 ### Why Structured Specs as Intermediate?
 
 Going directly from paper → code loses auditability. The `StrategySpec` intermediate:
-1. **Auditable** — humans can review the spec before code generation
-2. **Reusable** — same spec can target different backtest engines
-3. **Testable** — spec extraction and code generation are independently verifiable
+- **Auditable** — humans can review the spec before code generation
+- **Reusable** — the same spec can target different backtest engines
+- **Testable** — extraction and code generation are independently verifiable
 
-</td>
-</tr>
-</table>
+### Grounded Extraction and Repair
+
+`paper2spec` supports optional instruction/clarification context during
+extraction. Use this when a paper has appendix-only formulas, missing constants,
+ambiguous allocation logic, or the user wants to customize extraction requirements.
+
+- The skill should ask for instruction files, clarifications, or reference notes before extraction when the input is ambiguous.
+- [references/extraction_quality.md](references/extraction_quality.md) is the canonical audit guide for manual review.
+- For repair-style RAG, use only the pitfalls retrieved from [paper2spec/resources/operator_pitfall_index.md](paper2spec/resources/operator_pitfall_index.md), not the full index.
+- Ground truth still comes from the paper, selected plan, user clarifications, and approved customization notes. The pitfall index is only an audit aid.
 
 ## Configuration
 
@@ -284,6 +321,7 @@ Going directly from paper → code loses auditability. The `StrategySpec` interm
 | `DEEPSEEK_API_KEY` | — | DeepSeek (recommended: best cost/quality) |
 | `OPENROUTER_API_KEY` | — | OpenRouter (one key, all models) |
 | `OPENAI_API_KEY` | — | OpenAI direct |
+| `ANTHROPIC_API_KEY` | — | Anthropic direct |
 
 All scripts accept `--model` to override `PAPER2SPEC_MODEL`.
 
@@ -291,8 +329,10 @@ All scripts accept `--model` to override `PAPER2SPEC_MODEL`.
 
 | Resource | Description |
 |:---------|:------------|
-| [SKILL.md](SKILL.md) | Agent skill instructions — routing, setup, interaction gates |
+| [SKILL.md](SKILL.md) | Agent skill instructions — setup, single workflow, HITL review, output paths |
 | [references/paper2spec.md](references/paper2spec.md) | Paper → Spec extraction deep-dive |
+| [references/extraction_quality.md](references/extraction_quality.md) | Grounded extraction and repair quality rules |
+| [paper2spec/resources/operator_pitfall_index.md](paper2spec/resources/operator_pitfall_index.md) | Editable semantic retrieval corpus for high-risk formula pitfalls |
 | [references/spec2code.md](references/spec2code.md) | Spec → Code generation deep-dive |
 | [references/backtrader_patterns.md](references/backtrader_patterns.md) | Source-verified Backtrader patterns |
 | [references/indicator_cookbook.md](references/indicator_cookbook.md) | Official indicator parameter reference |
@@ -304,14 +344,6 @@ All scripts accept `--model` to override `PAPER2SPEC_MODEL`.
 pytest tests/ -v              # 180+ deterministic tests
 pytest tests/ -v --run-real   # + real API tests (requires DEEPSEEK_API_KEY)
 ```
-
-## Roadmap
-
-- [ ] Multi-engine support (Zipline, VectorBT)
-- [ ] Table & formula extraction from PDFs
-- [ ] Batch processing (multiple papers in parallel)
-- [ ] [qsa-benchmark](https://github.com/ALAGENT-HKU) integration (50-paper regression suite)
-- [ ] Canonical `StrategySpec` schema unification with QSA platform
 
 ## Contributing
 

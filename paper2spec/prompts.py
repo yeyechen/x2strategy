@@ -125,6 +125,9 @@ LAYER1_METADATA_AND_DATA_PROMPT = """Extract strategy metadata and data requirem
 
 PAPER TITLE: {title}
 {strategy_focus}
+INSTRUCTION / CLARIFICATION CONTEXT (authoritative fallback when paper is incomplete):
+{instruction_context}
+
 ABSTRACT:
 {abstract}
 
@@ -144,7 +147,7 @@ Extract as JSON:
     "volume_data": false,
     "fundamental_data": ["P/E", "ROE", "Book-to-Market"],
     "alternative_data": ["FRED-MD macro factors", "sentiment"],
-    "lookback_period": 252,
+    "lookback_period": null,
     "data_frequency": "daily|weekly|monthly",
     "data_source": "e.g., CRSP, Yahoo Finance",
     "time_period": "e.g., 1963-2019",
@@ -153,17 +156,21 @@ Extract as JSON:
     "expected_sharpe": null,
     "expected_return": null,
     "max_drawdown": null,
-    "expected_performance": {{}}
+    "expected_performance": {{}},
+    "needs_human_review": []
 }}
 
 INSTRUCTIONS:
 1. strategy_type: "technical" (price/volume only), "fundamental" (accounting data), "hybrid" (both), "multi_asset" (multiple asset classes)
 2. fundamental_data: List ALL accounting/financial metrics explicitly used (not just mentioned)
 3. alternative_data: External/non-traditional data (macro, sentiment, analyst forecasts)
-4. lookback_period: In trading days (252 ≈ 1 year, 126 ≈ 6 months, 21 ≈ 1 month)
+4. lookback_period: Use the exact paper/plan value; if absent, use null. Do NOT guess 252/200/21.
 5. universe_selection_criteria: Be comprehensive — include ALL filters (price, market cap, exchange, industry exclusions)
 6. expected_*: Extract from MAIN results table only; use null if not reported; annual_return as decimal (0.12 = 12%)
-7. If a field is not mentioned in the paper, use null or empty — do NOT guess
+7. If a field is not mentioned in the paper/instructions, use null or empty — do NOT guess.
+8. If data coverage, warm-up, and OOS evaluation differ, make time_period data-loading-safe by including all relevant dates.
+9. For return-series strategies, set price_data=false and describe return_series semantics in later indicator fields.
+10. needs_human_review items must be structured: {{"field_path":"...","label":"...","reason":"...","questions":["..."]}}.
 
 Output ONLY valid JSON."""
 
@@ -174,6 +181,9 @@ Name: {strategy_name}
 Type: {strategy_type}
 Description: {description}
 {strategy_focus}
+INSTRUCTION / CLARIFICATION CONTEXT (authoritative fallback when paper is incomplete):
+{instruction_context}
+
 SIGNAL LOGIC FROM PAPER:
 {signal_logic}
 
@@ -192,7 +202,9 @@ Extract as JSON:
             "inputs": ["close", "volume", "book_value", "market_cap"],
             "parameters": {{"window": 252, "threshold": 0.5}},
             "scope": "time_series|cross_sectional",
-            "output_type": "scalar|boolean|ranking"
+            "output_type": "scalar|boolean|ranking|vector|matrix|series",
+            "data_semantics": "price_series|return_series|null",
+            "executable_explanation": "Inputs are X. Build upstream object Y. Output is Z with shape/type T."
         }}
     ]
 }}
@@ -212,12 +224,13 @@ OUTPUT TYPE:
 - **ranking**: Ordinal ranking across assets (1st, 2nd, ...)
 
 INSTRUCTIONS:
-1. Extract ALL indicators explicitly used in the strategy — not just mentioned in passing
+1. Extract only indicators/upstream objects consumed by the selected strategy's logic or execution trigger — not benchmarks, diagnostics, robustness tables, theory-only examples, or mentions in passing.
 2. indicator_id: Use descriptive lowercase format (e.g., "momentum_12m", "book_to_market", "rsi_14")
-3. formula: Describe precisely HOW the indicator is calculated step-by-step
+3. formula: Describe upstream input construction only. Codegen formulas/objectives/constraints belong to logic_pipeline.
 4. inputs: List exact data fields needed (close, open, high, low, volume, book_value, earnings, etc.)
-5. parameters: Include all tunable values with defaults from the paper
-6. If a formula involves intermediate steps, describe the full calculation chain
+5. parameters: Include all tunable values with exact paper/instruction values; otherwise null. If benchmark/diagnostic/theory-only, mark parameters.implementation_status.
+6. If an indicator conflicts with logic_pipeline, later repair the indicator; logic_pipeline is the codegen source of truth.
+7. Use vector for N-vectors, matrix for N×N/K×K objects, series for time-indexed returns/PnL; for return-series inputs set data_semantics="return_series".
 
 Output ONLY valid JSON."""
 
@@ -226,6 +239,9 @@ LAYER3_LOGIC_PIPELINE_PROMPT = """Extract the logic pipeline that transforms ind
 STRATEGY: {strategy_name}
 TYPE: {strategy_type}
 {strategy_focus}
+INSTRUCTION / CLARIFICATION CONTEXT (authoritative fallback when paper is incomplete):
+{instruction_context}
+
 AVAILABLE INDICATORS:
 {indicators_summary}
 
@@ -248,7 +264,8 @@ Extract as JSON:
             "parameters": {{"n_quantiles": 5, "threshold": 0.5}},
             "expression": "Natural language or pseudo-code expression",
             "output": "output_variable_name",
-            "output_type": "label|boolean|scalar|ranking"
+            "output_type": "label|boolean|scalar|ranking|vector|matrix|series",
+            "executable_explanation": "Inputs are X with shape S; compute Y; output Z with type T."
         }}
     ]
 }}
@@ -276,6 +293,20 @@ OUTPUT TYPES:
 - **boolean**: True/False
 - **scalar**: Numeric value
 - **ranking**: Integer rank (1, 2, 3...)
+- **vector**: Per-asset/per-factor numeric vector, including final `portfolio_weights`
+- **matrix**: Cross-sectional matrix (covariance, second moment, loadings, kernel)
+- **series**: Time-indexed return/PnL series, including `strategy_ret`
+
+CANONICAL SPEC CONTRACT:
+- `logic_pipeline` is the only codegen source of truth for formulas, objectives, constraints, shrinkage, normalization, and signal/weight generation.
+- Categorical strategies end at `trade_signal`.
+- Weight/optimizer/allocation strategies end at exactly `portfolio_weights` with output_type="vector".
+- If selection precedes optimization, keep `trade_signal` first and `portfolio_weights` last.
+- Do not infer objectives/constraints from Sharpe, cumulative return, or evaluation metrics; use explicit paper/plan/instruction equations only.
+- Every constraint must name the constrained variable, dimension, and whether it applies to intermediate variables or final `portfolio_weights`.
+- Do not propagate intermediate constraints (e.g. ensemble weights >= 0) to final asset weights.
+- For quadratic utility, call M=E[RR'] an uncentered second moment matrix unless the paper centers returns.
+- For shrinkage/eigendecomposition/PCA/LOO/Sherman-Morrison/QP, include paper-stated component formulas; if missing after checking instructions, add structured needs_human_review rather than guessing.
 
 MULTI-DIMENSIONAL STRATEGIES (Double/Triple Sort):
 For strategies with multiple sorting dimensions:
@@ -294,7 +325,10 @@ CRITICAL RULES:
 3. Each step's inputs must reference either indicator_ids or prior step outputs
 4. Include ALL intermediate steps — don't skip from raw indicators to final signal
 5. For sorting strategies: specify n_quantiles, breakpoint methodology
-6. expression field: Write clear pseudo-code showing the exact logic
+6. expression field: Write clear pseudo-code showing the exact logic.
+7. Include all prior variables used by each expression in inputs.
+8. Numeric constants must be exact selected-paper/instruction values; otherwise use null and flag review.
+9. Report/custom metric formulas belong in expected_performance.metric_definitions, not as traded logic unless they change weights/orders.
 
 Output ONLY valid JSON."""
 
@@ -303,6 +337,9 @@ LAYER4_EXECUTION_PROMPT = """Extract the execution plan and risk management rule
 STRATEGY: {strategy_name}
 TYPE: {strategy_type}
 {strategy_focus}
+INSTRUCTION / CLARIFICATION CONTEXT (authoritative fallback when paper is incomplete):
+{instruction_context}
+
 LOGIC PIPELINE (available signals):
 {logic_summary}
 
@@ -314,6 +351,7 @@ METHODOLOGY:
 
 Extract as JSON:
 {{
+  "executable_explanation": "Single line: how data flows from inputs to final position, including timing and data type.",
     "execution_plan": [
         {{
             "plan_id": "exec_1",
@@ -331,18 +369,36 @@ Extract as JSON:
                 "default_action": "hold"
             }},
             "position_sizing": {{
-                "method": "equal_weight|quantile_based|signal_based|volatility_scaled",
-                "max_position_pct": 0.1,
-                "total_exposure": 1.0,
-                "long_short": "long_only|short_only|long_short"
-            }}
+              "method": "equal_weight|quantile_based|signal_based|volatility_scaled|direct_weight",
+              "max_position_pct": null,
+              "total_exposure": null,
+              "long_short": "long_only|short_only|long_short",
+              "steps": [
+                {{
+                  "step_id": "sizing_step1",
+                  "description": "How to turn the logic output into order weights",
+                  "scope": "time_series|cross_sectional|within_group|null",
+                  "group_by": null,
+                  "inputs": ["final_signal_or_portfolio_weights"],
+                  "parameters": {{}},
+                  "expression": "Natural language or formula",
+                  "output": "order_weights",
+                  "output_type": "vector",
+                  "executable_explanation": "Codegen-facing timing, lag, shape, and order-weight details."
+                }}
+              ],
+              "executable_explanation": "What method means for codegen and how it consumes the logic_pipeline output."
+            }},
+            "executable_explanation": "How this plan consumes the logic_pipeline final output and what positive/negative values mean."
         }}
     ],
     "risk_management": [
         "Rule description (e.g., Stop loss at -10%)",
         "Position limit per asset",
         "Maximum sector exposure 25%"
-    ]
+    ],
+    "risk_management_executable_explanation": "Single line: explicit risk rules present; if none, state none are specified.",
+    "needs_human_review": []
 }}
 
 ACTION LOGIC FORMAT (pseudo-code):
@@ -356,12 +412,15 @@ INSTRUCTIONS:
 1. trigger_type: "time_driven" for calendar-based rebalancing, "signal_driven" for indicator-triggered
 2. frequency: Match the paper's rebalancing frequency (most academic papers use monthly or quarterly)
 3. delay_bars: Set to 1 for lookahead bias prevention (execute next bar after signal)
-4. signal_source: Reference the FINAL output from the logic pipeline
+4. signal_source: Reference the tradable output from logic_pipeline. If final return series exists after portfolio_weights, use portfolio_weights for orders and the return series only for metrics/reporting.
 5. logic: Use pseudo-code describing which signal values trigger which actions
-6. method: "equal_weight" is default for academic strategies; use paper's method if specified
+6. method: Use direct_weight when final output is portfolio_weights; equal_weight/quantile_based/signal_based only for categorical signals; volatility_scaled only when paper explicitly changes traded order weights.
 7. long_short: "long_only" if paper only tests long positions, "long_short" if both
 8. risk_management: Extract any stop-loss, position limits, drawdown constraints mentioned
-9. If the paper doesn't specify a rule, use null or omit — don't fabricate constraints
+9. If the paper doesn't specify a rule, use null or omit — don't fabricate constraints, fully invested assumptions, leverage caps, position caps, stop-losses, or drawdown limits.
+10. For direct_weight, state portfolio_weights are target-exposure fractions for order_target_percent, not shares/contracts/order sizes.
+11. If paper reports/evaluates returns scaled to annual volatility, separate raw order path from reported/evaluation path. Add a sizing step only when needed for reporting, with parameters target_annualized_volatility, annualization_factor, ddof=1, scale_type="ex_post_reported_evaluation_scale", not_live_risk_rule=true. Do not overwrite raw order_weights unless explicitly live-traded.
+12. needs_human_review items must be structured: {{"field_path":"...","label":"...","reason":"...","questions":["..."]}}.
 
 Output ONLY valid JSON."""
 
@@ -375,6 +434,7 @@ Title: {title}
 Methodology: {methodology}
 Signal Logic: {signal_logic}
 Data Description: {data_description}
+Instruction / clarification context: {instruction_context}
 
 Map the information into a JSON object with the following structure:
 

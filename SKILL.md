@@ -17,14 +17,14 @@ description: >
   finance paper or research document, use this skill.
 argument-hint: "[paper.pdf | strategy.md | report.docx | search query]"
 metadata:
-  version: 0.6.0
+  version: 0.6.1
   author: ALAGENT AI (alagent-ai)
   tags: [quantitative-finance, paper-parsing, strategy-extraction, code-generation, backtesting]
 ---
 
 # X2Strategy
 
-Any research input → Strategy spec → Executable code → Backtest → Diagnosis.
+Any finance-related input → Strategy spec → Executable code → Backtest → Diagnosis.
 
 ## Capabilities
 
@@ -67,19 +67,23 @@ which is faster and less error-prone than asking the user to type.
 
 Apply interactive tools to:
 - First-Run Setup choices (workspace path, API provider, key input)
-- Gate 1 confirmation (proceed / adjust settings)
-- Gate 2 action menu (implement / deep dive / compare / adjust / export / re-extract)
+- Input confirmation (proceed / add clarification / adjust settings)
+- Review checkpoints and implementation approval
+- `needs_human_review` resolution after extraction or repair
 - Search result selection (pick papers from a numbered list)
 - Any scenario where the user picks from options
 
 If no interactive tool is available, fall back to numbered text menus.
 
+### First Response Contract
+
+For any paper2code, research-to-code, or “use this skill” request, the first response must not promise immediate implementation. First identify the visible inputs, then use an interactive dialog to confirm setup status, input files, extra instructions/clarifications, and intended workflow scope. Only proceed after that confirmation.
+
 ---
 
 ## First-Run Setup
 
-On first use, walk through three steps. Skip any already-configured step.
-Persist all choices to `.env` (gitignored) for session stability.
+On first use, walk through three steps. If a step is already configured, report the detected value and ask the user to confirm or change it. Always confirm task scope before extraction or implementation. Persist all choices to `.env` (gitignored) for session stability.
 
 ### Step 1 — Workspace Location
 
@@ -92,7 +96,8 @@ Scan the directory for existing `metadata.json` to detect prior analyses.
 
 ### Step 2 — LLM API Key
 
-Check env for `DEEPSEEK_API_KEY`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`.
+Check env for `DEEPSEEK_API_KEY`, `OPENROUTER_API_KEY`, `OPENAI_API_KEY`,
+or `ANTHROPIC_API_KEY`.
 If none found, present via interactive tool:
 
 ```
@@ -101,8 +106,6 @@ An LLM API key is required for strategy extraction and code generation. Recommen
   2. OpenRouter (one key for access to multiple models) → https://openrouter.ai/keys
 Please provide your API key and tell me which provider it belongs to.
 ```
-
-> Do NOT check for or suggest `ANTHROPIC_API_KEY`.
 
 Once received, write key + matching model to `.env`, then verify:
 `uv run python -c "from paper2spec.llm import chat; print(chat('Say OK'))"`.
@@ -141,130 +144,54 @@ Just tell me what you want to do, and I will handle the rest.
 
 ---
 
-## Routing
+## Single Workflow
 
-| User Intent | Route | Action |
-|-------------|-------|--------|
-| "Analyze this paper/doc" | paper2spec | Parse + extract specs |
-| "Search for papers about X" | paper2spec | Search → **Gate 1** |
-| "Here's my strategy draft" (MD/DOCX/TXT) | paper2spec | Auto-detect format, extract |
-| "Generate code / Implement this" | spec2code | Spec → code → validate → backtest |
-| "Run a backtest" | spec2code | Execute strategy.py |
-| "End to end from paper" | both | paper2spec → **Gate 2** → spec2code |
-| "Compare results with paper" | spec2code | Read backtest output + spec, compare metrics |
+Use one workflow for all tasks. Do not choose between competing routers.
 
----
+1. **Setup** — verify `.env`, library path, API key if needed, Python environment, and user-selected scope.
+2. **Input confirmation** — identify the paper/spec/data/instruction files or search results; ask whether to add clarification, constraints, selected-plan preferences, known pitfalls, or reference files.
+3. **paper2spec: PDF/text to content** — parse the selected document into grounded content artifacts.
+4. **paper2spec: extract** — extract candidate strategy specs/plans from the content plus user instructions.
+5. **paper2spec: repair/review** — read `references/extraction_quality.md`, retrieve relevant operator pitfalls when high-risk formulas are present, and repair only the selected plan/spec with grounded evidence.
+6. **HITL review** — after repair, always inspect `needs_human_review`. If any item exists, present it through the interactive dialog and do not continue until answered or explicitly accepted. If none exists, still report that review found no open items and ask for implementation approval.
+7. **spec2code** — after HITL approval, confirm the implementation target and generate code for that target.
+8. **Validation/backtest/diagnosis** — validate generated code, run available checks/backtests, compare against expected or reference outputs, summarize mismatches, then ask what to do next.
 
-## Interaction Gates
+No bypass: never silently chain extraction → repair → implementation. User-provided papers, instructions, data files, existing specs, or reference outputs are evidence, not permission to skip review or HITL.
 
-Two mandatory HITL gates. Skip only when user says "fully automatic" /
-"end to end without stopping".
+When previous Copilot, VS Code, or agent logs are mentioned, verify that the referenced path exists and contains the needed files before using them. If the path is missing, empty, or incomplete, regenerate the required artifacts from the original paper/instructions/data instead of relying on the log summary.
 
-**Always present gate choices through interactive tools when available.**
+## Output Paths
 
-### Gate 1 — Input Confirmation
+Default generated artifacts go under `PAPER2SPEC_LIBRARY_PATH/<slug>/`, where `<slug>` is the paper or task slug confirmed with the user. If a custom output path is requested, confirm it before writing files.
 
-**When:** After receiving/finding input, BEFORE extraction.
+Expected artifact paths:
 
-Three scenarios — present via interactive tool (or numbered text menu):
+- `content.json` and `content.md` from paper2spec parsing
+- `spec.json` and `spec.md` from extraction and repair
+- `operator_pitfall_context.md` when pitfall retrieval is used
+- `strategy.py`, `strategy_1.py`, or the user-confirmed implementation filename from spec2code
+- `results/backtest_output.txt`, `results/metrics.json`, and `results/diagnosis_report.md` from validation/backtest/diagnosis
 
-**Scenario A — User provided a file:**
-```
-📄 Received: "Tactical Asset Allocation" (Faber, 2007)
-   Format: PDF, 18 pages
-   Abstract: [first 2 sentences]
+Every status update after file generation should name the concrete workspace-relative path that was written.
 
-I'll extract trading strategies. ~30-60s, ~$0.01.
-→ Proceed with extraction?
-→ Or adjust settings first? (parser mode, model, output location)
-```
+## Spec2Code Metrics
 
-**Scenario B — Search results returned:**
-```
-🔍 Found 8 papers for "momentum trading strategy":
-  1. ⭐ "Time Series Momentum" (Moskowitz et al., 2012) — 847 citations
-  2. "Momentum Crashes" (Daniel & Moskowitz, 2016) — 523 citations
-  ...
-Which paper to analyze? (pick number, "1, 3" for multiple, or refine search)
-```
-Do NOT auto-analyze. Always let user pick.
-
-**Scenario C — Raw text / strategy idea:**
-```
-📝 I see you've described: "[brief summary]"
-   I'll structure this into a formal spec. → Proceed? → Add more details first?
-```
-
-Keep it light for straightforward inputs — single confirm with default-proceed.
-
-### Gate 2 — Spec Review & Action Menu
-
-**When:** After extraction completes, BEFORE code generation.
-
-Show extraction summary, then present action menu via interactive tool:
-
-```
-✅ Strategy Extraction Complete
-📋 Paper: "Pairs Trading: Does Volatility Timing Matter?"
-   Detected: 3 independent strategies
-
-   [1] Minimum Distance Method
-       • 4 indicators (spread, SMA, Z-score, distance)
-       • Entry: spread Z-score > 2σ, Exit: mean reversion
-
-   [2] Stationarity-Based (ADF Test)
-       • 3 indicators, Entry: cointegrated pair + spread deviation
-
-   [3] Cointegration (Johansen)
-       • 5 indicators, Entry: Johansen test + Z-score threshold
-```
-
-Then 6 actions:
-
-1. 🚀 **Implement** — Generate executable code (pick strategy # or "all")
-2. 🔍 **Deep dive** — Explain a strategy's logic in detail
-3. 📊 **Compare** — Side-by-side of detected strategies
-4. ✏️ **Adjust** — Modify spec parameters/constraints
-5. 💾 **Export only** — Save specs, stop here
-6. 🔄 **Re-extract** — Different model or parser mode
-
-**Key behaviors:**
-- "Implement" → confirm which strategy index before generating code.
-- "Deep dive" → explain, then return to the same menu.
-- After code gen + backtest → present results, offer next decision.
-- Never silently chain extraction → code generation.
-
-### Gate Bypass
-
-If user says "end to end" / "fully automatic" / "don't stop", collapse
-gates into inline status:
-
-```
-📄 Parsing paper... ✓ (3 strategies detected)
-💻 Generating code for strategy 1... ✓
-📊 Running backtest... ✓
-📈 Results ready — see below.
-```
-
-Still stop on unexpected issues (0 strategies, errors, validation failures).
+For every runnable strategy, spec2code should compute and report at least: Sharpe ratio, maximum drawdown, total return, and return value/final portfolio value. If a strategy is not runnable as a broker-connected strategy, report why and still compute the metrics that are meaningful for the confirmed research/backtest contract.
 
 ---
 
 ## Agent Pipeline Flow
 
 ```
-1. Receive input (file / search query / text)
-2. ── Gate 1: Input Confirmation ──
-3. [paper2spec] Parse document, extract strategy specs
-4. ── Gate 2: Spec Review & Action Menu ──
-5. User selects strategy + action
-6. [spec2code] For each selected strategy:
-   a. Read spec.json + reference docs
-   b. Generate self-contained Backtrader strategy.py
-   c. Validate (AST + structural checks)
-   d. Run backtest, compare metrics vs paper
-7. Present results + diagnosis
-8. Offer next actions
+1. Setup: confirm environment, library path, keys if needed, and task scope
+2. Confirm inputs: paper/spec/data/instructions/search result + clarifications
+3. paper2spec: parse PDF/text/doc to content artifacts
+4. paper2spec: extract candidate specs/plans
+5. paper2spec: select target plan/spec and repair with extraction_quality + matched pitfalls
+6. HITL: inspect needs_human_review and resolve through interactive dialog
+7. spec2code: confirm output contract, generate code, validate, run checks/backtest
+8. Diagnose results and ask next action
 ```
 
 For code generation patterns: [references/spec2code.md](references/spec2code.md)
@@ -274,11 +201,18 @@ For Backtrader patterns: [references/backtrader_patterns.md](references/backtrad
 
 ## Internal Toolchain
 
-> Agent-only. Run silently; present results in natural language.
+Agent-only. Run silently; present results in natural language.
 
 ```bash
-# End-to-end: any document → spec
+# Document → spec
 uv run python scripts/analyze.py <file> -o library/<slug>/
+
+# Step-by-step paper2spec
+uv run python scripts/parse.py <file> -o content.json
+uv run python scripts/extract.py content.json -o spec.json
+
+# Matched operator-pitfall context for repair/review
+uv run python scripts/operator_pitfalls.py spec.json -o operator_pitfall_context.md
 
 # Validate generated code
 uv run python scripts/validate_strategy.py library/<slug>/strategy_1.py
@@ -288,10 +222,6 @@ uv run python library/<slug>/strategy_1.py
 
 # Search papers
 uv run python scripts/search.py "<query>" -n 5
-
-# Step-by-step
-uv run python scripts/parse.py <file> -o content.json
-uv run python scripts/extract.py content.json -o spec.json
 ```
 
 For full flags, output formats, and library management:
@@ -322,6 +252,8 @@ Full config + .env examples: [references/skill-internals.md](references/skill-in
 Read on demand for implementation details:
 
 - [references/paper2spec.md](references/paper2spec.md) — Parser modes, multi-strategy detection, output schemas
+- [references/extraction_quality.md](references/extraction_quality.md) — Mandatory review/repair and `needs_human_review` rules
+- [paper2spec/resources/operator_pitfall_index.md](paper2spec/resources/operator_pitfall_index.md) — Retrieval corpus for high-risk formula pitfalls
 - [references/spec2code.md](references/spec2code.md) — Code generation workflow, Backtrader patterns
 - [references/skill-internals.md](references/skill-internals.md) — Script flags, output formats, .env examples, library management, project structure
 - [references/backtrader_patterns.md](references/backtrader_patterns.md) — Strategy class, data loading, position sizing

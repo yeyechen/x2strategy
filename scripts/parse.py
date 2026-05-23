@@ -43,7 +43,7 @@ def main():
     )
     parser.add_argument(
         "--model",
-        help="Override LLM model (e.g. openai/gpt-4o, anthropic/claude-sonnet-4-20250514)",
+        help="Override LLM model (e.g. deepseek/deepseek-chat, openrouter/deepseek/deepseek-chat-v3-0324, openai/gpt-4o, anthropic/claude-sonnet-4-20250514)",
     )
     parser.add_argument(
         "-v", "--verbose",
