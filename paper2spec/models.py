@@ -103,7 +103,9 @@ class Indicator:
     inputs: List[str] = field(default_factory=list)
     parameters: Dict[str, Any] = field(default_factory=dict)
     scope: str = "time_series"  # time_series | cross_sectional
-    output_type: str = "scalar"  # scalar | boolean | ranking
+    output_type: str = "scalar"  # scalar | boolean | ranking | vector | matrix | series
+    data_semantics: Optional[str] = None  # price_series | return_series | None
+    executable_explanation: Optional[str] = None
 
 
 @dataclass
@@ -119,7 +121,24 @@ class LogicStep:
     parameters: Dict[str, Any] = field(default_factory=dict)
     expression: str = ""
     output: str = ""
-    output_type: str = "label"  # label | boolean | scalar | ranking
+    output_type: str = "label"  # label | boolean | scalar | ranking | vector | matrix | series
+    executable_explanation: Optional[str] = None
+
+
+@dataclass
+class SizingStep:
+    """One codegen-facing step that maps signals/weights to order weights."""
+
+    step_id: str = ""
+    description: str = ""
+    scope: Optional[str] = None
+    group_by: Optional[str] = None
+    inputs: List[str] = field(default_factory=list)
+    parameters: Dict[str, Any] = field(default_factory=dict)
+    expression: str = ""
+    output: str = "order_weights"
+    output_type: str = "vector"
+    executable_explanation: Optional[str] = None
 
 
 @dataclass
@@ -130,17 +149,19 @@ class ExecutionTrigger:
     frequency: str = "monthly"
     signal_lookup: str = ""
     delay_bars: int = 1
-    price_type: str = "open"
+    price_type: Optional[str] = "open"
 
 
 @dataclass
 class PositionSizing:
     """How to size positions."""
 
-    method: str = "equal_weight"  # equal_weight | quantile_based | signal_based | volatility_scaled
+    method: str = "equal_weight"  # equal_weight | quantile_based | signal_based | volatility_scaled | direct_weight
     max_position_pct: Optional[float] = None
-    total_exposure: float = 1.0
+    total_exposure: Optional[float] = None
     long_short: str = "long_only"  # long_only | short_only | long_short
+    steps: List[SizingStep] = field(default_factory=list)
+    executable_explanation: Optional[str] = None
 
 
 @dataclass
@@ -161,6 +182,7 @@ class ExecutionPlan:
     trigger: ExecutionTrigger = field(default_factory=ExecutionTrigger)
     action: ExecutionAction = field(default_factory=ExecutionAction)
     position_sizing: PositionSizing = field(default_factory=PositionSizing)
+    executable_explanation: Optional[str] = None
 
 
 # ── StrategySpec ──────────────────────────────────────────────
@@ -185,7 +207,7 @@ class StrategySpec:
     volume_data: bool = False
     fundamental_data: List[str] = field(default_factory=list)
     alternative_data: List[str] = field(default_factory=list)
-    lookback_period: int = 200
+    lookback_period: Optional[int] = None
     data_frequency: str = "daily"
     data_source: str = ""
     time_period: str = ""
@@ -207,6 +229,9 @@ class StrategySpec:
     # ── Layer 3: Execution ──
     execution_plan: List[ExecutionPlan] = field(default_factory=list)
     risk_management: List[str] = field(default_factory=list)
+    executable_explanation: Optional[str] = None
+    risk_management_executable_explanation: Optional[str] = None
+    needs_human_review: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -223,21 +248,28 @@ class StrategySpec:
                 continue
             val = d[fname]
             if fname == "indicators" and isinstance(val, list):
-                kw[fname] = [Indicator(**v) if isinstance(v, dict) else v for v in val]
+                kw[fname] = [Indicator(**{k: x for k, x in v.items() if k in Indicator.__dataclass_fields__}) if isinstance(v, dict) else v for v in val]
             elif fname == "logic_pipeline" and isinstance(val, list):
-                kw[fname] = [LogicStep(**v) if isinstance(v, dict) else v for v in val]
+                kw[fname] = [LogicStep(**{k: x for k, x in v.items() if k in LogicStep.__dataclass_fields__}) if isinstance(v, dict) else v for v in val]
             elif fname == "execution_plan" and isinstance(val, list):
                 plans = []
                 for v in val:
                     if isinstance(v, dict):
                         v = dict(v)
                         if "trigger" in v and isinstance(v["trigger"], dict):
-                            v["trigger"] = ExecutionTrigger(**v["trigger"])
+                            v["trigger"] = ExecutionTrigger(**{k: x for k, x in v["trigger"].items() if k in ExecutionTrigger.__dataclass_fields__})
                         if "action" in v and isinstance(v["action"], dict):
-                            v["action"] = ExecutionAction(**v["action"])
+                            v["action"] = ExecutionAction(**{k: x for k, x in v["action"].items() if k in ExecutionAction.__dataclass_fields__})
                         if "position_sizing" in v and isinstance(v["position_sizing"], dict):
-                            v["position_sizing"] = PositionSizing(**v["position_sizing"])
-                        plans.append(ExecutionPlan(**v))
+                            sizing = dict(v["position_sizing"])
+                            if "steps" in sizing and isinstance(sizing["steps"], list):
+                                sizing["steps"] = [
+                                    SizingStep(**{k: x for k, x in step.items() if k in SizingStep.__dataclass_fields__})
+                                    if isinstance(step, dict) else step
+                                    for step in sizing["steps"]
+                                ]
+                            v["position_sizing"] = PositionSizing(**{k: x for k, x in sizing.items() if k in PositionSizing.__dataclass_fields__})
+                        plans.append(ExecutionPlan(**{k: x for k, x in v.items() if k in ExecutionPlan.__dataclass_fields__}))
                     else:
                         plans.append(v)
                 kw[fname] = plans

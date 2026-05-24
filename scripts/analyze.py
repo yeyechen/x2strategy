@@ -22,6 +22,7 @@ import os
 import re
 import shutil
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -30,6 +31,33 @@ from paper2spec.config import get_library_path
 from paper2spec.models import PaperContent
 from paper2spec.parser import parse_document
 from paper2spec.render import content_to_markdown, spec_to_markdown
+
+
+def _load_instruction_context(paths: list[str], instructions_dir: str | None) -> str:
+    """Load optional instruction/clarification files for grounded extraction."""
+    files: list[Path] = []
+    for raw in paths:
+        p = Path(raw)
+        if p.is_file():
+            files.append(p)
+    if instructions_dir:
+        d = Path(instructions_dir)
+        if d.is_dir():
+            patterns = ("*instruction*.md", "*clarification*.md", "*reference*.md")
+            seen = {p.resolve() for p in files}
+            for pattern in patterns:
+                for p in sorted(d.glob(pattern)):
+                    if p.is_file() and p.resolve() not in seen:
+                        files.append(p)
+                        seen.add(p.resolve())
+
+    chunks = []
+    for p in files:
+        try:
+            chunks.append(f"\n\n=== {p.name} ===\n" + p.read_text(encoding="utf-8"))
+        except OSError as exc:
+            logging.warning("Could not read instruction file %s: %s", p, exc)
+    return "".join(chunks)
 
 
 def _slugify(text: str) -> str:
@@ -60,6 +88,16 @@ def main():
         choices=["multilayer", "single"],
         default="multilayer",
         help="Extractor mode: 'multilayer' (recommended) or 'single' (legacy)",
+    )
+    parser.add_argument(
+        "--instruction",
+        action="append",
+        default=[],
+        help="Extra instruction/clarification Markdown file to ground extraction. Can be repeated.",
+    )
+    parser.add_argument(
+        "--instructions-dir",
+        help="Directory containing *instruction*.md, *clarification*.md, or *reference*.md files.",
     )
     parser.add_argument("--model", help="Override LLM model for both stages")
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -103,7 +141,10 @@ def main():
 
     # ── Stage 2: Extract ──
     print(f"\n🔬 Extracting strategies...")
-    result = extract_spec(pc, model=args.model, mode=args.extractor_mode)
+    instruction_context = _load_instruction_context(args.instruction, args.instructions_dir)
+    if instruction_context:
+        print(f"   Loaded instruction/clarification context ({len(instruction_context):,} chars)")
+    result = extract_spec(pc, model=args.model, mode=args.extractor_mode, instruction_context=instruction_context)
 
     # Write ExtractionResult JSON
     spec_json_path = os.path.join(out_dir, "spec.json")
@@ -134,6 +175,9 @@ def main():
         "paper_title": pc.title,
         "parser_mode": args.parser_mode,
         "extractor_mode": args.extractor_mode,
+        "instruction_files": args.instruction,
+        "instructions_dir": args.instructions_dir or "",
+        "instruction_context_chars": len(instruction_context),
         "model": args.model or os.environ.get("PAPER2SPEC_MODEL", ""),
         "num_strategies": result.num_detected,
         "strategies": [s.strategy_name for s in result.strategies],

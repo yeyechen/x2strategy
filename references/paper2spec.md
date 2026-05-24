@@ -8,11 +8,12 @@ strategy specifications — with automatic multi-strategy detection.
 Given a **PDF** of a quantitative finance paper, paper2spec:
 
 1. **Parses** the paper into structured sections (methodology, signal logic,
-   data requirements) via dual-mode extraction (direct LLM or FAISS RAG).
+  data requirements) via dual-mode extraction (direct LLM or FAISS semantic retrieval).
 2. **Detects** if the paper contains multiple independent strategies (Layer 0).
 3. **Extracts** a complete specification per strategy through 4 focused LLM
    calls (metadata → indicators → logic pipeline → execution plan).
-4. **Renders** all outputs in dual format: machine-readable JSON +
+4. **Grounds** extraction with optional instruction, clarification, or  customization files. Operator-pitfall retrieval is a repair/audit step, not an automatic `extract.py` step.
+5. **Renders** all outputs in dual format: machine-readable JSON +
    human-readable Markdown.
 
 ## Quick Start
@@ -21,7 +22,14 @@ Given a **PDF** of a quantitative finance paper, paper2spec:
 
 ```bash
 uv run python scripts/analyze.py paper.pdf -o library/my_paper/
+
+# Optional: use repair notes / clarifications as authoritative fallback
+uv run python scripts/analyze.py paper.pdf -o library/my_paper/ --instructions-dir uploads/
 ```
+
+This command parses and extracts in one shot, but it does not automatically run
+a separate repair CLI. Before any code generation, you should still run the
+required review/repair pass against [extraction_quality.md](extraction_quality.md).
 
 Produces:
 ```
@@ -29,8 +37,8 @@ library/my_paper/
 ├── paper.pdf       # Original PDF (auto-copied)
 ├── content.json    # PaperContent (machine-readable)
 ├── content.md      # PaperContent (human-readable)
-├── spec.json       # ExtractionResult with all strategies
-├── spec.md         # Strategy summary (human-readable)
+├── spec.json       # Extracted spec; review/repair before code generation
+├── spec.md         # Human-readable extracted spec summary
 └── metadata.json   # Analysis metadata
 ```
 
@@ -45,6 +53,7 @@ uv run python scripts/parse.py paper.pdf -o content.json
 
 # 3. Extract PaperContent → ExtractionResult (multi-strategy)
 uv run python scripts/extract.py content.json -o spec.json
+uv run python scripts/extract.py content.json -o spec.json --instruction notes.md
 ```
 
 ## Scripts Reference
@@ -52,7 +61,7 @@ uv run python scripts/extract.py content.json -o spec.json
 ### `scripts/analyze.py` — Full Pipeline (recommended)
 
 ```
-uv run python scripts/analyze.py <pdf> [-o DIR] [--parser-mode builtin|agent] [--model MODEL]
+uv run python scripts/analyze.py <pdf> [-o DIR] [--parser-mode builtin|agent] [--model MODEL] [--instruction FILE] [--instructions-dir DIR]
 ```
 
 | Flag | Default | Description |
@@ -60,6 +69,8 @@ uv run python scripts/analyze.py <pdf> [-o DIR] [--parser-mode builtin|agent] [-
 | `-o, --output-dir` | `<PAPER2SPEC_LIBRARY_PATH>/<slug>/` | Output directory |
 | `--parser-mode` | `builtin` | `builtin` (fast, <40 pages) or `agent` (FAISS semantic retrieval) |
 | `--extractor-mode` | `multilayer` | `multilayer` (recommended) or `single` (legacy) |
+| `--instruction` | — | Extra instruction/clarification Markdown file; can be repeated |
+| `--instructions-dir` | — | Directory scanned for `*instruction*.md`, `*clarification*.md`, and `*reference*.md` |
 | `--model` | env `PAPER2SPEC_MODEL` | Override LLM model |
 
 ### `scripts/parse.py` — PDF → PaperContent
@@ -71,8 +82,14 @@ uv run python scripts/parse.py <pdf> [--mode builtin|agent] [--model MODEL] [-o 
 ### `scripts/extract.py` — PaperContent → ExtractionResult
 
 ```
-uv run python scripts/extract.py <content.json> [--mode multilayer|single] [--model MODEL] [-o FILE]
+uv run python scripts/extract.py <content.json> [--mode multilayer|single] [--model MODEL] [-o FILE] [--instruction FILE] [--instructions-dir DIR]
 ```
+
+Before extraction, ask whether the user wants to add clarifications, selected-plan preferences, constraints, or instruction/reference files. Pass any such files through `--instruction` or `--instructions-dir` so extraction is grounded in that context.
+
+If extraction returns multiple strategies/plans, ask which one should continue before repair or code generation. Before any code generation, always review and repair the selected spec against [extraction_quality.md](extraction_quality.md). It is the required quality contract for selected-plan fidelity, `portfolio_weights`, direct-weight sizing, formula grounding, reported/evaluation scaling, and `needs_human_review`. For operator-pitfall checks, run `scripts/operator_pitfalls.py` against [../paper2spec/resources/operator_pitfall_index.md](../paper2spec/resources/operator_pitfall_index.md); do not let the model pick pitfalls from the full index on its own. If the user knows repeated formula, timing, or sizing pitfalls, add concise `## operator:` entries before retrieval.
+
+After extraction, select the target plan, run the repair/review pass for that plan, then check `needs_human_review`. If anything remains unresolved, ask through the interactive dialog before code generation, or let the user provide another instruction file for another repair or re-extraction pass. Do not send raw extraction output straight to code generation.
 
 ### `scripts/search.py` — Academic Paper Search
 
@@ -102,6 +119,8 @@ uv run python scripts/search.py <query> [--sources arxiv ssrn] [-n 10] [-o FILE]
   ]
 }
 ```
+
+The example above is abbreviated. Current `StrategySpec` objects are expected to carry codegen-facing fields such as `data_semantics`, `executable_explanation`, `position_sizing.steps`, and `needs_human_review`; see [extraction_quality.md](extraction_quality.md) and the generated JSON schema.
 
 ### PaperContent (content.json)
 

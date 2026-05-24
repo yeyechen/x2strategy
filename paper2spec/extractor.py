@@ -31,6 +31,7 @@ from paper2spec.models import (
     LogicStep,
     PaperContent,
     PositionSizing,
+    SizingStep,
     StrategyBrief,
     StrategySpec,
 )
@@ -57,6 +58,7 @@ def extract_spec(
     *,
     model: Optional[str] = None,
     mode: str = "multilayer",
+    instruction_context: str = "",
 ) -> ExtractionResult:
     """Synchronous: PaperContent → ExtractionResult (list of StrategySpec).
 
@@ -65,7 +67,7 @@ def extract_spec(
         model: Override LLM model string.
         mode: "multilayer" (4 focused calls, recommended) or "single" (1 call, legacy).
     """
-    return asyncio.run(aextract_spec(paper_content, model=model, mode=mode))
+    return asyncio.run(aextract_spec(paper_content, model=model, mode=mode, instruction_context=instruction_context))
 
 
 async def aextract_spec(
@@ -73,10 +75,12 @@ async def aextract_spec(
     *,
     model: Optional[str] = None,
     mode: str = "multilayer",
+    instruction_context: str = "",
 ) -> ExtractionResult:
     """Async: PaperContent → ExtractionResult via multi-layer LLM extraction."""
     if mode == "single":
-        spec = await _extract_single_call(paper_content, model=model)
+        spec = await _extract_single_call(paper_content, model=model, instruction_context=instruction_context)
+        _postprocess_spec(spec)
         return ExtractionResult(
             strategies=[spec],
             paper_title=paper_content.title,
@@ -88,7 +92,8 @@ async def aextract_spec(
 
     if len(briefs) <= 1:
         # Single strategy — run standard 4-layer extraction (no context injection)
-        spec = await _extract_multilayer(paper_content, model=model)
+        spec = await _extract_multilayer(paper_content, model=model, instruction_context=instruction_context)
+        _postprocess_spec(spec)
         return ExtractionResult(
             strategies=[spec],
             paper_title=paper_content.title,
@@ -102,10 +107,11 @@ async def aextract_spec(
         logger.info("━━━ Strategy %d/%d: %s ━━━", i + 1, len(briefs), brief.name)
         strategy_focus = _build_strategy_focus(brief)
         spec = await _extract_multilayer(
-            paper_content, model=model, strategy_focus=strategy_focus
+            paper_content, model=model, strategy_focus=strategy_focus, instruction_context=instruction_context
         )
         if not spec.strategy_name or spec.strategy_name == paper_content.title:
             spec.strategy_name = brief.name
+        _postprocess_spec(spec)
         return spec
 
     specs = list(await asyncio.gather(
@@ -179,6 +185,77 @@ def _build_strategy_focus(brief: StrategyBrief) -> str:
     return "\n".join(lines)
 
 
+def _infer_output_type(output_name: str, declared: str = "label") -> str:
+    """Infer canonical dimensionality from output variable names."""
+    name = (output_name or "").lower()
+    if name == "portfolio_weights" or name.endswith("_weights"):
+        return "vector"
+    if any(token in name for token in ("matrix", "covariance", "second_moment", "moment_matrix")):
+        return "matrix"
+    if name in {"strategy_ret", "strategy_return", "portfolio_return", "portfolio_returns", "realized_return", "oos_return", "sdf_return"}:
+        return "series"
+    return declared or "label"
+
+
+def _canonicalize_portfolio_weight_outputs(spec: StrategySpec) -> None:
+    """Rename final implementation-specific weight vectors to portfolio_weights."""
+    if any(step.output == "portfolio_weights" for step in spec.logic_pipeline):
+        return
+    excluded = {"ensemble_weights", "ridge_weights", "ridge_portfolio_weights"}
+    candidate_idx = None
+    for idx, step in enumerate(spec.logic_pipeline):
+        output = (step.output or "").strip()
+        output_lower = output.lower()
+        text = " ".join([step.description or "", step.expression or "", step.executable_explanation or ""]).lower()
+        if step.output_type == "vector" and output_lower.endswith("_weights") and output_lower not in excluded and "portfolio" in text:
+            candidate_idx = idx
+    if candidate_idx is None:
+        return
+    old_output = spec.logic_pipeline[candidate_idx].output
+    if not old_output:
+        return
+    spec.logic_pipeline[candidate_idx].output = "portfolio_weights"
+    for step in spec.logic_pipeline[candidate_idx + 1:]:
+        step.inputs = ["portfolio_weights" if item == old_output else item for item in step.inputs]
+
+
+def _postprocess_spec(spec: StrategySpec) -> None:
+    """Apply deterministic canonical fixes after LLM extraction."""
+    for ind in spec.indicators:
+        ind.output_type = _infer_output_type(ind.indicator_id or ind.name, ind.output_type)
+    for step in spec.logic_pipeline:
+        step.output_type = _infer_output_type(step.output, step.output_type)
+    _canonicalize_portfolio_weight_outputs(spec)
+
+    pipeline_outputs = [step.output for step in spec.logic_pipeline if step.output]
+    if not pipeline_outputs:
+        return
+    final_signal = pipeline_outputs[-1]
+    return_like = {"strategy_ret", "strategy_return", "portfolio_return", "portfolio_returns", "realized_return", "oos_return", "sdf_return"}
+    tradable_signal = "portfolio_weights" if final_signal in return_like and "portfolio_weights" in pipeline_outputs else final_signal
+    if "portfolio_weights" in pipeline_outputs:
+        tradable_signal = "portfolio_weights"
+
+    for plan in spec.execution_plan:
+        if tradable_signal:
+            plan.action.signal_source = tradable_signal
+        if tradable_signal == "portfolio_weights":
+            plan.action.logic = plan.action.logic or "SET order_target_percent(asset, weight) using portfolio_weights; positive = long exposure, negative = short exposure"
+            plan.position_sizing.method = "direct_weight" if plan.position_sizing.method in {"", "equal_weight", "signal_based"} else plan.position_sizing.method
+            plan.position_sizing.long_short = plan.position_sizing.long_short or "long_short"
+            if not plan.position_sizing.steps:
+                plan.position_sizing.steps = [SizingStep(
+                    step_id="sizing_step1",
+                    description="Map final portfolio weights to order target percentages.",
+                    scope="cross_sectional",
+                    inputs=["portfolio_weights"],
+                    expression="order_weights[t, asset] = portfolio_weights[t, asset]",
+                    output="order_weights",
+                    output_type="vector",
+                    executable_explanation="portfolio_weights are target-exposure fractions; submit them with order_target_percent, not as shares/contracts.",
+                )]
+
+
 # ── Multi-layer extraction (recommended) ─────────────────────
 
 
@@ -187,6 +264,7 @@ async def _extract_multilayer(
     *,
     model: Optional[str] = None,
     strategy_focus: str = "",
+    instruction_context: str = "",
 ) -> StrategySpec:
     """4-layer extraction pipeline.
 
@@ -205,6 +283,7 @@ async def _extract_multilayer(
         methodology=pc.methodology,
         data_description=pc.data_description,
         strategy_focus=strategy_focus,
+        instruction_context=instruction_context,
     )
     l1 = await _call_llm_json(prompt, model=model)
     if l1:
@@ -216,7 +295,7 @@ async def _extract_multilayer(
         spec.volume_data = l1.get("volume_data", False)
         spec.fundamental_data = l1.get("fundamental_data", [])
         spec.alternative_data = l1.get("alternative_data", [])
-        spec.lookback_period = l1.get("lookback_period", 200)
+        spec.lookback_period = l1.get("lookback_period")
         spec.data_frequency = l1.get("data_frequency", "daily")
         spec.data_source = l1.get("data_source", "")
         spec.time_period = l1.get("time_period", "")
@@ -226,6 +305,7 @@ async def _extract_multilayer(
         spec.expected_return = l1.get("expected_return")
         spec.max_drawdown = l1.get("max_drawdown")
         spec.expected_performance = l1.get("expected_performance", {})
+        spec.needs_human_review = l1.get("needs_human_review", spec.needs_human_review)
         logger.info("  → %s (%s)", spec.strategy_name, spec.strategy_type)
 
     # ── Layer 2: Indicators ──
@@ -237,6 +317,7 @@ async def _extract_multilayer(
         signal_logic=pc.signal_logic,
         methodology=pc.methodology,
         strategy_focus=strategy_focus,
+        instruction_context=instruction_context,
     )
     l2 = await _call_llm_json(prompt, model=model)
     if l2:
@@ -261,6 +342,7 @@ async def _extract_multilayer(
         signal_logic=pc.signal_logic,
         methodology=pc.methodology,
         strategy_focus=strategy_focus,
+        instruction_context=instruction_context,
     )
     l3 = await _call_llm_json(prompt, model=model)
     if l3:
@@ -270,6 +352,9 @@ async def _extract_multilayer(
             for step in raw_steps
             if isinstance(step, dict)
         ]
+        for step in spec.logic_pipeline:
+            step.output_type = _infer_output_type(step.output, step.output_type)
+        _canonicalize_portfolio_weight_outputs(spec)
         logger.info("  → %d logic steps", len(spec.logic_pipeline))
 
     # ── Layer 4: Execution Plan + Risk ──
@@ -285,12 +370,16 @@ async def _extract_multilayer(
         data_description=pc.data_description,
         methodology=pc.methodology,
         strategy_focus=strategy_focus,
+        instruction_context=instruction_context,
     )
     l4 = await _call_llm_json(prompt, model=model)
     if l4:
         raw_plans = l4.get("execution_plan", [])
         spec.execution_plan = [_parse_execution_plan(p) for p in raw_plans if isinstance(p, dict)]
         spec.risk_management = l4.get("risk_management", [])
+        spec.executable_explanation = l4.get("executable_explanation")
+        spec.risk_management_executable_explanation = l4.get("risk_management_executable_explanation")
+        spec.needs_human_review = l4.get("needs_human_review", spec.needs_human_review)
         logger.info("  → %d execution plans, %d risk rules", len(spec.execution_plan), len(spec.risk_management))
 
     logger.info(
@@ -307,7 +396,7 @@ async def _extract_multilayer(
 
 
 async def _extract_single_call(
-    pc: PaperContent, *, model: Optional[str] = None
+    pc: PaperContent, *, model: Optional[str] = None, instruction_context: str = ""
 ) -> StrategySpec:
     """Original single-prompt extraction (kept for comparison / fallback)."""
     prompt = SPECIFICATION_PROMPT.format(
@@ -315,6 +404,7 @@ async def _extract_single_call(
         methodology=pc.methodology,
         signal_logic=pc.signal_logic,
         data_description=pc.data_description,
+        instruction_context=instruction_context,
     )
     raw = await achat(prompt, system=SYSTEM_PROMPT, model=model, max_tokens=8192)
     spec_dict = _parse_json_response(raw)
@@ -350,6 +440,10 @@ def _parse_execution_plan(d: dict) -> ExecutionPlan:
     trigger_d = d.get("trigger", {})
     action_d = d.get("action", {})
     sizing_d = d.get("position_sizing", {})
+    sizing_steps = []
+    for step in sizing_d.get("steps", []) or []:
+        if isinstance(step, dict):
+            sizing_steps.append(SizingStep(**{k: v for k, v in step.items() if k in SizingStep.__dataclass_fields__}))
 
     return ExecutionPlan(
         plan_id=d.get("plan_id", ""),
@@ -369,9 +463,12 @@ def _parse_execution_plan(d: dict) -> ExecutionPlan:
         position_sizing=PositionSizing(
             method=sizing_d.get("method", "equal_weight"),
             max_position_pct=sizing_d.get("max_position_pct"),
-            total_exposure=sizing_d.get("total_exposure", 1.0),
+            total_exposure=sizing_d.get("total_exposure"),
             long_short=sizing_d.get("long_short", "long_only"),
+            steps=sizing_steps,
+            executable_explanation=sizing_d.get("executable_explanation"),
         ),
+        executable_explanation=d.get("executable_explanation"),
     )
 
 

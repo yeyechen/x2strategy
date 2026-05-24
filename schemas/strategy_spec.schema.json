@@ -49,7 +49,8 @@
       }
     },
     "lookback_period": {
-      "type": "integer"
+      "type": "integer",
+      "nullable": true
     },
     "data_frequency": {
       "type": "string"
@@ -107,6 +108,20 @@
       "items": {
         "type": "string"
       }
+    },
+    "executable_explanation": {
+      "type": "string",
+      "nullable": true
+    },
+    "risk_management_executable_explanation": {
+      "type": "string",
+      "nullable": true
+    },
+    "needs_human_review": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
     }
   },
   "$defs": {
@@ -142,6 +157,14 @@
         },
         "output_type": {
           "type": "string"
+        },
+        "data_semantics": {
+          "type": "string",
+          "nullable": true
+        },
+        "executable_explanation": {
+          "type": "string",
+          "nullable": true
         }
       }
     },
@@ -180,6 +203,10 @@
         },
         "output_type": {
           "type": "string"
+        },
+        "executable_explanation": {
+          "type": "string",
+          "nullable": true
         }
       }
     },
@@ -199,7 +226,8 @@
           "type": "integer"
         },
         "price_type": {
-          "type": "string"
+          "type": "string",
+          "nullable": true
         }
       }
     },
@@ -217,6 +245,47 @@
         }
       }
     },
+    "SizingStep": {
+      "type": "object",
+      "properties": {
+        "step_id": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "nullable": true
+        },
+        "group_by": {
+          "type": "string",
+          "nullable": true
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "expression": {
+          "type": "string"
+        },
+        "output": {
+          "type": "string"
+        },
+        "output_type": {
+          "type": "string"
+        },
+        "executable_explanation": {
+          "type": "string",
+          "nullable": true
+        }
+      }
+    },
     "PositionSizing": {
       "type": "object",
       "properties": {
@@ -228,10 +297,21 @@
           "nullable": true
         },
         "total_exposure": {
-          "type": "number"
+          "type": "number",
+          "nullable": true
         },
         "long_short": {
           "type": "string"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SizingStep"
+          }
+        },
+        "executable_explanation": {
+          "type": "string",
+          "nullable": true
         }
       }
     },
@@ -252,6 +332,10 @@
         },
         "position_sizing": {
           "$ref": "#/$defs/PositionSizing"
+        },
+        "executable_explanation": {
+          "type": "string",
+          "nullable": true
         }
       }
     }

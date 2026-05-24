@@ -51,7 +51,7 @@ Initialization completion policy:
 ### `scripts/analyze.py` — Full Pipeline (recommended)
 
 ```
-uv run python scripts/analyze.py <file> [-o DIR] [--parser-mode builtin|agent] [--model MODEL]
+uv run python scripts/analyze.py <file> [-o DIR] [--parser-mode builtin|agent] [--model MODEL] [--instruction FILE] [--instructions-dir DIR]
 ```
 
 Accepts: `.pdf`, `.md`, `.markdown`, `.docx`, `.txt` (auto-detects from extension).
@@ -61,6 +61,8 @@ Accepts: `.pdf`, `.md`, `.markdown`, `.docx`, `.txt` (auto-detects from extensio
 | `-o, --output-dir` | `<PAPER2SPEC_LIBRARY_PATH>/<slug>/` | Output directory |
 | `--parser-mode` | `builtin` | `builtin` (fast, <40 pages) or `agent` (FAISS semantic retrieval) |
 | `--extractor-mode` | `multilayer` | `multilayer` (recommended) or `single` (legacy) |
+| `--instruction` | — | Extra instruction/clarification Markdown file to ground extraction; can be repeated |
+| `--instructions-dir` | — | Directory scanned for `*instruction*.md`, `*clarification*.md`, and `*reference*.md` |
 | `--model` | env `PAPER2SPEC_MODEL` | Override LLM model |
 
 **Outputs**: `content.json`, `content.md`, `spec.json`, `spec.md`, `metadata.json`
@@ -84,7 +86,7 @@ Default output: `<PAPER2SPEC_LIBRARY_PATH>/<file_stem>/content.json`
 ### `scripts/extract.py` — PaperContent → ExtractionResult
 
 ```
-uv run python scripts/extract.py <content.json> [--mode multilayer|single] [--model MODEL] [-o FILE]
+uv run python scripts/extract.py <content.json> [--mode multilayer|single] [--model MODEL] [-o FILE] [--instruction FILE] [--instructions-dir DIR]
 ```
 
 ### `scripts/search.py` — Academic Paper Search
@@ -283,6 +285,9 @@ paper2spec/          # PDF → structured spec
 ├── models.py          # PaperContent, StrategySpec, ExtractionResult, StrategyBrief
 ├── parser.py          # PDF → PaperContent (Mode A: builtin, Mode B: FAISS)
 ├── extractor.py       # PaperContent → ExtractionResult (Layer 0-4)
+├── operator_pitfall.py # Semantic retrieval over editable pitfall corpus
+├── resources/
+│   └── operator_pitfall_index.md # User-extensible pitfall corpus
 ├── render.py          # JSON → Markdown renderers
 ├── pdf_utils.py       # Hybrid PDF extraction (pymupdf4llm + fitz)
 ├── llm.py             # litellm wrapper
@@ -297,6 +302,7 @@ spec2code/           # Tools for agent-driven code generation
 scripts/             # CLI entry points (agent-only)
 ├── analyze.py         # Full paper2spec pipeline
 ├── parse.py, extract.py, search.py
+├── operator_pitfalls.py # Semantic retrieval for repair pitfall context
 ├── validate_strategy.py
 └── generate_schemas.py
 
@@ -307,6 +313,7 @@ schemas/             # JSON Schema definitions
 references/          # Deep-dive documentation (read on demand)
 ├── paper2spec.md
 ├── spec2code.md
+├── extraction_quality.md
 ├── skill-internals.md   # This file
 ├── backtrader_patterns.md
 ├── indicator_cookbook.md
