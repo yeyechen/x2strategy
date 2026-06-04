@@ -79,15 +79,22 @@ sizing → `self.broker.getvalue()` calculations.
 Generate a **single self-contained Python file** (`strategy.py`) that includes:
 
 1. **Imports** — `backtrader as bt`, `yfinance`, `datetime`, `json`
-2. **Data loading** — Download OHLCV data via yfinance/akshare
+2. **Data loading with local cache** — Download OHLCV/fundamental/macro data via yfinance/akshare/FRED/etc. only when the matching local cache is missing
 3. **Strategy class** — `class MyStrategy(bt.Strategy)` with `__init__` and `next`
 4. **Cerebro setup** — Broker config, analyzers, initial cash
 5. **Metrics output** — Print key metrics as JSON to stdout
-6. **`if __name__ == "__main__"` guard**
+6. **Visualization output** — Save equity curve, drawdown, traded-asset prices,
+   and every used indicator chart to `results/`
+7. **Commission comparison output** — For trading strategies, save a single equity-curve comparison chart for 0%, 0.01%, and 0.05% commission rates.
+8. **`if __name__ == "__main__"` guard**
 
 Read [backtrader_patterns.md](backtrader_patterns.md) for canonical patterns.
 Read [indicator_cookbook.md](indicator_cookbook.md) for indicator implementations.
 Read [data_sources.md](data_sources.md) for data API usage.
+
+#### Mandatory Data Cache
+
+Any generated strategy that fetches data from the user-provided dirs or network must persist under a local cache directory before using it in the backtest.
 
 #### Strategy File Template Structure
 
@@ -112,6 +119,7 @@ def run_backtest():
     cerebro = bt.Cerebro()
 
     # Load data
+    # Network data must be loaded through a local cache first.
     data = bt.feeds.PandasData(dataname=df)
     cerebro.adddata(data)
 
@@ -298,7 +306,9 @@ After a successful backtest, present results in this format:
 **3. Generated files** (list paths):
 - `strategy_1.py` — self-contained strategy code
 - `spec.json` — strategy specification
-- Key metrics as JSON (already printed to stdout)
+- `results/portfolio_vs_assets.csv` and `results/portfolio_vs_assets.png` comparing the strategy portfolio value against same-capital buy-and-hold curves for every used equity/ETF/asset in one image; asset curves must use distinguishable colors and symbol labels/legend entries, and SPY and portfolio must be boldface (comparing same-parameter portfolio curves at 0%, 0.01%, and 0.05% commission in one image)
+- `results/key_pred/` with one CSV and one PNG per key observerable factors used by the strategy
+- `data/` local cached data paths used by the run
 
 **4. Optional — if user requests:**
 - Plot: `cerebro.plot()` generates a chart. Note this requires matplotlib and
@@ -312,7 +322,13 @@ After a successful backtest, present results in this format:
 ```
 library/<paper>/
 ├── spec.json              # From paper2spec
-├── strategy_1.py          # Generated code (self-contained)
+├── strategy_1.py          # Generated code │   ├── data/
+├── results/
+│   ├── metrics.json
+│   ├── backtest_output.txt
+│   ├── diagnosis_report.md
+│   ├── portfolio_vs_assets_commission_comparison.csv
+│   └── portfolio_vs_assets_commission_comparison.png
 └── metadata.json
 ```
 

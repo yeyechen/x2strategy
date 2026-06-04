@@ -5,6 +5,10 @@
 
 Guide for generating data-fetching code. Covers yfinance and akshare APIs.
 
+## Mandatory Local Cache for Network Data
+
+Whenever data is fetched from user-designated dir, yfinance, akshare, FRED, exchange APIs, or any other network source, save the provider-normalized data locally before backtesting and reuse it on later runs.
+
 ## yfinance (US/Global Markets)
 
 ### `yf.download()` — Full Signature (from official docs)
