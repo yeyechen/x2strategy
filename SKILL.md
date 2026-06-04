@@ -171,13 +171,21 @@ Expected artifact paths:
 - `spec.json` and `spec.md` from extraction and repair
 - `operator_pitfall_context.md` when pitfall retrieval is used
 - `strategy.py`, `strategy_1.py`, or the user-confirmed implementation filename from spec2code
+- `data/` for any data used by generated strategy code
 - `results/backtest_output.txt`, `results/metrics.json`, and `results/diagnosis_report.md` from validation/backtest/diagnosis
+- `results/portfolio_vs_assets.csv` and `results/portfolio_vs_assets.png` comparing the strategy portfolio value against same-capital buy-and-hold curves for every used equity/ETF/asset in one image; asset curves must use distinguishable colors and symbol labels/legend entries, and SPY and portfolio must be boldface (comparing same-parameter portfolio curves at 0%, 0.01%, and 0.05% commission in one image)
+- `results/key_pred/` with one CSV and one PNG per key observerable factors used by the strategy
 
 Every status update after file generation should name the concrete workspace-relative path that was written.
 
 ## Spec2Code Metrics
 
 For every runnable strategy, spec2code should compute and report at least: Sharpe ratio, maximum drawdown, total return, and return value/final portfolio value. If a strategy is not runnable as a broker-connected strategy, report why and still compute the metrics that are meaningful for the confirmed research/backtest contract.
+
+Spec2Code-generated code must cache all network data locally, save headless-safe visual diagnostics, plot all used asset prices together, compare the strategy account value against same-capital buy-and-hold curves for all used assets, include a 0% / 0.01% / 0.05% commission equity-curve comparison for trading strategies, and include a combined portfolio-vs-assets chart where all three commission portfolio curves are plotted with all asset buy-and-hold
+curves. 
+
+For US equity strategies, SPY must be included and highlighted as the market baseline in asset and portfolio-vs-assets plots. See [references/spec2code.md](references/spec2code.md) and [references/data_sources.md](references/data_sources.md) for the required data cache and visualization contract.
 
 ---
 
