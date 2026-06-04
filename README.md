@@ -151,7 +151,7 @@ cp .env.example .env          # add your API key (DEEPSEEK_API_KEY recommended)
 
 Then ask for work in natural language, for example:
 
-> *"Analyze this paper and implement the main strategy"* + attach a PDF
+> *"Analyze this paper and implement the main strategy."* + attach a PDF + optional data files + optional clarification/user-customization prompts such as *"When the paper underspecifies a formula, you can either explicitly ask me or refer to the sample_instruction.md file."*
 
 The skill handles parsing, extraction, code generation, validation, backtesting, and diagnosis.
 Before extraction, it should ask whether you want to add custom instructions, implementation constraints, known pitfalls, or reference files.
@@ -221,7 +221,8 @@ examples/upsa/
 
 </details>
 
-Not every strategy extracted by this skill is suitable for direct broker-connected paper trading. Many research strategies consume factor returns, synthetic portfolios, ranking panels, or other non-tradable inputs; some are portfolio-construction or SDF/asset-pricing procedures rather than order-generating live strategies. The open-source skill focuses on grounded extraction, code generation, validation, and research backtests. ALAGENT's website can generate broker-connected strategies when the selected strategy and data contract are suitable for live/paper trading.
+> [!IMPORTANT]
+> Not every strategy extracted by this skill is suitable for direct broker-connected (live/paper) trading. Many research strategies consume factor returns, synthetic portfolios, ranking panels, or other non-tradable inputs; some are portfolio-construction or SDF/asset-pricing procedures rather than order-generating live strategies. The open-source skill focuses on grounded extraction, code generation, validation, and research backtests. ALAGENT's website can generate broker-connected strategies when the selected strategy and data contract are suitable for live/paper trading.
 
 ## Project Structure
 
