@@ -15,6 +15,27 @@ The repair workflow builds queries from draft `indicators`, `logic_pipeline`,
 operator entries should be applied, and only to the component path reported by
 retrieval.
 
+## Always-Available High-Frequency Pitfalls (no retrieval needed)
+
+Apply these to **every** spec review, even when semantic retrieval is disabled,
+returns nothing, or the matched-entry threshold is not met. They are the
+highest-frequency "runs but wrong" causes and are cheap to check by hand. The
+operator-specific entries below add depth; this list is the always-on floor.
+
+- **Centered vs uncentered moments.** Confirm whether the source uses raw `R.T @ R / T` (uncentered second moment) or demeaned `(R-mean).T @ (R-mean)/T` (covariance), and preserve the exact denominator (`T` vs `T-1`). Picking the wrong one silently changes every downstream weight.
+- **Estimate-at-t, apply-at-t+1 timing.** If weights/signals estimated at *t* are applied to returns at *t+1*, the estimation window must exclude the evaluated return. Advance by **one index step in the data array** (`iloc[i+1]`), never by `DateOffset`/calendar arithmetic. This is the most common look-ahead leak.
+- **Warm-up / OOS exclusion.** Paper-style Sharpe / Calmar / hit-rate use the OOS return series only; training/warm-up periods must not enter the reported metrics.
+- **Direct-weight pass-through.** Raw `portfolio_weights` may be negative and need not sum to 1 or to gross 1. Do not normalize, clip, or de-leverage unless the spec has non-null sizing constraints.
+- **Ensemble weights ≠ asset weights.** Weights over strategies/models/predictors are intermediate; if they are not implementation-ready asset weights, the downstream mapping to asset-level `portfolio_weights` must be explicit.
+- **Preserve shrinkage target and intensity.** Keep the exact shrinkage/ridge target (identity, diagonal, grand mean, market factor) and the exact intensity/denominator. Do not turn statistical normalization into live order sizing.
+- **Near-zero denominator sign trap.** Never stabilize with `max(denom, eps)` / `np.maximum(denom, eps)` — it flips a legitimately negative denominator to `+eps` and reverses the position's sign. Mask with `abs(denom) > eps` and zero out invalid entries instead.
+- **Broker Sharpe ≠ paper Sharpe.** `bt.analyzers.SharpeRatio` reflects cash/fill/margin effects; for replication, compute the paper metric from `strategy_ret[t] = weights[t-1] @ returns[t]`, and configure the analyzer by return frequency (monthly→factor 12, weekly→52, daily→252), not by rebalance frequency.
+- **Zero costs unless stated.** Commission and slippage default to `0.0` when the paper does not specify them. Do not invent transaction costs.
+
+When in doubt and no operator entry matches a high-risk formula, do not guess a
+default — write a structured `needs_human_review` item (see
+[extraction_quality.md](../../references/extraction_quality.md)).
+
 ## operator: second_moment
 
 description: Compute a return cross-product matrix used in portfolio optimization, quadratic utility, or base-portfolio evaluation. The matrix may be an uncentered second moment such as `R.T @ R / T`, or a centered covariance matrix such as `(R - mean).T @ (R - mean) / T`.

@@ -92,6 +92,15 @@ Read [backtrader_patterns.md](backtrader_patterns.md) for canonical patterns.
 Read [indicator_cookbook.md](indicator_cookbook.md) for indicator implementations.
 Read [data_sources.md](data_sources.md) for data API usage.
 
+**Start from the bundled runner template** [assets/backtrader_template.py](../assets/backtrader_template.py).
+Copy its structural parts verbatim and adapt only the marked spots
+(`fetch_data_cached` source, `MyStrategy.__init__/next`, universe/SPY symbol).
+The local data cache, analyzer `_name` strings, headless `matplotlib.use('Agg')`,
+the three-commission sweep, and the `portfolio_vs_assets` chart with SPY +
+portfolio boldface are the output contract — keep them as-is. Generating the
+runner/plotting block from scratch is the main source of missing-chart and
+GUI-on-headless failures.
+
 #### Mandatory Data Cache
 
 Any generated strategy that fetches data from the user-provided dirs or network must persist under a local cache directory before using it in the backtest.
@@ -172,6 +181,54 @@ if __name__ == '__main__':
 
 At minimum, every runnable Spec2Code output should report `sharpe_ratio`, `max_drawdown` or `max_drawdown_pct`, `total_return`, and `return_value`/`final_value`. If the confirmed target is not a broker-style strategy, compute the same metrics from the research return series when meaningful.
 
+#### Signal / Allocation Generator Contract (§4)
+
+Implement the strategy primarily from `logic_pipeline`, `execution_plan`, and
+`executable_explanation`. Treat `indicators` as formula/reference definitions
+only. Implement **only** the formulas the selected path needs — skip unused,
+`theoretical_only`, `benchmark_only`, `evaluation_only`, and
+`not_used_in_selected_plan` indicators. Prefer vectorised pandas/numpy over
+element-wise loops.
+
+Pick the generator shape from `strategy_type`:
+
+| Type | Output semantics |
+|------|-----------------|
+| `signal` (default) | Output semantics are defined by `execution_plan`: categorical labels, ranking scores, forecasts, or directional scores. Do **not** assume every signal is a numeric score in `[-1, 1]`. |
+| `allocation` | Output is target exposures / direct portfolio weights. They may be negative and may not sum to 1. **Do not normalize** unless explicit sizing constraints are non-null in the spec. |
+| `hybrid` | Selection/ranking/forecast first, then allocation if `execution_plan` says so. |
+
+Shared rules:
+- All parameters (lookbacks, thresholds, weights) come from the spec **exactly** — no rounding, no invented defaults.
+- Rolling windows follow `executable_explanation` and `execution_plan` timing. If weights estimated at *t* apply to returns at *t+1*, the estimation window must **not** include the return being evaluated. Never use the full series.
+- NaN guard: any computation consuming a column must skip/impute None/NaN; tickers whose data is unusable on `date` get weight `0.0`.
+- **Hedge separation:** if the spec specifies a hedge (e.g. `SPY`), compute its weight in a separate path. The hedge never participates in universe ranking or top-K selection.
+- **Universe fallback:** if a market-cap/sector/liquidity filter leaves fewer than ~30–50 tickers, relax the filter and warn via `print(...)` — never run on a too-small universe.
+- **Near-zero denominator:** never clamp with `denom = max(denom, eps)` / `np.maximum(denom, eps)` — that silently flips a legitimately negative denominator to `+eps` and reverses the sign (a short becomes a long). Instead mask: `valid = np.abs(denom) > eps`, set invalid entries to `0.0`, leave valid signs intact.
+
+#### Risk Management Contract (§6)
+
+Signatures are flexible (function, method, or inline). If the spec has no
+explicit risk rules, omit risk management or make it pass-through.
+
+- Implement **all** rules from `risk_management` (stop_loss, take_profit, cumulative_loss, drawdown) with thresholds **exactly** as specified.
+- If the spec does **not** specify a drawdown rule, do **not** invent one.
+- Locate `current_date` in the asset's date series to read today's data — never assume positional alignment.
+- **Volume quality gate:** apply volume-based tradability filters only when `volume_data=true` or the data clearly carries real volume. For return-series/factor data with synthetic/placeholder volume, do not treat volume as a tradability filter.
+- **Hedge bypass:** the hedge ticker skips every per-asset check (stop-loss, take-profit, data quality); its weight passes through unchanged.
+
+#### Position Sizing Contract (§7)
+
+Signatures are flexible. Pass `portfolio_value`, current prices, or broker
+positions explicitly when needed.
+
+- **Conditional capping:** apply `max_position_pct` only if it is **non-null**. If null, do not cap individual weights.
+- **Conditional normalisation:** apply `total_exposure` rescaling only if it is **non-null**. If null, do not rescale.
+- **Direct-weight pass-through:** if both `max_position_pct` and `total_exposure` are null, pass target exposures through **unchanged**. Never force long weights to +1 / short weights to −1 unless the spec explicitly requires it.
+- **Two-pass normalisation (only when constraints are non-null):** after capping, recompute the normalisation factor so total exposure matches the spec target. Never cap-then-stop.
+- **Hedge exclusion:** exclude any hedge ticker from the cap and normalisation pool, then set `hedge_weight = -sum(sized_non_hedge_weights)` to preserve market neutrality.
+- **Order translation:** target weights are portfolio-exposure fractions. Translate to orders as `target_size = (target_w * portfolio_value) / current_price` and trade only the delta vs the current position. Never pass a target weight directly as `size`.
+
 ### Phase 3: Validate
 
 Before running, validate the code:
@@ -188,6 +245,19 @@ This checks:
 - `if __name__` guard present
 - **Indicator existence** — all `bt.indicators.X` / `bt.ind.X` references
   are verified against the installed backtrader version
+
+Beyond what the bundled `validator.py` automates, also self-check these
+deterministic rules (the production backend enforces them at validation time):
+
+- **`import pandas`** is present alongside backtrader.
+- **No look-ahead via `.shift(-n)`** — negative shifts pull future data into the current bar. Treat any `.shift(-1)`, `.shift(-2)`, … as an error unless it is provably a label only used out-of-sample.
+- **No close-only tradable feed** — `bt.feeds.PandasData(..., close=..., open=None, high=None, low=None)` for a *tradable* asset is forbidden: market orders need a finite next-bar open, and missing OHLC yields NaN fills and a NaN portfolio value. Build finite `Open/High/Low/Close/Volume` first (see [backtrader_patterns.md](backtrader_patterns.md)), or mark the feed as auxiliary/non-tradable (e.g. a risk-free `IRX` column).
+
+Deterministic compatibility rewrites worth applying before running (the backend
+does these automatically):
+
+- `df.fillna(method='ffill')` → `df.ffill()`; `fillna(method='bfill')` → `df.bfill()` (pandas 2.x removed the `method=` kwarg).
+- `hasattr(trades.won, 'total')` on an analyzer `AutoOrderedDict` → `trades.get('won', {}).get('total', 0)`. `hasattr` is always wrong here because `__getattr__` raises `KeyError`, not `AttributeError`.
 
 If validation fails:
 - **Errors** (syntax, invalid indicators): must fix before running
@@ -371,3 +441,51 @@ All models have `to_dict()`, `from_dict()`, `to_json()` for serialization.
 | `SPEC2CODE_DATA_CACHE` | `<library>/data_cache` | Suggested cache dir for downloaded data |
 
 These supplement the shared paper2spec config (LLM model, API keys, etc.).
+
+## Forbidden Patterns (Complete Catalogue, §13)
+
+These **must not appear** in generated strategy code. Treat each as a hard
+gate — if one slips in, fix it before running, not after.
+
+1. Top-level `try/except` around `import` statements or the main flow.
+2. `Dict[str, Any]` / `typing.Any` when a concrete type is obvious. (Risk / sizing / generator signatures stay flexible per §6/§7 — do not force exact signatures there.)
+3. Mock / random / fake data: `random.uniform`, `np.random.rand`, hard-coded fake prices. *Exception:* synthetic OHLC **deterministically** derived from real return-series data, used only to drive Backtrader bars, is allowed.
+4. Placeholder comments or stubs: `# TODO`, `# Placeholder`, `# Simplified version`, `# FIXME`, bare `pass` in logic bodies, ellipsis `...`.
+5. Names containing `dummy`.
+6. `cerebro.plot()` or `plt.savefig(...)` for the headless backtest charts — use the project's plotting path that writes to `results/`.
+7. `hasattr(...)` on any Backtrader `AutoOrderedDict` (analyzer results) — `__getattr__` raises `KeyError`, so `hasattr` is always wrong. Use `.get(...)`.
+8. Calling `fetch_*`/data-loading inside `BacktestStrategy.__init__`.
+9. Assigning to `self.position`, `self.broker`, `self.data`, `self.datas` (framework-reserved — assignment silently breaks Backtrader).
+10. Inventing column names not present in the cached data / data report.
+11. **QP without stabilisation** — if the strategy genuinely needs a QP solver (`scipy.optimize.minimize` with a quadratic objective, or `cvxpy`), all four are mandatory: (a) symmetrise `Sigma_sym = (Sigma + Sigma.T) / 2`; (b) ridge `Sigma_reg = Sigma_sym + eps*np.eye(n)` (e.g. `eps=1e-8`); (c) warm-start `np.linalg.solve(Sigma_reg, mu)` clipped to the feasible set; (d) deterministic solver settings. If the spec uses a closed-form/analytic formula, do **not** add these.
+12. Hedge asset participating in universe ranking / top-K selection.
+13. Hedge asset participating in normalisation or the per-position cap pool.
+14. Pre-computing time-varying indicators inside `__init__` (look-ahead).
+15. `.shift(-n)` look-ahead (pulling future rows into the current bar).
+16. Non-zero `setcommission(...)` or explicit slippage unless the spec / paper states a transaction-cost value. (The 0% / 0.01% / 0.05% comparison chart is a separate, explicit sweep — not a silent default.)
+17. Normalising / clipping / de-leveraging allocation output when both `max_position_pct` and `total_exposure` are null (see §7 direct-weight pass-through).
+18. **Near-zero denominator clamp** — `max(denom, eps)` / `np.maximum(denom, eps)` flips negative denominators to `+eps` and reverses sign. Mask invalid entries to `0.0` instead.
+19. Close-only tradable feeds: `bt.feeds.PandasData(..., open=None, high=None, low=None, close=...)` for a tradable asset. Build finite OHLCV first.
+20. Passing a target weight directly as order `size`. Always translate to `target_size = (target_w * portfolio_value) / current_price` and trade the delta.
+
+## Self-Check Before Reporting "done" (§15)
+
+Run this checklist before you tell the user the backtest is complete. It is the
+cheapest quality gate in the whole pipeline — a slip here is a "runs but wrong"
+result, which is worse than a crash.
+
+- [ ] `import matplotlib; matplotlib.use('Agg')` is set before any pyplot import (headless-safe).
+- [ ] Signal / allocation / hybrid logic follows `execution_plan`; outputs match the strategy's real semantics, not a fixed signal-only template.
+- [ ] No unused / `theoretical_only` / `benchmark_only` / `evaluation_only` / `not_used_in_selected_plan` indicators implemented as live code.
+- [ ] Risk rules implemented faithfully when present; omitted / pass-through when absent. No invented drawdown rule.
+- [ ] Position sizing does not normalise or cap unless the spec says so; when both `max_position_pct` and `total_exposure` are null, target exposures pass through unchanged; hedge excluded from sizing pools.
+- [ ] Orders translate `target_w` → `target_size = (target_w * portfolio_value) / current_price` and trade the delta vs current position. No `buy(size=target_w)`.
+- [ ] All network data was cached locally first and reused; no live fetch inside the strategy class.
+- [ ] No forbidden pattern from §13 above (especially `.shift(-n)`, near-zero clamp, close-only tradable feed, `hasattr` on analyzer dicts).
+- [ ] Metrics reported: at least Sharpe, max drawdown, total return, final/return value.
+- [ ] Required artifacts written to `results/`: `metrics.json`, `backtest_output.txt`, `diagnosis_report.md`, the `portfolio_vs_assets` CSV+PNG (all three commission curves + every asset buy-and-hold, SPY + portfolio boldface), and `key_pred/` (one CSV+PNG per key observable factor). For US-equity strategies SPY is included and highlighted as the baseline.
+- [ ] Final broker value and computed returns are finite — guard with `np.isfinite`; a NaN/None/inf portfolio value must raise, never silently "succeed".
+
+Only once every box is green do you report completion. Tie this to the
+iteration discipline in [SKILL.md](../SKILL.md): generate once, at most one
+smoke-test repair round, then stop and report if it still fails.

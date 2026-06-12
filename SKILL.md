@@ -75,6 +75,54 @@ Apply interactive tools to:
 
 If no interactive tool is available, fall back to numbered text menus.
 
+### Progress Marker Protocol
+
+Run tools silently, but make long pipelines **traceable**. While working through
+the eight-step workflow, prefix status lines with one of three structured
+markers so the user (and any outer parser) can follow phase progress without
+reading raw command output. The markers carry the discipline; the surrounding
+prose stays natural-language.
+
+| Marker | When to emit | Format |
+|--------|-------------|--------|
+| `[PROGRESS]` | Entering or finishing a workflow step | `[PROGRESS] <step> — <one-line status>` |
+| `[ARTIFACT]` | A concrete file was written | `[ARTIFACT] <workspace-relative-path> — <what it is>` |
+| `[ERROR]` | A step failed or a check did not pass | `[ERROR] <step> — <what failed> — <next action>` |
+
+Rules:
+- One marker per line, at the start of the line, then plain language.
+- Every `[ARTIFACT]` must name a concrete workspace-relative path that was
+  actually written (this satisfies the Output Paths contract below).
+- `[ERROR]` must always be followed by what you will do next (retry once,
+  stop and report, ask the user) — never a bare failure.
+- Markers supplement natural-language reporting; they do not replace it. Still
+  explain *what you found*, not *how you ran it*. Never show the CLI command.
+
+Example:
+
+```
+[PROGRESS] paper2spec/extract — extracting strategy specs from content.json
+[ARTIFACT] library/upsa/spec.json — 1 strategy, 4 indicators, 3 logic steps
+[PROGRESS] HITL review — 1 open needs_human_review item, asking for resolution
+```
+
+### Iteration & Retry Discipline
+
+Generation and repair must be bounded. Translate the backend's hard turn gate
+(`--max-turns`) into agent discipline:
+
+- **Generate once, then at most one smoke-test repair round.** Write the code,
+  validate, run. If it fails, apply one targeted fix round (see the triage flow
+  in [references/spec2code.md](references/spec2code.md)) and re-run.
+- **If it still fails after that one repair round, stop and report.** Emit an
+  `[ERROR]` line, summarize what failed and the most likely root cause, and ask
+  the user how to proceed. Do not keep patching incrementally.
+- **A single runtime-error category gets at most 3 fix attempts.** If the same
+  error class persists, the strategy logic likely needs a fundamentally
+  different approach — say so rather than tweaking further.
+- Never silently loop. Each retry must be visible via a `[PROGRESS]` or
+  `[ERROR]` marker so the user can see the gate working.
+
 ### First Response Contract
 
 For any paper2code, research-to-code, or “use this skill” request, the first response must not promise immediate implementation. First identify the visible inputs, then use an interactive dialog to confirm setup status, input files, extra instructions/clarifications, and intended workflow scope. Only proceed after that confirmation.
