@@ -1,0 +1,2053 @@
+{
+  "title": "ssrn-1262416",
+  "abstract": "## **Maxing Out: Stocks as Lotteries and the Cross-Section of Expected Returns** \n\nTuran G. Bali,[a] Nusret Cakici,[b] and Robert F. Whitelaw[c*] \n\n## **February 2010** \n\n## **ABSTRACT** \n\nMotivated by existing evidence of a preference among investors for assets with lottery-like payoffs and that many investors are poorly diversified, we investigate the significance of extreme positive returns in the cross-sectional pricing of stocks. Portfolio-level analyses and firm-level cross-sectional regressions indicate a negative and significant relation between the maximum daily return over the past one month (MAX) and expected stock returns. Average raw and risk-adjusted return differences between stocks in the lowest and highest MAX deciles exceed 1% per month. These results are robust to controls for size, book-to-market, momentum, short-term reversals, liquidity, and skewness. Of particular interest, including MAX reverses the puzzling negative relation between returns and idiosyncratic volatility recently documented in Ang et al. (2006, 2009). \n\n> a Department of Economics and Finance, Zicklin School of Business, Baruch College, One Bernard Baruch Way, Box 10-225, New York, NY 10010. Phone: (646) 312-3506, Fax: (646) 312-3451, E-mail: turan_bali@baruch.cuny.edu. \n\nb School of Business, Fordham University, 1790 Broadway, New York, NY 10019, Phone: (212) 6366120, Fax: (212) 586-0575, E-mail: cakici@fordham.edu. \n\nc Corresponding author. Stern School of Business, New York Universit",
+  "methodology": "Based solely on the provided text, here is a structured synthesis of the trading strategy methodology.\n\n### Core Trading Idea\nThe strategy is a **cross-sectional, factor-based** strategy exploiting a negative relation between extreme positive past returns and future expected returns. The core hypothesis is that investors overvalue stocks with lottery-like payoffs (small probability of a large gain), leading to lower future returns for these stocks. The primary signal is the **maximum daily return over the past month (MAX)** .\n\n### Signal Generation\nThe primary signal, **MAX**, is defined as the maximum daily return for a given stock within a single calendar month:\n\\[\nMAX_{i,t} = \\max(R_{i,1}, R_{i,2}, \\ldots, R_{i,D_t})\n\\]\nwhere \\(R_{i,d}\\) is the return on stock \\(i\\) on day \\(d\\), and \\(D_t\\) is the number of trading days in month \\(t\\). The paper also tests a variant, **MAX(N)** , which is the average of the \\(N\\) highest daily returns within the month (e.g., MAX(5) is the average of the five highest daily returns). The primary analysis uses \\(N=1\\) (the single highest daily return).\n\n### Portfolio Construction and Rebalancing\nThe strategy is implemented via a **long-short portfolio** formed monthly. The process is as follows:\n1.  **Sorting:** At the end of each month \\(t\\), all NYSE/AMEX/NASDAQ stocks are sorted into **decile portfolios** based on their MAX value from month \\(t\\).\n2.  **Portfolio Formation:** Decile 1 contains stocks with the lowest MAX (low lottery appeal), and Decile 10 contains stocks with the highest MAX (high lottery appeal).\n3.  **Holding Period:** The portfolios are held for one month (month \\(t+1\\)).\n4.  **Long/Short Structure:** The strategy implicitly goes **long the low-MAX portfolio (Decile 1)** and **short the high-MAX portfolio (Decile 10)** . The paper reports the return difference as \"Low MAX – High MAX,\" which is negative, indicating that the short leg (high MAX) underperforms the long leg (low MAX).\n5.  **Weighting Scheme:** The primary results are reported for **value-weighted** portfolios, with equal-weighted results also provided for robustness. The value-weighted average raw return difference between the high-MAX and low-MAX deciles is **-1.03% per month** (t-statistic: -2.83), and the Fama-French-Carhart four-factor alpha difference is **-1.18% per month** (t-statistic: -4.71).\n\n### Key Parameters and Robustness\n- **Sample Period:** July 1962 to December 2005.\n- **Rebalancing Frequency:** Monthly.\n- **Signal Persistence:** The strategy relies on the persistence of MAX. Stocks in the top MAX decile have a **35% probability** of remaining in the top decile the following month and a **68% probability** of being in the top three deciles.\n- **Control Variables:** The strategy is robust to bivariate sorts and Fama-MacBeth cross-sectional regressions controlling for size, book-to-market, momentum, short-term reversals, liquidity, and various skewness measures. The firm-level regression coefficient on MAX in the full specification (including all controls) is **-0.0637** (t-statistic: -6.16), implying a **102 basis point** difference in expected monthly returns between the median high-MAX and low-MAX stocks.\n- **Alternative Measures:** The effect is stronger when using the average of the five highest daily returns (MAX(5)). For value-weighted portfolios, the raw return difference for MAX(5) is **-1.23% per month** and the alpha difference is **-1.32% per month**.",
+  "data_description": "Based on the provided text, here is the extracted data requirements and sample description:\n\n### 1. Data Sources\n- **Center for Research in Security Prices (CRSP)**: Used for daily stock returns, monthly stock returns, volume data, share prices, and shares outstanding.\n- **COMPUSTAT**: Used to obtain equity book values for calculating book-to-market ratios.\n- **Kenneth French’s data library**: Source for the Fama-French-Carhart four factors (excess market return, SMB, HML, MOM).\n\n### 2. Asset Universe\n- **Primary Universe**: All New York Stock Exchange (NYSE), American Stock Exchange (AMEX), and NASDAQ financial and nonfinancial firms.\n- **Sub-samples for robustness**:\n    - NYSE stocks only (excluding AMEX and NASDAQ).\n    - Stocks with prices above $5/share.\n    - Stocks with market capitalizations above the smallest NYSE size quintile (i.e., excluding the two smallest NYSE size deciles, consistent with the definition of microcap stocks in Keim (1999) and Fama and French (2008)).\n\n### 3. Time Period\n- **Primary Sample Period**: July 1962 to December 2005.\n- **Extended Sample Period**: January 1926 through December 2005 (used for some analyses, e.g., the univariate portfolio analysis).\n- **Sub-periods analyzed**:\n    - January 1926 to June 1962.\n    - July 1962 to December 1983.\n    - January 1984 to December 2005.\n\n### 4. Data Frequency\n- **Daily**: Used to calculate the maximum daily stock return (MAX), market beta (BETA), idiosyncratic volatility (IVOL), total volatility (TVOL), and various skewness measures (TSKEW, ISKEW, SSKEW).\n- **Monthly**: Used to calculate returns on portfolios, intermediate-term momentum (MOM), short-term reversals (REV), and the illiquidity measure (ILLIQ).\n\n### 5. Selection/Filter Criteria\n- **Price Filter**: Stocks with prices below $5/share were excluded in a robustness check.\n- **Market Cap Filter**: Stocks with market capitalizations that would place them in the smallest NYSE size quintile (two smallest deciles) were excluded in a robustness check.\n- **Exchange Filter**: AMEX and NASDAQ stocks were excluded in a robustness check, leaving only NYSE stocks.\n- **Industry Exclusions**: None explicitly mentioned; the universe includes both financial and nonfinancial firms.\n- **Outlier Treatment**:\n    - Book-to-market ratios were winsorized at the 0.5% and 99.5% levels.\n    - MAX was winsorized at the 99th and 95th percentiles in a robustness check for cross-sectional regressions.\n    - The 0.5% most extreme returns in both tails were eliminated in a trimmed distribution analysis (Table IV).\n\n### 6. Fundamental Data Fields\n- **Book-to-Market Ratio (BM)**: Computed using the market value of equity at the end of December of the previous year and the book value of common equity plus balance-sheet deferred taxes for the firm’s latest fiscal year ending in the prior calendar year.\n- **Market Capitalization (SIZE)**: A stock’s price times shares outstanding (in millions of dollars) at the end of month t-1.\n- **Intermediate-term Momentum (MOM)**: Cumulative return on the stock over the previous 11 months starting 2 months ago (month t-12 to month t-2).\n- **Short-term Reversal (REV)**: Return on the stock over the previous month (month t-1).\n- **Illiquidity (ILLIQ)**: Ratio of the absolute monthly stock return to its dollar trading volume.\n- **Market Beta (BETA)**: Estimated using the Scholes and Williams (1977) and Dimson (1979) method, incorporating the lag, lead, and current market return.\n- **Idiosyncratic Volatility (IVOL)**: Standard deviation of daily residuals from a single-factor market model regression.\n- **Total Volatility (TVOL)**: Standard deviation of daily returns within a month.\n- **Maximum Daily Return (MAX)**: The maximum daily return within a month.\n- **Minimum Daily Return (MIN)**: The negative of the minimum daily return within a month.\n- **Total Skewness (TSKEW)**: Skewness of daily returns within a year.\n- **Systematic Skewness (SSKEW)**: The coefficient from a regression of stock returns on squared market returns (co-skewness).\n- **Idiosyncratic Skewness (ISKEW)**: Skewness of the residuals from the regression used to estimate systematic skewness.\n- **Expected Total Skewness (E(TSKEW))**: Fitted values from a cross-sectional regression of total skewness on lagged predictor variables.\n\n### 7. Alternative Data\n- **None explicitly mentioned.** The paper focuses on standard financial data (returns, volume, accounting data) and derived measures (volatility, skewness, liquidity).\n\n### 8. Benchmark\n- **Fama-French-Carhart Four-Factor Model**: The market excess return, a size factor (SMB), a book-to-market factor (HML), and a momentum factor (MOM). These factors were obtained from Kenneth French’s data library.",
+  "signal_logic": "Based on the provided text from \"Maxing Out: Stocks as Lotteries and the Cross-Section of Expected Returns\" by Bali, Cakici, and Whitelaw (2010), here are the extracted trading rules and signal logic:\n\n### 1. Entry Conditions (When to Go Long / Short)\n\nThe primary strategy is a **short-selling strategy** based on the \"MAX\" effect. The paper documents a negative relation between extreme positive returns and future returns.\n\n- **Short Entry (Sell High MAX):** Go short on stocks with the highest maximum daily return over the past month. The paper specifically identifies stocks in the **top decile (Decile 10)** of MAX as having the lowest subsequent returns.\n- **Long Entry (Buy Low MAX):** Go long on stocks with the lowest maximum daily return over the past month. The paper identifies stocks in the **bottom decile (Decile 1)** of MAX as having the highest subsequent returns.\n- **Primary Trading Signal:** The core signal is the **difference between the returns of the Low MAX and High MAX portfolios**. This is a long-short strategy.\n- **Alternative Measures:** The same logic applies when using the average of the highest 2, 3, 4, or 5 daily returns within the month (MAX(N)). The effect is stronger for higher N (e.g., N=5).\n\n### 2. Exit Conditions\n\n- **Time-Based Exit:** The primary exit is time-based. Portfolios are formed at the end of month *t* based on data from month *t*, and the position is held for **one month** (month *t+1*). The portfolio is then reformed at the end of month *t+1*.\n- **No Explicit Stop-Loss or Take-Profit:** The paper does not specify any stop-loss or take-profit rules. The strategy is purely based on the monthly rebalancing of decile portfolios.\n\n### 3. Technical Indicators\n\nThe paper does not use traditional technical indicators like RSI or MACD. The primary indicator is a novel, proprietary measure:\n\n- **MAX (Maximum Daily Return):**\n    - **Definition:** The maximum daily return of a stock within a month.\n    - **Formula:** `MAX_i,t = max(R_i,d)` for d = 1 to D_t, where `R_i,d` is the return on stock *i* on day *d*, and `D_t` is the number of trading days in month *t*.\n    - **Calculation Period:** Past one month (approximately 21 trading days).\n- **MAX(N) (Average of N Highest Daily Returns):**\n    - **Definition:** The average of the *N* highest daily returns within a month.\n    - **Calculation Period:** Past one month.\n    - **Variants Tested:** N = 1, 2, 3, 4, 5.\n- **MIN (Minimum Daily Return):**\n    - **Definition:** The negative of the minimum daily return within a month (so high values indicate extreme negative returns).\n    - **Formula:** `MIN_i,t = -min(R_i,d)` for d = 1 to D_t.\n    - **Use:** Used as a control variable and to test the opposite effect (stocks with extreme negative returns have higher future returns).\n\n### 4. Fundamental Factors\n\nThe paper uses several well-known factors as control variables in cross-sectional regressions and bivariate sorts:\n\n- **SIZE (Market Capitalization):**\n    - **Definition:** The natural logarithm of the market value of equity (price × shares outstanding) at the end of month *t-1*.\n- **BM (Book-to-Market Ratio):**\n    - **Definition:** Book value of common equity plus balance-sheet deferred taxes for the firm’s latest fiscal year, divided by the market value of equity at the end of December of the previous year.\n    - **Winsorization:** The smallest and largest 0.5% of observations are set to the 0.5th and 99.5th percentiles, respectively.\n- **MOM (Intermediate-term Momentum):**\n    - **Definition:** Cumulative return over the previous 11 months, starting 2 months ago (i.e., from month *t-12* to month *t-2*).\n- **REV (Short-term Reversal):**\n    - **Definition:** The return on the stock over the previous month (month *t-1*).\n- **ILLIQ (Illiquidity):**\n    - **Definition:** The ratio of the absolute monthly stock return to its dollar trading volume.\n    - **Formula:** `ILLIQ_i,t = |R_i,t| / VOLD_i,t`, where `VOLD_i,t` is the monthly dollar trading volume.\n- **IVOL (Idiosyncratic Volatility):**\n    - **Definition:** The standard deviation of daily residuals from a single-factor market model regression within a month.\n    - **Formula:** `IVOL_i,t = std(ε_i,d)`, where `ε_i,d` is the residual from the regression `R_i,d - rf,d = α_i + β_i * (Rm,d - rf,d) + ε_i,d`.\n- **BETA (Market Beta):**\n    - **Definition:** Estimated using the Scholes-Williams (1977) / Dimson (1979) method to account for nonsynchronous trading, using the sum of coefficients on the lag, current, and lead of the market return.\n- **Skewness Measures:**\n    - **TSKEW (Total Skewness):** Skewness of daily returns over the past year.\n    - **ISKEW (Idiosyncratic Skewness):** Skewness of daily residuals from a regression of stock returns on market returns and squared market returns (Harvey & Siddique, 2000).\n    - **SSKEW (Systematic Skewness / Co-skewness):** The coefficient on the squared market return in the same regression used for ISKEW.\n\n### 5. Sorting/Ranking Procedures\n\n- **Univariate Sort:**\n    - **Number of Groups:** 10 (deciles).\n    - **Methodology:** All NYSE/AMEX/NASDAQ stocks are sorted each month based on their MAX value from the previous month.\n    - **Portfolio 1:** Lowest MAX (Low MAX).\n    - **Portfolio 10:** Highest MAX (High MAX).\n- **Bivariate (Double) Sort:**\n    - **Methodology:** Dependent sorts are used.\n    - **Step 1:** Stocks are first sorted into deciles based on a control variable (e.g., SIZE, BM, MOM, REV, ILLIQ, IVOL, TSKEW, SSKEW, ISKEW).\n    - **Step 2:** Within each of these 10 control-variable deciles, stocks are further sorted into deciles based on MAX.\n    - **Result:** This creates 100 portfolios (10x10). The returns for the 10 MAX portfolios are then averaged across the 10 control-variable deciles to produce a set of MAX portfolios that control for the effect of the first variable.\n- **Breakpoint Methodology:** The paper does not specify the exact breakpoint methodology (e.g., NYSE breakpoints), but it mentions using NYSE breakpoints for size to exclude microcap stocks in a robustness check.\n\n### 6. Threshold Values\n\n- **Primary Threshold:** The top decile (Decile 10) and bottom decile (Decile 1) of MAX are the primary thresholds for the long-short strategy.\n- **Exact Numeric Thresholds (from Table V - Median Values):**\n    - **Low MAX (Decile 1):** Median MAX = **1.62%**.\n    - **High MAX (Decile 10):** Median MAX = **17.77%**.\n- **Price Filter:** A robustness check excludes all stocks with prices **below $5/share**.\n- **Size Filter:** A robustness check excludes stocks in the smallest two NYSE size deciles (microcap stocks).\n- **Winsorization:** In a robustness check for cross-sectional regressions, MAX is winsorized at the **99th and 95th percentiles** to eliminate outliers.\n\n### 7. Holding Period and Rebalancing\n\n- **Holding Period:** **One month**. The return is measured over the month following portfolio formation.\n- **Rebalancing Frequency:** **Monthly**. Portfolios are formed at the end of each month and held for the subsequent month.\n- **Sample Period:** The main analysis covers **July 1962 to December 2005** (522 months).\n\n### 8. Data Requirements\n\n- **Price Fields:**\n    - **Daily Returns:** Required to calculate MAX, MIN, BETA, IVOL, TVOL, and skewness measures.\n    - **Monthly Returns:** Required to calculate MOM, REV, and the portfolio returns.\n- **Volume Data:** Required to calculate ILLIQ (dollar trading volume).\n- **Fundamental Fields:**\n    - **Market Capitalization:** Price × Shares Outstanding (from CRSP).\n    - **Book Value of Equity:** From COMPUSTAT.\n- **Frequency:**\n    - **Daily:** For MAX, MIN, BETA, IVOL, TVOL.\n    - **Monthly:** For portfolio returns, MOM, REV, ILLIQ.\n    - **Annual:** For BM ratio (using December market cap and fiscal year book value).\n- **Universe:** All NYSE, AMEX, and NASDAQ financial and non-financial firms from CRSP.",
+  "results": {},
+  "tables": [
+    {
+      "index": 0,
+      "rows": [
+        [
+          "",
+          "VWPortfolios",
+          null,
+          "EW Portfolios",
+          null,
+          ""
+        ],
+        [
+          "Decile",
+          "AverageReturn",
+          "4 -factor Alpha",
+          "AverageReturn",
+          "4 -factor Alpha",
+          "AverageMAX"
+        ],
+        [
+          "LowMAX",
+          "101\n.",
+          "005\n.",
+          "129\n.",
+          "022\n.",
+          "130\n."
+        ],
+        [
+          "2",
+          "100\n.",
+          "000\n.",
+          "145\n.",
+          "033\n.",
+          "247\n."
+        ],
+        [
+          "3",
+          "100\n.",
+          "004\n.",
+          "155\n.",
+          "039\n.",
+          "326\n."
+        ],
+        [
+          "4",
+          "111\n.",
+          "016\n.",
+          "155\n.",
+          "039\n.",
+          "406\n."
+        ],
+        [
+          "5",
+          "102\n.",
+          "009\n.",
+          "149\n.",
+          "031\n.",
+          "493\n."
+        ],
+        [
+          "6",
+          "116\n.",
+          "015\n.",
+          "149\n.",
+          "033\n.",
+          "597\n."
+        ],
+        [
+          "7",
+          "100\n.",
+          "003\n.",
+          "137\n.",
+          "023\n.",
+          "727\n."
+        ],
+        [
+          "8",
+          "086\n.",
+          "021\n- .",
+          "132\n.",
+          "020\n.",
+          "907\n."
+        ],
+        [
+          "9",
+          "052\n.",
+          "049\n- .",
+          "104\n.",
+          "009\n- .",
+          "1209\n."
+        ],
+        [
+          "HighMAX",
+          "002\n- .",
+          "113\n- .",
+          "064\n.",
+          "044\n- .",
+          "2360\n."
+        ],
+        [
+          "10 1\n-",
+          "103\n- .",
+          "118\n- .",
+          "065\n- .",
+          "066\n- .",
+          ""
+        ],
+        [
+          "Difference",
+          "( 283)\n- .",
+          "( 471)\n- .",
+          "( 183)\n- .",
+          "( 231)\n- .",
+          ""
+        ]
+      ],
+      "num_rows": 14,
+      "num_cols": 6
+    },
+    {
+      "index": 1,
+      "rows": [
+        [
+          "Decile",
+          "N=1",
+          "N=2",
+          "N=3",
+          "N=4",
+          "N=5"
+        ],
+        [
+          "LowMAX(N)",
+          "101\n.",
+          "100\n.",
+          "105\n.",
+          "102\n.",
+          "105\n."
+        ],
+        [
+          "2",
+          "100\n.",
+          "096\n.",
+          "098\n.",
+          "102\n.",
+          "107\n."
+        ],
+        [
+          "3",
+          "100\n.",
+          "106\n.",
+          "109\n.",
+          "108\n.",
+          "106\n."
+        ],
+        [
+          "4",
+          "111\n.",
+          "108\n.",
+          "102\n.",
+          "101\n.",
+          "104\n."
+        ],
+        [
+          "5",
+          "102\n.",
+          "108\n.",
+          "105\n.",
+          "106\n.",
+          "104\n."
+        ],
+        [
+          "6",
+          "116\n.",
+          "103\n.",
+          "108\n.",
+          "103\n.",
+          "101\n."
+        ],
+        [
+          "7",
+          "100\n.",
+          "104\n.",
+          "100\n.",
+          "106\n.",
+          "106\n."
+        ],
+        [
+          "8",
+          "086\n.",
+          "078\n.",
+          "068\n.",
+          "070\n.",
+          "070\n."
+        ],
+        [
+          "9",
+          "052\n.",
+          "050\n.",
+          "049\n.",
+          "043\n.",
+          "048\n."
+        ],
+        [
+          "HighMAX(N)",
+          "002\n- .",
+          "016\n- .",
+          "013\n- .",
+          "012\n- .",
+          "018\n- ."
+        ],
+        [
+          "Return",
+          "103\n- .",
+          "116\n- .",
+          "118\n- .",
+          "114\n- .",
+          "123\n- ."
+        ],
+        [
+          "Difference",
+          "( 283)\n- .",
+          "( 297)\n- .",
+          "( 295)\n- .",
+          "( 274)\n- .",
+          "( 293)\n- ."
+        ],
+        [
+          "Alpha",
+          "118\n- .",
+          "129\n- .",
+          "126\n- .",
+          "121\n- .",
+          "132\n- ."
+        ],
+        [
+          "Difference",
+          "( 471)\n- .",
+          "( 456)\n- .",
+          "( 412)\n- .",
+          "( 371)\n- .",
+          "( 407)\n- ."
+        ]
+      ],
+      "num_rows": 15,
+      "num_cols": 6
+    },
+    {
+      "index": 2,
+      "rows": [
+        [
+          "Decile",
+          "N=1",
+          "N=2",
+          "N=3",
+          "N=4",
+          "N=5"
+        ],
+        [
+          "LowMAX(N)",
+          "129\n.",
+          "128\n.",
+          "127\n.",
+          "129\n.",
+          "130\n."
+        ],
+        [
+          "2",
+          "145\n.",
+          "145\n.",
+          "148\n.",
+          "149\n.",
+          "154\n."
+        ],
+        [
+          "3",
+          "155\n.",
+          "155\n.",
+          "156\n.",
+          "159\n.",
+          "159\n."
+        ],
+        [
+          "4",
+          "155\n.",
+          "158\n.",
+          "161\n.",
+          "162\n.",
+          "160\n."
+        ],
+        [
+          "5",
+          "149\n.",
+          "156\n.",
+          "156\n.",
+          "152\n.",
+          "155\n."
+        ],
+        [
+          "6",
+          "149\n.",
+          "145\n.",
+          "149\n.",
+          "153\n.",
+          "152\n."
+        ],
+        [
+          "7",
+          "137\n.",
+          "144\n.",
+          "143\n.",
+          "142\n.",
+          "143\n."
+        ],
+        [
+          "8",
+          "132\n.",
+          "128\n.",
+          "127\n.",
+          "128\n.",
+          "126\n."
+        ],
+        [
+          "9",
+          "104\n.",
+          "101\n.",
+          "100\n.",
+          "095\n.",
+          "094\n."
+        ],
+        [
+          "HighMAX(N)",
+          "064\n.",
+          "059\n.",
+          "054\n.",
+          "051\n.",
+          "049\n."
+        ],
+        [
+          "Return",
+          "065\n- .",
+          "069\n- .",
+          "073\n- .",
+          "078\n- .",
+          "081\n- ."
+        ],
+        [
+          "Difference",
+          "( 183)\n- .",
+          "( 188)\n- .",
+          "( 199)\n- .",
+          "( 211)\n- .",
+          "( 221)\n- ."
+        ],
+        [
+          "Alpha",
+          "066\n- .",
+          "072\n- .",
+          "078\n- .",
+          "084\n- .",
+          "089\n- ."
+        ],
+        [
+          "Difference",
+          "( 231)\n- .",
+          "( 236)\n- .",
+          "( 253)\n- .",
+          "( 275)\n- .",
+          "( 293)\n- ."
+        ]
+      ],
+      "num_rows": 15,
+      "num_cols": 6
+    },
+    {
+      "index": 3,
+      "rows": [
+        [
+          "MAX",
+          "BETA",
+          "SIZE",
+          "BM",
+          "MOM",
+          "REV",
+          "ILLIQ",
+          "IVOL",
+          "R2"
+        ],
+        [
+          "04054\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "1664%\n."
+        ],
+        [
+          "(4534)\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "01116\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "100%\n."
+        ],
+        [
+          "",
+          "(447)\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "13381\n– .",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "1599%\n."
+        ],
+        [
+          "",
+          "",
+          "( 2242)\n– .",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "05334\n.",
+          "",
+          "",
+          "",
+          "",
+          "181%\n."
+        ],
+        [
+          "",
+          "",
+          "",
+          "(641)\n.",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "17264\n– .",
+          "",
+          "",
+          "",
+          "352%\n."
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "( 687)\n– .",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "00655\n– .",
+          "",
+          "",
+          "331%\n."
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "( 1119)\n– .",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "01209\n.",
+          "",
+          "428%\n."
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "(813)\n.",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "01643\n.",
+          "2736%\n."
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "(8641)\n.",
+          ""
+        ],
+        [
+          "03325\n.",
+          "02500\n.",
+          "04737\n– .",
+          "01277\n– .",
+          "03432\n– .",
+          "00504\n– .",
+          "00200\n.",
+          "01930\n.",
+          "3510%\n."
+        ],
+        [
+          "(3131)\n.",
+          "(1214)\n.",
+          "( 3045)\n– .",
+          "( 586)\n– .",
+          "( 447)\n– .",
+          "( 2225)\n– .",
+          "(616)\n.",
+          "(4160)\n.",
+          ""
+        ]
+      ],
+      "num_rows": 19,
+      "num_cols": 9
+    },
+    {
+      "index": 4,
+      "rows": [
+        [
+          "",
+          "",
+          "",
+          "Trimmed",
+          null
+        ],
+        [
+          "",
+          "LowMAX",
+          "HighMAX",
+          "LowMAX",
+          "HighMAX"
+        ],
+        [
+          "Mean",
+          "126%\n.",
+          "060%\n.",
+          "104%\n.",
+          "016%\n- ."
+        ],
+        [
+          "Median",
+          "035%\n.",
+          "250%\n- .",
+          "035%\n.",
+          "250%\n- ."
+        ],
+        [
+          "StdDev",
+          "1254%\n.",
+          "3021%\n.",
+          "970%\n.",
+          "2412%\n."
+        ],
+        [
+          "Skewness",
+          "426\n.",
+          "580\n.",
+          "059\n.",
+          "135\n."
+        ],
+        [
+          "Percentiles",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "1%",
+          "296%\n- .",
+          "521%\n- .",
+          "",
+          ""
+        ],
+        [
+          "5%",
+          "147%\n- .",
+          "338%\n- .",
+          "",
+          ""
+        ],
+        [
+          "10%",
+          "93%\n- .",
+          "259%\n- .",
+          "",
+          ""
+        ],
+        [
+          "25%",
+          "34%\n- .",
+          "143%\n- .",
+          "",
+          ""
+        ],
+        [
+          "50%",
+          "03%\n.",
+          "25%\n- .",
+          "",
+          ""
+        ],
+        [
+          "75%",
+          "51%\n.",
+          "95%\n.",
+          "",
+          ""
+        ],
+        [
+          "90%",
+          "116%\n.",
+          "286%\n.",
+          "",
+          ""
+        ],
+        [
+          "95%",
+          "177%\n.",
+          "463%\n.",
+          "",
+          ""
+        ],
+        [
+          "99%",
+          "400%\n.",
+          "1000%\n.",
+          "",
+          ""
+        ]
+      ],
+      "num_rows": 16,
+      "num_cols": 5
+    },
+    {
+      "index": 5,
+      "rows": [
+        [
+          "Decile",
+          "MAX",
+          "Size($106)",
+          "Price($)",
+          "MarketBeta",
+          "BMRatio",
+          "Illiquidity(105)",
+          "REV",
+          "MOM",
+          "IVOL"
+        ],
+        [
+          "LowMAX",
+          "162\n.",
+          "31619\n.",
+          "2544\n.",
+          "033\n.",
+          "07259\n.",
+          "02842\n.",
+          "244\n– .",
+          "1095\n.",
+          "097\n."
+        ],
+        [
+          "2",
+          "251\n.",
+          "33147\n.",
+          "2585\n.",
+          "055\n.",
+          "06809\n.",
+          "01418\n.",
+          "096\n– .",
+          "1116\n.",
+          "126\n."
+        ],
+        [
+          "3",
+          "322\n.",
+          "25098\n.",
+          "2388\n.",
+          "068\n.",
+          "06657\n.",
+          "01547\n.",
+          "042\n– .",
+          "1090\n.",
+          "151\n."
+        ],
+        [
+          "4",
+          "392\n.",
+          "18827\n.",
+          "2147\n.",
+          "076\n.",
+          "06563\n.",
+          "01935\n.",
+          "001\n– .",
+          "1025\n.",
+          "177\n."
+        ],
+        [
+          "5",
+          "471\n.",
+          "14247\n.",
+          "1927\n.",
+          "087\n.",
+          "06605\n.",
+          "02456\n.",
+          "043\n.",
+          "977\n.",
+          "205\n."
+        ],
+        [
+          "6",
+          "563\n.",
+          "10856\n.",
+          "1695\n.",
+          "097\n.",
+          "06636\n.",
+          "03242\n.",
+          "082\n.",
+          "862\n.",
+          "237\n."
+        ],
+        [
+          "7",
+          "680\n.",
+          "8043\n.",
+          "1453\n.",
+          "104\n.",
+          "06738\n.",
+          "04501\n.",
+          "148\n.",
+          "671\n.",
+          "276\n."
+        ],
+        [
+          "8",
+          "840\n.",
+          "5869\n.",
+          "1221\n.",
+          "112\n.",
+          "07013\n.",
+          "07067\n.",
+          "234\n.",
+          "375\n.",
+          "327\n."
+        ],
+        [
+          "9",
+          "1101\n.",
+          "3992\n.",
+          "957\n.",
+          "115\n.",
+          "07487\n.",
+          "13002\n.",
+          "401\n.",
+          "085\n– .",
+          "407\n."
+        ],
+        [
+          "HighMAX",
+          "1777\n.",
+          "2152\n.",
+          "647\n.",
+          "120\n.",
+          "08890\n.",
+          "40015\n.",
+          "918\n.",
+          "1174\n– .",
+          "622\n."
+        ]
+      ],
+      "num_rows": 11,
+      "num_cols": 10
+    },
+    {
+      "index": 6,
+      "rows": [
+        [
+          "Decile",
+          "SIZE",
+          "BM",
+          "MOM",
+          "REV",
+          "ILLIQ"
+        ],
+        [
+          "LowMAX",
+          "147\n.",
+          "122\n.",
+          "132\n.",
+          "106\n.",
+          "129\n."
+        ],
+        [
+          "2",
+          "160\n.",
+          "119\n.",
+          "114\n.",
+          "118\n.",
+          "131\n."
+        ],
+        [
+          "3",
+          "169\n.",
+          "127\n.",
+          "117\n.",
+          "119\n.",
+          "130\n."
+        ],
+        [
+          "4",
+          "165\n.",
+          "119\n.",
+          "107\n.",
+          "118\n.",
+          "123\n."
+        ],
+        [
+          "5",
+          "157\n.",
+          "117\n.",
+          "103\n.",
+          "115\n.",
+          "112\n."
+        ],
+        [
+          "6",
+          "149\n.",
+          "123\n.",
+          "103\n.",
+          "115\n.",
+          "106\n."
+        ],
+        [
+          "7",
+          "129\n.",
+          "113\n.",
+          "096\n.",
+          "104\n.",
+          "099\n."
+        ],
+        [
+          "8",
+          "120\n.",
+          "099\n.",
+          "093\n.",
+          "107\n.",
+          "088\n."
+        ],
+        [
+          "9",
+          "093\n.",
+          "089\n.",
+          "088\n.",
+          "086\n.",
+          "060\n."
+        ],
+        [
+          "HighMAX",
+          "025\n.",
+          "029\n.",
+          "067\n.",
+          "025\n.",
+          "018\n."
+        ],
+        [
+          "Return",
+          "122\n- .",
+          "093\n- .",
+          "065\n- .",
+          "081\n- .",
+          "111\n- ."
+        ],
+        [
+          "Difference",
+          "( 449)\n- .",
+          "(323)\n.",
+          "( 318)\n- .",
+          "( 270)\n- .",
+          "( 407)\n- ."
+        ],
+        [
+          "Alpha",
+          "119\n- .",
+          "106\n- .",
+          "070\n- .",
+          "098\n- .",
+          "112\n- ."
+        ],
+        [
+          "Difference",
+          "( 598)\n- .",
+          "( 487)\n- .",
+          "( 530)\n- .",
+          "( 537)\n- .",
+          "( 574)\n- ."
+        ]
+      ],
+      "num_rows": 15,
+      "num_cols": 6
+    },
+    {
+      "index": 7,
+      "rows": [
+        [
+          "Decile",
+          "SIZE",
+          "BM",
+          "MOM",
+          "REV",
+          "ILLIQ"
+        ],
+        [
+          "LowMAX",
+          "152\n.",
+          "137\n.",
+          "147\n.",
+          "136\n.",
+          "140\n."
+        ],
+        [
+          "2",
+          "163\n.",
+          "150\n.",
+          "145\n.",
+          "156\n.",
+          "159\n."
+        ],
+        [
+          "3",
+          "173\n.",
+          "153\n.",
+          "138\n.",
+          "160\n.",
+          "160\n."
+        ],
+        [
+          "4",
+          "170\n.",
+          "154\n.",
+          "132\n.",
+          "158\n.",
+          "158\n."
+        ],
+        [
+          "5",
+          "162\n.",
+          "148\n.",
+          "129\n.",
+          "159\n.",
+          "152\n."
+        ],
+        [
+          "6",
+          "154\n.",
+          "152\n.",
+          "120\n.",
+          "153\n.",
+          "152\n."
+        ],
+        [
+          "7",
+          "138\n.",
+          "145\n.",
+          "115\n.",
+          "144\n.",
+          "140\n."
+        ],
+        [
+          "8",
+          "127\n.",
+          "133\n.",
+          "108\n.",
+          "133\n.",
+          "132\n."
+        ],
+        [
+          "9",
+          "104\n.",
+          "119\n.",
+          "103\n.",
+          "115\n.",
+          "105\n."
+        ],
+        [
+          "HighMAX",
+          "041\n.",
+          "078\n.",
+          "071\n.",
+          "052\n.",
+          "059\n."
+        ],
+        [
+          "Return",
+          "111\n- .",
+          "059\n- .",
+          "076\n- .",
+          "083\n- .",
+          "081\n- ."
+        ],
+        [
+          "Difference",
+          "( 405)\n- .",
+          "( 200)\n- .",
+          "( 370)\n- .",
+          "( 283)\n- .",
+          "( 268)\n- ."
+        ],
+        [
+          "Alpha",
+          "106\n- .",
+          "054\n- .",
+          "088\n- .",
+          "102\n- .",
+          "079\n- ."
+        ],
+        [
+          "Difference",
+          "( 518)\n- .",
+          "( 196)\n- .",
+          "( 762)\n- .",
+          "( 509)\n- .",
+          "( 340)\n- ."
+        ]
+      ],
+      "num_rows": 15,
+      "num_cols": 6
+    },
+    {
+      "index": 8,
+      "rows": [
+        [
+          "MAX",
+          "BETA",
+          "SIZE",
+          "BM",
+          "MOM",
+          "REV",
+          "ILLIQ"
+        ],
+        [
+          "00434\n– .",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "( 292)\n– .",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "00118\n– .",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "( 043)\n– .",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "01988\n– .",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "( 408)\n– .",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "04651\n.",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "(673)\n.",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "07317\n.",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "(467)\n.",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "00675\n– .",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "( 1124)\n– .",
+          ""
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "00371\n."
+        ],
+        [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "(387)\n."
+        ],
+        [
+          "",
+          "00140\n.",
+          "00865\n– .",
+          "03390\n.",
+          "07436\n.",
+          "00751\n– .",
+          "00223\n."
+        ],
+        [
+          "",
+          "(056)\n.",
+          "( 173)\n– .",
+          "(482)\n.",
+          "(529)\n.",
+          "( 1415)\n– .",
+          "(364)\n."
+        ],
+        [
+          "00637\n– .",
+          "00485\n.",
+          "01358\n– .",
+          "03201\n.",
+          "06866\n.",
+          "00712\n– .",
+          "00224\n."
+        ],
+        [
+          "( 616)\n– .",
+          "(218)\n.",
+          "( 310)\n– .",
+          "(469)\n.",
+          "(497)\n.",
+          "( 1353)\n– .",
+          "(378)\n."
+        ]
+      ],
+      "num_rows": 19,
+      "num_cols": 7
+    },
+    {
+      "index": 9,
+      "rows": [
+        [
+          "",
+          "MAX",
+          "MAX(5)",
+          "MIN",
+          "TVOL",
+          "IVOL"
+        ],
+        [
+          "MAX",
+          "1",
+          "08981\n.",
+          "05491\n.",
+          "07591\n.",
+          "07533\n."
+        ],
+        [
+          "MAX(5)",
+          "",
+          "1",
+          "06153\n.",
+          "08312\n.",
+          "08204\n."
+        ],
+        [
+          "MIN",
+          "",
+          "",
+          "1",
+          "07603\n.",
+          "07554\n."
+        ],
+        [
+          "TVOL",
+          "",
+          "",
+          "",
+          "1",
+          "09842\n."
+        ],
+        [
+          "IVOL",
+          "",
+          "",
+          "",
+          "",
+          "1"
+        ]
+      ],
+      "num_rows": 6,
+      "num_cols": 6
+    },
+    {
+      "index": 10,
+      "rows": [
+        [
+          "",
+          "N=1",
+          null,
+          "N=5",
+          null
+        ],
+        [
+          "Decile",
+          "VW",
+          "EW",
+          "VW",
+          "EW"
+        ],
+        [
+          "LowMAX(N)",
+          "112\n.",
+          "201\n.",
+          "139\n.",
+          "225\n."
+        ],
+        [
+          "2",
+          "109\n.",
+          "165\n.",
+          "118\n.",
+          "181\n."
+        ],
+        [
+          "3",
+          "094\n.",
+          "154\n.",
+          "120\n.",
+          "167\n."
+        ],
+        [
+          "4",
+          "093\n.",
+          "141\n.",
+          "111\n.",
+          "151\n."
+        ],
+        [
+          "5",
+          "080\n.",
+          "134\n.",
+          "099\n.",
+          "138\n."
+        ],
+        [
+          "6",
+          "077\n.",
+          "122\n.",
+          "084\n.",
+          "121\n."
+        ],
+        [
+          "7",
+          "079\n.",
+          "119\n.",
+          "074\n.",
+          "111\n."
+        ],
+        [
+          "8",
+          "082\n.",
+          "123\n.",
+          "079\n.",
+          "106\n."
+        ],
+        [
+          "9",
+          "076\n.",
+          "104\n.",
+          "067\n.",
+          "093\n."
+        ],
+        [
+          "HighMAX(N)",
+          "077\n.",
+          "110\n.",
+          "053\n.",
+          "075\n."
+        ],
+        [
+          "Return",
+          "035\n- .",
+          "091\n- .",
+          "086\n- .",
+          "150\n- ."
+        ],
+        [
+          "Difference",
+          "( 242)\n- .",
+          "( 786)\n- .",
+          "( 436)\n- .",
+          "( 921)\n- ."
+        ],
+        [
+          "Alpha",
+          "034\n- .",
+          "092\n- .",
+          "084\n- .",
+          "158\n- ."
+        ],
+        [
+          "Difference",
+          "( 248)\n- .",
+          "( 796)\n- .",
+          "( 498)\n- .",
+          "( 1005)\n- ."
+        ]
+      ],
+      "num_rows": 16,
+      "num_cols": 5
+    },
+    {
+      "index": 11,
+      "rows": [
+        [
+          "",
+          "MAX",
+          null,
+          "MAX(5)",
+          null
+        ],
+        [
+          "Decile",
+          "VW",
+          "EW",
+          "VW",
+          "EW"
+        ],
+        [
+          "LowIVOL",
+          "103\n.",
+          "118\n.",
+          "089\n.",
+          "084\n."
+        ],
+        [
+          "2",
+          "093\n.",
+          "115\n.",
+          "086\n.",
+          "102\n."
+        ],
+        [
+          "3",
+          "090\n.",
+          "110\n.",
+          "078\n.",
+          "103\n."
+        ],
+        [
+          "4",
+          "092\n.",
+          "117\n.",
+          "093\n.",
+          "117\n."
+        ],
+        [
+          "5",
+          "095\n.",
+          "127\n.",
+          "097\n.",
+          "120\n."
+        ],
+        [
+          "6",
+          "088\n.",
+          "121\n.",
+          "098\n.",
+          "128\n."
+        ],
+        [
+          "7",
+          "094\n.",
+          "137\n.",
+          "099\n.",
+          "140\n."
+        ],
+        [
+          "8",
+          "083\n.",
+          "148\n.",
+          "109\n.",
+          "156\n."
+        ],
+        [
+          "9",
+          "073\n.",
+          "152\n.",
+          "096\n.",
+          "169\n."
+        ],
+        [
+          "HighIVOL",
+          "066\n.",
+          "216\n.",
+          "095\n.",
+          "251\n."
+        ],
+        [
+          "Return",
+          "038\n- .",
+          "098\n.",
+          "006\n.",
+          "167\n."
+        ],
+        [
+          "Difference",
+          "( 198)\n- .",
+          "(488)\n.",
+          "(029)\n.",
+          "(804)\n."
+        ],
+        [
+          "Alpha",
+          "044\n- .",
+          "095\n.",
+          "005\n.",
+          "174\n."
+        ],
+        [
+          "Difference",
+          "( 312)\n- .",
+          "(476)\n.",
+          "(034)\n.",
+          "(767)\n."
+        ]
+      ],
+      "num_rows": 16,
+      "num_cols": 5
+    },
+    {
+      "index": 12,
+      "rows": [
+        [
+          "MAX",
+          "IVOL",
+          "MIN",
+          "BETA",
+          "SIZE",
+          "BM",
+          "MOM",
+          "REV",
+          "ILLIQ"
+        ],
+        [
+          "00434\n– .",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "( 292)\n– .",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "00530\n– .",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "( 097)\n– .",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "01549\n– .",
+          "03857\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "( 1019)\n– .",
+          "(469)\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "00961\n– .",
+          "01210\n.",
+          "",
+          "00496\n.",
+          "01047\n– .",
+          "03244\n.",
+          "07199\n.",
+          "00716\n– .",
+          "00232\n."
+        ],
+        [
+          "( 790)\n– .",
+          "(195)\n.",
+          "",
+          "(227)\n.",
+          "( 271)\n– .",
+          "(485)\n.",
+          "(535)\n.",
+          "( 1427)\n– .",
+          "(376)\n."
+        ],
+        [
+          "",
+          "",
+          "00593\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "",
+          "",
+          "(241)\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "00900\n– .",
+          "",
+          "01280\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "( 784)\n– .",
+          "",
+          "(621)\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "00761\n– .",
+          "",
+          "00393\n.",
+          "00390\n.",
+          "01135\n– .",
+          "03312\n.",
+          "07098\n.",
+          "00694\n– .",
+          "00223\n."
+        ],
+        [
+          "( 862)\n– .",
+          "",
+          "(266)\n.",
+          "(187)\n.",
+          "( 277)\n– .",
+          "(495)\n.",
+          "(518)\n.",
+          "( 1435)\n– .",
+          "(374)\n."
+        ],
+        [
+          "01103\n– .",
+          "00840\n.",
+          "01029\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "( 690)\n– .",
+          "(094)\n.",
+          "(543)\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "00886\n– .",
+          "00589\n.",
+          "00219\n.",
+          "00382\n.",
+          "01082\n– .",
+          "03287\n.",
+          "07100\n.",
+          "00706\n– .",
+          "00230\n."
+        ],
+        [
+          "( 667)\n– .",
+          "(080)\n.",
+          "(145)\n.",
+          "(180)\n.",
+          "( 280)\n– .",
+          "(492)\n.",
+          "(531)\n.",
+          "( 1475)\n– .",
+          "(373)\n."
+        ]
+      ],
+      "num_rows": 19,
+      "num_cols": 9
+    },
+    {
+      "index": 13,
+      "rows": [
+        [
+          "Decile",
+          "TSKEW",
+          "SSKEW",
+          "ISKEW"
+        ],
+        [
+          "LowMAX",
+          "106\n.",
+          "112\n.",
+          "104\n."
+        ],
+        [
+          "2",
+          "111\n.",
+          "106\n.",
+          "114\n."
+        ],
+        [
+          "3",
+          "121\n.",
+          "106\n.",
+          "118\n."
+        ],
+        [
+          "4",
+          "107\n.",
+          "110\n.",
+          "108\n."
+        ],
+        [
+          "5",
+          "113\n.",
+          "111\n.",
+          "117\n."
+        ],
+        [
+          "6",
+          "114\n.",
+          "110\n.",
+          "110\n."
+        ],
+        [
+          "7",
+          "097\n.",
+          "098\n.",
+          "099\n."
+        ],
+        [
+          "8",
+          "087\n.",
+          "089\n.",
+          "091\n."
+        ],
+        [
+          "9",
+          "076\n.",
+          "080\n.",
+          "074\n."
+        ],
+        [
+          "HighMAX",
+          "012\n.",
+          "003\n.",
+          "011\n."
+        ],
+        [
+          "Return",
+          "094\n- .",
+          "110\n- .",
+          "093\n- ."
+        ],
+        [
+          "Difference",
+          "( 306)\n- .",
+          "( 375)\n- .",
+          "( 296)\n- ."
+        ],
+        [
+          "Alpha",
+          "100\n- .",
+          "123\n- .",
+          "101\n- ."
+        ],
+        [
+          "Difference",
+          "( 434)\n- .",
+          "( 550)\n- .",
+          "( 434)\n- ."
+        ]
+      ],
+      "num_rows": 15,
+      "num_cols": 4
+    },
+    {
+      "index": 14,
+      "rows": [
+        [
+          "TSKEW",
+          "BETA",
+          "SIZE",
+          "BM",
+          "MOM",
+          "REV",
+          "ILLIQ",
+          "R -squared"
+        ],
+        [
+          "01507\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "246%\n."
+        ],
+        [
+          "(2838)\n.",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          ""
+        ],
+        [
+          "00813\n.",
+          "00026\n.",
+          "01218\n- .",
+          "00472\n- .",
+          "01489\n.",
+          "00007\n.",
+          "00271\n.",
+          "969%\n."
+        ],
+        [
+          "(2170)\n.",
+          "(182)\n.",
+          "( 2310)\n- .",
+          "( 630)\n- .",
+          "(1270)\n.",
+          "(379)\n.",
+          "(194)\n.",
+          ""
+        ]
+      ],
+      "num_rows": 5,
+      "num_cols": 8
+    },
+    {
+      "index": 15,
+      "rows": [
+        [
+          "MAX",
+          "",
+          "BETA",
+          "",
+          "SIZE BM MOM REV ILLIQ TSKEW SSKEW ISKEW E(TSKEW)"
+        ],
+        [
+          "00551\n– .\n( 536)\n– .\n00538\n– .\n( 517)\n– .\n00551\n– .\n( 536)\n– .\n00524\n– .\n( 482)\n– .",
+          "",
+          "",
+          null,
+          "01330\n.\n(256)\n.\n02436\n.\n(084)\n.\n01324\n.\n(253)\n.\n01292 03194 06983 00712 00288 00436\n– . . . – . . .\n( 289) (454) (495) ( 1329) (353) (167)\n– . . . – . . .\n01318 03214 07057 00711 00290 05202\n– . . . – . . .\n( 289) (453) (498) ( 1328) (354) (091)\n– . . . – . . .\n01294 03195 06981 00712 00287 00426\n– . . . – . . .\n( 290) (454) (495) ( 1329) (353) (163)\n– . . . – . . .\n15188\n.\n(392)\n.\n00112 03366 05073 00752 00108 09947\n– . . . – . . .\n( 010) (355) (268) ( 1206) (005) (087)\n– . . . – . . ."
+        ],
+        [
+          null,
+          "",
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          "",
+          null,
+          null,
+          null
+        ],
+        [
+          null,
+          "",
+          "00474\n.",
+          "",
+          null
+        ],
+        [
+          null,
+          null,
+          "(190)\n.",
+          null,
+          null
+        ],
+        [
+          null,
+          "",
+          "00473\n.",
+          "",
+          null
+        ],
+        [
+          null,
+          null,
+          "(189)\n.",
+          null,
+          null
+        ],
+        [
+          null,
+          "",
+          "00475\n.",
+          "",
+          null
+        ],
+        [
+          null,
+          null,
+          "(190)\n.",
+          null,
+          null
+        ],
+        [
+          null,
+          "",
+          "",
+          null,
+          null
+        ],
+        [
+          null,
+          "",
+          "00435\n.",
+          "",
+          null
+        ],
+        [
+          null,
+          null,
+          "(130)\n.",
+          null,
+          null
+        ]
+      ],
+      "num_rows": 13,
+      "num_cols": 5
+    }
+  ],
+  "formulas": [],
+  "references": [],
+  "full_text": "## **Maxing Out: Stocks as Lotteries and the Cross-Section of Expected Returns** \n\nTuran G. Bali,[a] Nusret Cakici,[b] and Robert F. Whitelaw[c*] \n\n## **February 2010** \n\n## **ABSTRACT** \n\nMotivated by existing evidence of a preference among investors for assets with lottery-like payoffs and that many investors are poorly diversified, we investigate the significance of extreme positive returns in the cross-sectional pricing of stocks. Portfolio-level analyses and firm-level cross-sectional regressions indicate a negative and significant relation between the maximum daily return over the past one month (MAX) and expected stock returns. Average raw and risk-adjusted return differences between stocks in the lowest and highest MAX deciles exceed 1% per month. These results are robust to controls for size, book-to-market, momentum, short-term reversals, liquidity, and skewness. Of particular interest, including MAX reverses the puzzling negative relation between returns and idiosyncratic volatility recently documented in Ang et al. (2006, 2009). \n\n> a Department of Economics and Finance, Zicklin School of Business, Baruch College, One Bernard Baruch Way, Box 10-225, New York, NY 10010. Phone: (646) 312-3506, Fax: (646) 312-3451, E-mail: turan_bali@baruch.cuny.edu. \n\nb School of Business, Fordham University, 1790 Broadway, New York, NY 10019, Phone: (212) 6366120, Fax: (212) 586-0575, E-mail: cakici@fordham.edu. \n\nc Corresponding author. Stern School of Business, New York University, 44 W. 4th Street, Suite 9-190, New York, NY 10012, and NBER. Phone: (212) 998-0338, E-mail: rwhitela@stern.nyu.edu. \n\n* We would like to thank Yakov Amihud, Xavier Gabaix, Evgeny Landres, Orly Sade, Jacob Sagi, Daniel Smith, Jeff Wurgler, and seminar participants at the Cesaerea 6[th] Annual Conference, Arison School of Business, IDC; HEC, Paris; INSEAD; New York University; and Simon Fraser University for helpful comments. \n\nElectronic copy available at: ht ps: /ssrn.com/abstract=1262416Electronic copy available at: h **t** tp:/ **/** ssrn.com/abstract=1262416 \n\n\n\n1 \n\n## **I.  Introduction** \n\nWhat determines the cross-section of expected stock returns? This question has been central to modern financial economics since the path breaking work of Sharpe (1964), Lintner (1965), and Mossin (1966). Much of this work has focused on the joint distribution of individual stock returns and the market portfolio as the determinant of expected returns. In the classic CAPM setting, i.e., with either quadratic preferences or normally distributed returns, expected returns on individual stocks are determined by the covariance of their returns with the market portfolio. Introducing a preference for skewness leads to the three moment CAPM of Kraus and Litzenberger (1976), which has received empirical support in the literature as, for example, in Harvey and Siddique (2000) and Smith (2007). \n\nDiversification plays a critical role in these models due to the desire of investors to avoid variance risk, i.e., to diversify away idiosyncratic volatility, yet a closer examination of the portfolios of individual investors suggests that these investors are, in general, not well-diversified.[1] There may be plausible explanations for this lack of diversification, such as the returns to specialization in information acquisition (Van Nieuwerburgh and Veldkamp (2008)), but nevertheless this empirical phenomenon suggests looking more closely at the distribution of individual stock returns rather than just co-moments as potential determinants of the cross-section of expected returns. \n\nThere is also evidence that investors have a preference for lottery-like assets, i.e., assets that have a relatively small probability of a large payoff. Two prominent examples are the favorite-longshot bias in horsetrack betting, i.e., the phenomenon that the expected return per dollar wagered tends to increase monotonically with the probability of the horse winning, and the popularity of lottery games despite the prevalence of negative expected returns (Thaler and Ziemba (1988)). Interestingly, in the latter case, there is increasing evidence that it is the degree of skewness in the payoffs that appeals to participants (Garrett and Sobel (1999) and Walker and Young (2001)), although there are alternative explanations, such as lumpiness in the goods market (Patel and Subrahmanyam (1978)). In the context of the stock market, Kumar (2009) shows that certain groups of individual investors appear to exhibit a preference for lotterytype stocks, which he defines as low-priced stocks with high idiosyncratic volatility and high idiosyncratic skewness. \n\nMotivated by these two literatures, we examine the role of extreme positive returns in the crosssectional pricing of stocks. Specifically, we sort stocks by their maximum daily return during the previous month and examine the monthly returns on the resulting portfolios over the period July 1962 to December 2005. For value-weighted decile portfolios, the difference between returns on the portfolios with the \n\n> 1 See, for example, Odean (1999), Mitton and Vorkink (2007), and Goetzmann and Kumar (2008) for evidence based on the portfolios of a large sample of U.S. individual investors. Calvet, Campbell and Sodini (2007) present evidence on the underdiversification of Swedish households, which can also be substantial, although the associated welfare costs for the median household appear to be small. \n\nElectronic copy available at: ht ps: /ssrn.com/abstract=1262416Electronic copy available at: h **t** tp:/ **/** ssrn.com/abstract=1262416 \n\n\n\n2 \n\nhighest and lowest maximum daily returns is –1.03%. The corresponding Fama-French-Carhart fourfactor alpha is –1.18%. Both return differences are statistically significant at all standard significance levels. In addition, the results are robust to sorting stocks not only on the single maximum daily return during the month, but also the average of the two, three, four or five highest daily returns within the month. This evidence suggests that investors may be willing to pay more for stocks that exhibit extreme positive returns, and thus these stocks exhibit lower returns in the future. \n\nThis interpretation is consistent with cumulative prospect theory (Tversky and Kahneman (1992)) as modeled in Barberis and Huang (2008). Errors in the probability weighting of investors cause them to over-value stocks that have a small probability of a large positive return. It is also consistent with the optimal beliefs framework of Brunnermeier, Gollier and Parker (2007). In this model, agents optimally choose to distort their beliefs about future probabilities in order to maximize their current utility. Critical to these interpretations of the empirical evidence, stocks with extreme positive returns in a given month should also be more likely to exhibit this phenomenon in the future. We confirm this persistence, showing that stocks in the top decile in one month have a 35% probability of being in the top decile in the subsequent month and an almost 70% probability of being in one of the top three deciles. Moreover, maximum daily returns exhibit substantial persistence in firm-level cross-sectional regressions, even after controlling for a variety of other firm-level variables. \n\nNot surprisingly, the stocks with the most extreme positive returns are not representative of the full universe of equities. For example, they tend to be small, illiquid securities with high returns in the portfolio formation month and low returns over the prior 11 months. To ensure that it is not these characteristics, rather than the extreme returns, that are driving the documented return differences, we perform a battery of bivariate sorts and re-examine the raw return and alpha differences. The results are robust to sorts on size, book-to-market ratio, momentum, short-term reversals, and illiquidity.  Results from cross-sectional regressions corroborate this evidence. \n\nAre there alternative interpretations of this apparently robust empirical phenomenon? Recent papers by Ang et al. (2006, 2009) document the anomalous finding that stocks with high idiosyncratic volatility have low subsequent returns. It is no surprise that the stocks with extreme positive returns also have high idiosyncratic (and total) volatility when measured over the same time period. This positive correlation is partially by construction, since realized monthly volatility is calculated as the sum of squared daily returns, but even excluding the day with the largest return in the volatility calculation only reduces this association slightly. Could the maximum return simply be proxying for idiosyncratic volatility? We investigate this question using two methodologies, bivariate sorts on extreme returns and idiosyncratic volatility and firm-level cross-sectional regressions. The conclusion is that not only is the effect of extreme positive returns we document robust to controls for idiosyncratic volatility, but that this \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n3 \n\neffect reverses the idiosyncratic volatility effect documented in Ang et al. (2006, 2009). When sorted first on maximum returns, the equal-weighted return difference between high and low idiosyncratic volatility portfolios is _positive_ and both economically and statistically significant. In a cross-sectional regression context, when both variables are included, the coefficient on the maximum return is negative and significant while that on idiosyncratic volatility is _positive_ , albeit insignificant in some specifications. These results are consistent with our preferred explanation—poorly diversified investors dislike idiosyncratic volatility, like lottery-like payoffs, and influence prices and hence future returns. \n\nA slightly different interpretation of our evidence is that extreme positive returns proxy for skewness, and investors exhibit a preference for skewness. For example, Mitton and Vorkink (2007) develop a model of agents with heterogeneous skewness preferences and show that the result is an equilibrium in which idiosyncratic skewness is priced. However, we show that the extreme return effect is robust to controls for total and idiosyncratic skewness and to the inclusion of a measure of expected skewness as in Boyer, Mitton and Vorkink (2009). It is also unaffected by controls for co-skewness, i.e., the contribution of an asset to the skewness of a well-diversified portfolio. \n\nThe paper is organized as follows. Section II provides the univariate portfolio-level analysis, and the bivariate analyses and firm-level cross-sectional regressions that examine a comprehensive list of control variables. Section III focuses more specifically on extreme returns and idiosyncratic volatility. Section IV presents results for skewness and extreme returns. Section V concludes. \n\n## **II.  Extreme Positive Returns and the Cross-Section of Expected Returns** \n\n## _A. Data_ \n\nThe first dataset includes all New York Stock Exchange (NYSE), American Stock Exchange (AMEX), and NASDAQ financial and nonfinancial firms from the Center for Research in Security Prices (CRSP) for the period from January 1926 through December 2005. We use daily stock returns to calculate the maximum daily stock returns for each firm in each month as well as such variables as the market beta, idiosyncratic volatility, and various skewness measures; we use monthly returns to calculate proxies for intermediate-term momentum and short-term reversals; we use volume data to calculate a measure of illiquidity; and we use share prices and shares outstanding to calculate market capitalization. The second dataset is COMPUSTAT, which is used to obtain the equity book values for calculating the book-tomarket ratios of individual firms. These variables are defined in detail in the Appendix and are discussed as they are used in the analysis. \n\n_B. Univariate Portfolio-Level Analysis_ \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n4 \n\nTable I presents the value-weighted and equal-weighted average monthly returns of decile portfolios that are formed by sorting the NYSE/AMEX/NASDAQ stocks based on the maximum daily return within the previous month (MAX). The results are reported for the sample period July 1962 to December 2005. \n\nPortfolio 1 (low MAX) is the portfolio of stocks with the lowest maximum daily returns during the past month, and portfolio 10 (high MAX) is the portfolio of stocks with the highest maximum daily returns during the previous month. The value-weighted average raw return difference between decile 10 (high MAX) and decile 1 (low MAX) is –1.03% per month with a corresponding Newey-West (1987) t- statistic of –2.83. In addition to the average raw returns, Table I also presents the intercepts (FamaFrench-Carhart four factor alphas) from the regression of the value-weighted portfolio returns on a constant, the excess market return, a size factor (SMB), a book-to-market factor (HML), and a momentum factor (MOM), following Fama and French (1993) and Carhart (1997).[2] As shown in the last row of Table I, the difference in alphas between the high MAX and low MAX portfolios is –1.18% per month with a Newey-West t-statistic of –4.71. This difference is economically significant and statistically significant at all conventional levels. \n\nTaking a closer look at the value-weighted averages returns and alphas across deciles, it is clear that the pattern is not one of a uniform decline as MAX increases. The average returns of deciles 1 to 7 are approximately the same, in the range of 1.00% to 1.16% per month, but, going from decile 7 to decile 10, average returns drop significantly, from 1.00% to 0.86%, 0.52% and then to –0.02% per month. The alphas for the first 7 deciles are also similar and close to zero, but again they fall dramatically for deciles 8 through 10. Interestingly, the reverse of this pattern is evident across the deciles in the average across months of the average maximum daily return of the stocks within each decile. By definition, this average increases monotonically from deciles 1 to 10, but this increase is far more dramatic for deciles 8, 9 and 10. These deciles contain stocks with average maximum daily returns of 9%, 12%, and 24%, respectively. Given a preference for upside potential, investors may be willing to pay more for, and accept lower expected returns on, assets with these extremely high positive returns. In other words, it is conceivable that investors view these stocks as valuable lottery-like assets, with a small chance of a large gain. \n\nAs shown in the third column of Table I, similar, although somewhat less economically and statistically significant results, are obtained for the returns on equal-weighted portfolios. The average raw return difference between the low MAX and high MAX portfolios is –0.65% per month with a t-statistic of –1.83. The corresponding difference in alphas is –0.66% per month with a t-statistic of –2.31. As with \n\n> 2 SMB (small minus big), HML (high minus low), and MOM (winner minus loser) are described in and obtained from Kenneth French’s data library: http://mba.tuck.dartmouth.edu/pages/faculty/ken.french/. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n5 \n\nthe value-weighted returns, it is the extreme deciles, in this case deciles 9 and 10, that exhibit low future returns and negative alphas. \n\nFor the analysis in Table I, we start the sample in July 1962 because this starting point corresponds to that used in much of the literature on the cross-section of expected returns; however, the results are similar using the sample starting in January 1926 and for various subsamples. For example, for the January 1926-June 1962 subsample, the average risk-adjusted return difference for the value-weighted portfolios is –1.25% per month, with a corresponding t-statistic of –3.43. When we break the original sample at the end of 1983, the subperiods have alpha differences of –1.62% and –0.99% per month, both of which are statistically significant. In the remainder of the paper, we continue presenting results for the July 1962-December 2005 sample for comparability with earlier studies. \n\nWhile conditioning on the single day with the maximum return is both simple and intuitive as a proxy for extreme positive returns, it is also slightly arbitrary. As an alternative we also rank stocks by the average of the _N_ ( _N=1, 2, …, 5_ ) highest daily returns within the month, with the results reported in Table II. As before, we report the difference between the returns and alphas on the deciles of firms with the highest and lowest average daily returns over the prior month. For ease of comparison we report the results from Table I in the first column ( _N=1_ ). For both the value-weighted (Panel A) and the equalweighted portfolios (Panel B) the return patterns when sorting on average returns over multiple days are similar to those when sorting on the single maximum daily return. In fact, if anything, the raw return and alpha differences are both economically and statistically more significant as we average over more days. For example, for value-weighted returns these differences increase in magnitude from –1.03% and –1.18% for _N=1_ to –1.23% and –1.32% for _N=5_ . \n\nAnother alternative measure of the extent to which a stock exhibits lottery-like payoffs is to compute MAX over longer past periods. Consequently, we first form the MAX(1) portfolios based on the highest daily return over the past 3, 6, and 12 months, and the average raw return differences between the high MAX and low MAX portfolios are –0.63%, –0.52%, and –0.41% per month, respectively. Although these return differences are economically significant, we have statistical significance only for MAX(1) computed over the past quarter. When the MAX(5) portfolios are formed based on the five largest daily returns over the past 3, 6, and 12 months, the average raw return differences are larger (–1.27%, –1.15%, and –0.86% per month, respectively), and they are all statistically significant. More importantly, the differences between the 4-factor Fama-French-Carhart alphas for the low and high MAX portfolios are negative and economically and statistically significant for all measures of MAX(1) and MAX(5). Specifically, the alpha differences for the MAX(1) portfolios are in the range of –0.68% to –0.74% per month with t-statistics ranging from –2.52 to –2.92. For MAX(5) the results are even stronger, with alpha differences ranging between –1.20% to –1.41% per month and t-statistics between –3.78 and –4.36. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n6 \n\nFinally, we also consider a measure defined as the maximum daily return in a month _averaged_ over the past 3, 6, and 12 months. The average raw and risk-adjusted return differences between the extreme portfolios are negative and highly significant without exception.[3] \n\nThese analyses show that different proxies for lottery-like payoffs generate similar results, confirming their robustness and thus providing further support for the explanation we offer. For simplicity we focus on MAX(1) over the previous month in the remainder of the paper except in cases where the multiple day averages are needed to illustrate or illuminate a point. \n\nOf course, the maximum daily returns documented in Table I and those underlying the portfolio sorts in Table II are for the portfolio formation month, not for the subsequent month over which we measure average returns. Investors may pay high prices for stocks that have exhibited extreme positive returns in the past in the expectation that this behavior will be repeated in the future, but a natural question is whether these expectations are rational. We investigate this issue by examining the average month-to-month portfolio transition matrix, i.e., the average probability that a stock in decile _i_ in one month will be in decile _j_ in the subsequent month (although for brevity, we do not report these results in detail). If maximum daily returns are completely random, then all the probabilities should be approximately 10%, since a high or low maximum return in one month should say nothing about the maximum return in the following month. Instead, there is clear evidence that MAX is persistent, with all the diagonal elements of the transition matrix exceeding 10%. Of greater importance, this persistence is especially strong for the extreme portfolios. Stocks in decile 10 (high MAX) have a 35% chance of appearing in the same decile next month. Moreover, they have a 68% probability of being in deciles 8-10, all of which exhibit high maximum daily returns in the portfolio formation month and low returns in the subsequent month. \n\nA slightly different way to examine the persistence of extreme positive daily returns is to look at firm-level cross-sectional regressions of MAX on lagged predictor variables. Specifically, for each month in the sample we run a regression across firms of the maximum daily return within that month on the maximum daily return from the previous month and seven lagged control variables that are defined in the Appendix and discussed in more detail later—the market beta (BETA), the market capitalization (SIZE), the book-to-market ratio (BM), the return in the previous month (REV), the return over the 11 months prior to that month (MOM), a measure of illiquidity (ILLIQ), and the idiosyncratic volatility (IVOL).[4] Table III reports the average cross-sectional coefficients from these regressions and the Newey-West \n\n> 3 In the interest of brevity, we do not present detailed results for these alternative measures of MAX, but they are available from the authors upon request. \n\n> 4 The high cross-sectional correlation between MAX and IVOL, as documented later in Table IX and discussed in Section III, generates a multi-collinearity problem in the regression; therefore, we orthogonalize IVOL for the purposes of regressions that contain both variables. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n7 \n\n(1987) adjusted t-statistics. In the univariate regression of MAX on lagged MAX, the coefficient is positive, quite large, and extremely statistically significant, and the R-squared of over 16% indicates substantial cross-sectional explanatory power. In other words, stocks with extreme positive daily returns in one month also tend to exhibit similar features in the following month. When the seven control variables are added to the regression, the coefficient on lagged MAX remains large and significant. Of these seven variables, it is SIZE and IVOL that contribute most to the explanatory power of the regression, with univariate R-squareds of 16% and 27%, respectively. The remaining 5 variables all have univariate R-squareds of less than 5%. \n\nAs a final check on the return characteristics of stocks with extreme positive returns, we examine more closely the distribution of monthly returns on stocks in the high MAX and low MAX portfolios. Tables I and II report the mean returns on these stocks, and the cross-sectional regressions in Table III and the portfolio transition matrix document that the presence, or absence, of extreme positive returns is persistent, but what are the other features of the return distribution? \n\nTable IV presents descriptive statistics for the approximately 240,000 monthly returns on stocks within the two extreme deciles in the post-formation month. The mean returns are almost identical to those reported in Table I for the equal-weighted portfolio. The slight difference is attributable to the fact that Table I reports averages of returns across equal-weighted portfolios that contain slightly different numbers of stocks, whereas Table IV weights all returns equally. In addition to having a lower average return, high MAX stocks display significantly higher volatility and more positive skewness. The percentiles of the return distribution illustrate the upper tail behavior. While median returns on high MAX stocks are lower, the returns at the 90[th] , 95[th] and 99[th] percentiles are more than twice as large as those for low MAX stocks. Clearly, high MAX stocks exhibit higher probabilities of extreme positive returns in the following month. The percentiles of the distribution are robust to outliers, but the moments are not, so in the final two columns we report statistics for returns where the 0.5% most extreme returns in both tails have been eliminated. While means, standard deviations and skewness for the trimmed distributions fall, the relative ordering remains—high MAX stocks have lower means, but higher volatilities and skewness than their low MAX counterparts in the subsequent month. \n\nWe do not measure investor expectations directly, but the results documented in Tables III and IV are certainly consistent with the underlying theory about preferences for stocks with extreme positive returns. While MAX measures the propensity for a stock to deliver lottery-like payoffs in the portfolio formation month, these stocks continue to exhibit this behavior in the future. \n\nTo get a clearer picture of the composition of the high MAX portfolios, Table V presents summary statistics for the stocks in the deciles. Specifically, the table reports the average across the months in the sample of the median values within each month of various characteristics for the stocks in \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n8 \n\neach decile. We report values for the maximum daily return (in percent), the market capitalization (in millions of dollars), the price (in dollars), the market beta, the book-to-market (BM) ratio, a measure of illiquidity (scaled by 10[5] ), the return in the portfolio formation month (REV), the return over the 11 months prior to portfolio formation (MOM), and the idiosyncratic volatility (IVOL).[5] Definitions of these variables are given in the Appendix. \n\nThe portfolios exhibit some striking patterns. As we move from the low MAX to the high MAX decile, the average across months of the median daily maximum return of stocks increases from 1.62% to 17.77%. With the exception of decile 10, these values are similar to those reported in Table I for the average maximum daily return. For decile 10, the average maximum return exceeds the median by approximately 6%. The distribution of maximum daily returns is clearly right skewed, with some stocks exhibiting very high returns. These outliers are not a problem in the portfolio-level analysis, but we will revisit this issue in the firm-level, cross-sectional regressions. \n\nAs MAX increases across the deciles, market capitalization decreases. The absolute numbers are difficult to interpret since market capitalizations go up over time, but the relative values indicate that the high MAX portfolios are dominated by smaller stocks. This pattern is good news for the raw return differences documented in Table I since the concentration of small stocks in the high MAX deciles would suggest that these portfolios should earn a return premium not the return discount observed in the data. This phenomenon may partially explain why the alpha difference exceeds the difference in raw returns. \n\nThe small stocks in the high MAX portfolios also tend to have low prices, declining to a median price of $6.47 for decile 10. While this pattern is not surprising, it does suggest that there may be measurement issues associated with microstructure phenomena for some of the small, low-priced stocks in the higher MAX portfolios, or, more generally, that the results we document may be confined solely to micro-cap stocks with low stock prices. The fact that the results hold for value-weighted portfolios, as well as equal-weighted portfolios, does allay this concern somewhat, but it is still worthwhile to check the robustness of the results to different sample selections procedures. \n\nFirst, we repeat the analysis in Table I excluding all stocks with prices below $5/share. The 4- factor alpha differences between the low MAX and high MAX value-weighted and equal-weighted portfolios are –0.81% and –1.14% per month, respectively, and both differences are highly statistically significant. Second, we exclude all AMEX and NASDAQ stocks from the sample and form portfolios of stocks trading only on the NYSE. Again, the average risk-adjusted return differences are large and negative: –0.45% per month with t-statistic of –2.48 for the value-weighted portfolios and –0.89% per \n\n> 5 The qualitative results from the average statistics are very similar to those obtained from the median statistics. Since the median is a robust measure of the center of the distribution that is less sensitive to outliers than the mean, we choose to present the median statistics in Table V. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n9 \n\nmonth with a t-statistic of –5.15 for the equal-weighted portfolios. Finally, we sort all NYSE stocks by firm size each month to determine the NYSE decile breakpoints for market capitalization. Then, each month we exclude all NYSE/AMEX/NASDAQ stocks with market capitalizations that would place them in the smallest NYSE size quintile, i.e., the two smallest size deciles, consistent with the definition of microcap stocks in Keim (1999) and Fama and French (2008). The average risk-adjusted return differences are –0.72% and –0.44% per month with t-statistics of –4.00 and –2.25 for the value-weighted and equal-weighted portfolios, respectively. These analyses provide convincing evidence that, while our main findings are certainly concentrated among smaller stocks, the phenomenon is not confined to only the smallest, lowest-price segment of the market. \n\nWe can also look more directly at the distribution of market capitalizations within the high MAX decile. For example, during the last two years of our sample period, approximately 68% of these stocks fell below the size cutoff necessary for inclusion in the Russell 3000 index. In other words, almost one third of the high MAX stocks were among the largest 3000 stocks. Over the full sample, approximately 50% of the high MAX stocks, on average, fell into the two smallest size deciles. This prevalence of small stocks with extreme positive returns, and their corresponding low future returns, is consistent with the theoretical motivation discussed earlier. It is individual investors, rather than institutions, that are most likely to be subject to the phenomena modeled in Barberis and Huang (2008) and Brunnermeier, Gollier and Parker (2007), and individual investors also exhibit under-diversification. Thus, these effects should show up in the same small stocks that are held and traded by individual investors but by very few institutions. \n\nReturning to the descriptive statistics in Table V, betas are calculated monthly using a regression of daily excess stock returns on daily excess market returns; thus, these values are clearly noisy estimates of the true betas. Nevertheless, the monotonic increase in beta as MAX increases does suggest that stocks with high maximum daily returns are more exposed to market risk. To the extent that market risk explains the cross-section of expected returns, this relation between MAX and beta serves only to emphasize the low raw returns earned by the high MAX stocks as documented in Table I. The difference in 4-factor alphas should control for this effect, which partially explains why this difference is larger than the difference in the raw returns. \n\nMedian book-to-market ratios are similar across the portfolios, although if anything high MAX portfolios do have a slight value tilt. \n\nIn contrast, the liquidity differences are substantial. Our measure of illiquidity is the absolute return over the month divided by the monthly trading volume, which captures the notion of price impact, i.e., the extent to which trading moves prices (see Amihud (2002)). We use monthly returns over monthly trading volume, rather than a monthly average of daily values of the same quantity, because a significant \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n10 \n\nfraction of stocks have days with no trade. Eliminating these stocks from the sample reduces the sample size with little apparent change in the empirical results. Based on this monthly measure, illiquidity increases quite dramatically for the high MAX deciles, consistent with these portfolios containing smaller stocks. Again, this pattern only serves to strengthen the raw return differences documented in Table I since these stocks should earn a higher return to compensate for their illiquidity. Moreover, the 4-factor alphas do not control for this effect except to the extent that the size and book-to-market factors also proxy for liquidity. \n\nThe final 2 columns of Table V report median returns in the portfolio formation month (REV) and the return over the previous 11 months (MOM). These two variables indicate the extent to which the portfolios are subject to short-term reversal and intermediate-term momentum effects, respectively. Jegadeesh and Titman (1993) and subsequent papers show that over intermediate horizons, stocks exhibit a continuation pattern, i.e., past winners continue to do well and past losers continue to perform badly. Over shorter horizons stocks exhibit return reversals, due partly to microstructure effects such as bid-ask bounce (Jegadeesh (1990) and Lehmann (1990)). \n\nThe Fama-French-Carhart four factor model does not control for short-term reversals; therefore, we control for the effects of REV in the context of bivariate sorts and cross-sectional regressions later in the paper. However, it is also possible that REV, a monthly return, does not adequately capture shorterterm effects. To verify that it is not daily or weekly microstructure effects that are driving our results, we subdivide the stocks in the high MAX portfolio according to when in the month the maximum daily return occurs. If the effect we document is more prominent for stocks whose maximum return occurs towards the end of the month, it would cast doubt on our interpretation of the evidence. \n\nThere is no evidence of this phenomenon. For example, for value-weighted portfolios, average raw return differences between the low MAX and high MAX portfolios are –0.98% per month for stocks with the maximum return in the first half of the month versus –0.95% per month for those with the maximum return in the second half of the month. The alpha differences follow the same pattern. Similarly, the raw return differences for stocks with the maximum return in the first week of the month are –1.41% per month, which is larger than the return difference of –0.89% per month for those stocks with maximum returns in the last week. Again, the alpha differences follow the same ordering. Moreover, the low returns associated with high MAX stocks persist beyond the first month after portfolio formation. Thus, short-term reversals at the daily or weekly frequency do not seem to explain the results. \n\nGiven that the portfolios are sorted on maximum daily returns, it is hardly surprising that median returns in the same month are also high, i.e., stocks with a high maximum daily return also have a high return that month. More interesting is the fact that the differences in median monthly returns for the portfolios of interest are smaller than the differences in the median MAX. For example, the difference in \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n11 \n\nMAX between deciles 9 and 10 is 6.8% relative to a difference in monthly returns of 5.2%. In other words, the extreme daily returns on the lottery-like stocks are offset to some extent by lower returns on other days. This phenomenon explains why these same stocks can have lower average returns in the subsequent month (Table I) even though they continue to exhibit a higher frequency of extreme positive returns (Tables III and IV). \n\nThis lower average return is also mirrored in the returns over the prior 11 months. The high MAX portfolios exhibit significantly lower and even negative returns over the period prior to the portfolio formation month. The strength of this relation is perhaps surprising, but it is consistent with the fact that stocks with extreme positive daily returns are small and have low prices. \n\nThe final column in Table V reports the idiosyncratic volatility of the MAX-sorted portfolios. It is clear that MAX and IVOL are strongly positively correlated in the cross-section. We address the relation between extreme returns and idiosyncratic volatility in detail in Section III. \n\nGiven these differing characteristics, there is some concern that the 4-factor model used in Table I to calculate alphas is not adequate to capture the true difference in risk and expected returns across the portfolios sorted on MAX. For example, the HML and SMB factors of Fama and French do not fully explain the returns of portfolios sorted by book-to-market ratios and size.[6] Moreover, the 4-factor model does not control explicitly for the differences in expected returns due to differences in illiquidity or other known empirical phenomenon such as short-term reversals. With the exception of short-term reversals and intermediate-term momentum, it seems unlikely that any of these factors can explain the return differences in Table I because high MAX stocks have characteristics that are usually associated with high expected returns, while these portfolios actually exhibit low returns. Nevertheless, in the following two subsections we provide different ways of dealing with the potential interaction of the maximum daily return with firm size, book-to-market, liquidity, and past returns. Specifically, we test whether the negative relation between MAX and the cross-section of expected returns still holds once we control for size, book-to-market, momentum, short-term reversal and liquidity using bivariate portfolio sorts and Fama-MacBeth (1973) regressions. \n\n## _C. Bivariate Portfolio-Level Analysis_ \n\nIn this section we examine the relation between maximum daily returns and future stock returns after controlling for size, book-to-market, momentum, short-term reversals, and liquidity. For example, we control for size by first forming decile portfolios ranked based on market capitalization. Then, within each size decile, we sort stocks into decile portfolios ranked based on MAX so that decile 1 (decile 10) \n\n> 6 Daniel and Titman (1997) attribute this failure to the fact that returns are driven by characteristics not risk. We take no stand on this issue, but instead conduct a further battery of tests to demonstrate the robustness of our results. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n12 \n\ncontains stocks with the lowest (highest) MAX. For brevity, we do not report returns for all 100 (10 × 10) portfolios. Instead, the first column of Table VI, Panel A presents returns averaged across the 10 size deciles to produce decile portfolios with dispersion in MAX, but which contain all sizes of firms. This procedure creates a set of MAX portfolios with similar levels of firm size, and thus these MAX portfolios control for differences in size. After controlling for size, the value-weighted average return difference between the low MAX and high MAX portfolios is about –1.22% per month with a Newey-West t- statistic of –4.49. The 10-1 difference in the 4-factor alphas is –1.19% per month with a t-statistic of – 5.98. Thus, market capitalization does not explain the high (low) returns to low (high) MAX stocks. If, instead of averaging across the size deciles, we look at the alpha differences for each decile in turn, the results are consistent with those reported in Section II.B. Specifically, while the direction of the MAX effect is consistent across all the deciles, it is generally increasing in both magnitude and statistical significance as the market capitalization of the stocks decreases. \n\nThe fact that the results from the bivariate sort on size and MAX are, if anything, both economically and statistically more significant than those presented for the univariate sort in Table I is perhaps not too surprising. As shown in Table V, the high MAX stocks, which have low subsequent returns, are generally small stocks. The standard size effect would suggest that these stocks should have high returns. Thus, controlling for size should enhance the effect on raw returns and even on 4-factor alphas to the extent that the SMB factor is an imperfect proxy. However, there is a second effect of bivariate sorts that works in the opposite direction. Size and MAX are correlated; hence, variation in MAX within size-sorted portfolios is smaller than in the broader universe of stocks. That this smaller variation in MAX still generates substantial return variation is further evidence of the significance of this phenomenon. \n\nThe one concern with dependent bivariate sorts on correlated variables is that they do not sufficiently control for the control variable. In other words, there could be some residual variation in size across the MAX portfolios. We address this concern in two ways. First, we also try independent bivariate sorts on the two variables. These sorts produce very similar results. Second, in the next section we perform cross-sectional regressions in which all the variables appear as control variables. \n\nWe control for book-to-market (BM) in a similar way, with the results reported in the second column of Table VI, Panel A.  Again the effect of MAX is preserved, with a value-weighted average raw return difference between the low MAX and high MAX deciles of –0.93% per month and a corresponding t-statistic of –3.23. The 10-1 difference in the 4-factor alphas is also negative, –1.06% per month, and highly significant. \n\nWhen controlling for momentum in column 3, the raw return and alpha differences are smaller in magnitude, but they are still economically large and statistically significant at all conventional levels. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n13 \n\nAgain, the fact that momentum and MAX are correlated reduces the dispersion in maximum daily returns across the MAX portfolios, but intermediate-term continuation does not explain the phenomenon we document. \n\nColumn 4 controls for short-term reversals. Since firms with large positive daily returns also tend to have high monthly returns, it is conceivable that MAX could be proxying for the well known reversal phenomenon at the monthly frequency, which we do not control for in the 4-factor model in Table I. However, this is not the case. After controlling for the magnitude of the monthly return in the portfolio formation month, the return and alpha differences are still 81 and 98 basis points, respectively, and both numbers exhibit strong statistical significance. \n\nFinally, we control for liquidity by first forming decile portfolios ranked based on the illiquidity measure of Amihud (2002), with the results reported in final column of Table VI. Again, variation in MAX is apparently priced in the cross-section, with large return differences and corresponding t-statistics. Thus, liquidity does not explain the negative relation between maximum daily returns and future stock returns. \n\nAs mentioned earlier, we compute illiquidity as the ratio of the absolute monthly return to the monthly trading volume. We can also compute the original illiquidity measure of Amihud (2002), defined as the daily absolute return divided by daily dollar trading volume averaged within the month. These measures are strongly correlated, but in the latter case we need to make a decision about how to handle stocks with zero trading volume on at least one day within the month. When we eliminate these stocks from the sample, the findings remain essentially unchanged. Raw return and alpha differences are –1.25% per month and –1.20% per month, respectively. Thus, for the remainder of the paper we focus on the larger sample and the monthly measure of illiquidity. \n\nNext, we turn to an examination of the equal-weighted average raw and risk-adjusted returns on MAX portfolios after controlling for the same cross-sectional effects as in Table VI, Panel A. Again, to save space, instead of presenting the returns of all 100 (10 × 10) portfolios for each control variable, we report the average returns of the MAX portfolios, averaged across the 10 control deciles to produce decile portfolios with dispersion in MAX but with similar levels of the control variable. \n\nTable VI, Panel B shows that after controlling for size, book-to-market, momentum, short-term reversal, and liquidity, the equal-weighted average return differences between the low MAX and high MAX portfolios are –1.11%,  –0.59%, –0.76%, –0.83%, and –0.81% per month, respectively. These average raw return differences are both economically and statistically significant. The corresponding values for the equal-weighted average risk-adjusted return differences are –1.06%, –0.54%, –0.88%, –1.02%, and –0.79%, which are also highly significant. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n14 \n\nThese results indicate that for both the value-weighted and the equal-weighted portfolios, the well-known cross-sectional effects such as size, book-to-market, momentum, short-term reversal, and liquidity can not explain the low returns to high MAX stocks. \n\n## _D.  Firm-Level Cross-Sectional Regressions_ \n\nSo far we have tested the significance of the maximum daily return as a determinant of the crosssection of future returns at the portfolio level. This portfolio-level analysis has the advantage of being non-parametric in the sense that we do not impose a functional form on the relation between MAX and future returns. The portfolio-level analysis also has two potentially significant disadvantages. First, it throws away a large amount of information in the cross-section via aggregation. Second, it is a difficult setting in which to control for multiple effects or factors simultaneously. Consequently, we now examine the cross-sectional relation between MAX and expected returns at the firm level using Fama and MacBeth (1973) regressions. \n\nWe present the time-series averages of the slope coefficients from the regressions of stock returns on maximum daily return (MAX), market beta (BETA), log market capitalization (SIZE), log book-tomarket ratio (BM), momentum (MOM), short-term reversal (REV), and illiquidity (ILLIQ). The average slopes provide standard Fama-MacBeth tests for determining which explanatory variables on average have non-zero premiums. Monthly cross-sectional regressions are run for the following econometric specification and nested versions thereof: \n\n**==> picture [416 x 33] intentionally omitted <==**\n\nwhere _[R] i_ , _t_ + 1 is the realized return on stock _i_ in month _t_ +1. The predictive cross-sectional regressions are run on the one-month lagged values of MAX, BETA, SIZE, BM, REV, and ILLIQ, and MOM is calculated over the 11-month period ending 2 months prior to the return of interest. \n\nTable VII reports the time series averages of the slope coefficients λ _i,t_ ( _i_ = 1, 2, …, 7) over the 522 months from July 1962 to December 2005 for all NYSE/AMEX/NASDAQ stocks. The Newey-West adjusted t-statistics are given in parentheses. The univariate regression results show a negative and statistically significant relation between the maximum daily return and the cross-section of future stock returns. The average slope, λ 1 _,t_ , from the monthly regressions of realized returns on MAX alone is –0.0434 with a t-statistic of –2.92. The economic magnitude of the associated effect is similar to that documented in Tables I and VI for the univariate and bivariate sorts. The spread in median maximum daily returns between deciles 10 and 1 is approximately 16%. Multiplying this spread by the average slope yields an estimate of the monthly risk premium of –69 basis points. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n15 \n\nIn general, the coefficients on the individual control variables are also as expected—the size effect is negative and significant, the value effect is positive and significant, stocks exhibit intermediateterm momentum and short-term reversals, and illiquidity is priced. The average slope on BETA is negative and statistically insignificant, which contradicts the implications of the CAPM but is consistent with prior empirical evidence. In any case, these results should be interpreted with caution since BETA is estimated over a month using daily data, and thus is subject to a significant amount of measurement error. The regression with all 6 control variables shows similar results, although the size effect is weaker and the coefficient on BETA is now positive, albeit statistically insignificant. \n\nOf primary interest is the last line of Table VII, which shows the results for the full specification with MAX and the 6 control variables. In this specification the average slope coefficient on MAX is –0.0637, substantially larger than in the univariate regression, with a commensurate increase in the t- statistic to –6.16. This coefficient corresponds to a 102 basis point difference in expected monthly returns between median stocks in the high and low MAX deciles. The explanation for the increased magnitude of the estimated effect in the full specification is straightforward. Since stocks with high maximum daily returns tend to be small and illiquid, controlling for the increased expected return associated with these characteristics pushes the return premium associated with extreme positive return stocks even lower. These effects more than offset the reverse effect associated with intermediate-term momentum and shortterm reversals, which partially explain the low future returns on high MAX stocks. \n\nThe strength of the results is somewhat surprising given that there are sure to be low-priced, thinly traded stocks within our sample whose daily returns will be exhibit noise due to microstructure and other effects. To confirm this intuition, we re-run the cross-sectional regressions after winsorizing MAX at the 99[th] and 95[th] percentiles to eliminate outliers. In the full specification, the average coefficient on MAX increases to –0.0788 and –0.0902, suggesting that the true economic effect is even larger than that documented in Table VII. A different but related robustness check is to run the same analysis using only NYSE stocks, which tend to be larger and more actively traded and are thus likely to have less noisy daily returns.  For this sample, the baseline coefficient of –0.064 in Table VII increases to –0.077. \n\nGiven the characteristic of the high MAX stocks, as discussed previously, it is also worthwhile verifying that different methods of controlling for illiquidity do not affect the main results. Using the daily Amihud (2002) measure averaged over the month, the coefficient on MAX is somewhat larger in magnitude. In addition, controlling for the liquidity risk measure of Pastor and Stambaugh (2003) has little effect on the results. \n\nThe regression in equation (1) imposes a linear relation between returns and MAX for simplicity rather than for theoretical reasons. However, adding a quadratic term to the regression or using a piecewise linear specification appears to add little if anything to the explanatory power. Similarly, \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n16 \n\ninteracting MAX with contemporaneous volume, with the idea that trading volume may be related to the informativeness of the price movements, also proved fruitless. \n\nThe clear conclusion is that cross-sectional regressions provide strong corroborating evidence for an economically and statistically significant negative relation between extreme positive returns and future returns, consistent with models that suggest that idiosyncratic lottery-like payoffs are priced in equilibrium. \n\n## **III.  Idiosyncratic Volatility and Extreme Returns** \n\nWhile arguably MAX is a theoretically motivated variable, there is still a concern that it may be proxying for a different effect. In particular, stocks with high volatility are likely to exhibit extreme returns of both signs. Moreover, stocks with high maximum daily returns in a given month will also have high realized volatility in the same month, measured using squared daily returns, almost by construction. Ang et al. (2006, 2009) document that idiosyncratic volatility has a significant negative price in the crosssection, i.e., stocks with high idiosyncratic volatility have low subsequent returns;[7] thus, it is plausible that MAX is proxying for this effect. We examine this issue in detail in this section. \n\nAs preliminary evidence, Table VIII provides the average monthly cross-sectional correlations between five variables of interest—MAX (the maximum daily return within the month), MAX(5) (the average of the highest five daily returns within the month), MIN (the negative of the minimum daily return within the month), TVOL (monthly realized total volatility measured using daily returns within the month), and IVOL (monthly realized idiosyncratic volatility measured using the residuals from a daily market model within the month). TVOL, IVOL and MIN are defined in the Appendix. We reverse the sign on the minimum daily returns so that high values of MIN correspond to more extreme returns. Note that idiosyncratic volatility and total volatility are essentially identical when measured within a month due to the low explanatory power of the market model regression. In our sample, the average cross-sectional correlation between these variables exceeds 0.98. We choose to work with IVOL since it corresponds to the variable used by Ang et al.[8] \n\nNot surprisingly, MAX and MAX(5) are highly correlated. Of greater interest, the average, crosssectional correlations between IVOL and both MAX and MIN are approximately 0.75, which is very high \n\n> 7 Fu (2009) emphasizes the time-series variation in idiosyncratic volatility and documents a significantly positive relation between conditional idiosyncratic variance and the cross-section of expected returns. Spiegel and Wang (2005) estimate idiosyncratic volatility from monthly rather than daily returns and find that stock returns increase with the level of idiosyncratic risk and decrease with the stock’s liquidity but that idiosyncratic risk often subsumes the explanatory power of liquidity. Fu (2009) and Huang, Liu, Rhee, and Zhang (2008) argue that the results are driven by monthly stock-return reversals, although Nyberg (2008) disputes this claim. Fang and Peress (2008) show that the idiosyncratic volatility effect is reversed for stocks with no media coverage. \n\n> 8 Measuring idiosyncratic volatility relative to a 3-factor or 4-factor model rather than the market model has little effect on the results. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n17 \n\ngiven that all three variables are calculated at the individual stock level. MAX(5) is even more highly correlated with IVOL than MAX. Moreover, these correlations are not driven simply by the fact that a squared extreme daily return leads to a high measured realized volatility. Even when the maximum and minimum daily returns are eliminated prior to the calculation of volatility, volatility remains highly correlated with MAX, MAX(5) and MIN. MAX and MAX(5) are also quite closely related to MIN, with correlations of 0.55 and 0.62, respectively. Clearly stocks with high volatility exhibit extreme returns and vice versa. \n\nA second important piece of preliminary evidence is to verify the relation between idiosyncratic volatility and future returns in our sample. We conduct a univariate portfolio sort on IVOL, similar to that given in Table I for MAX, although, for brevity, we do not report the results in detail. These results look very similar to those in Table I. For value-weighted returns, deciles 1 through 7 (lower idiosyncratic volatility) all exhibit average monthly returns of around 1%. These returns fall dramatically for the higher volatility stocks, all the way to 0.02% per month for decile 10. Both the return differences between the low and high IVOL deciles of –0.93% per month and the corresponding four-factor alpha differences of –1.33% are economically and statistically significant. These results coincide closely with the results in Ang et al. (2006), although they form quintiles rather than deciles and use a slightly shorter sample period. Of some interest, there is no evidence of an idiosyncratic volatility effect in equal-weighted portfolios—a result that is documented in Bali and Cakici (2008). Given the strong positive correlation between MAX and IVOL documented in Table VIII above, it is not surprising that average maximum daily returns increase across the IVOL-sorted portfolios. In fact, the range is not that much smaller than in the MAX-sorted portfolios (Table I), with the stocks in the low and high IVOL portfolios having an average MAX of 1.95% and 17.31%, respectively. \n\nTo examine the relation between extreme returns and volatility more closely, we first conduct four bivariate sorts. In Table IX, Panel A we sort on both the maximum daily return (MAX) and the average of the five highest daily returns (MAX(5)), controlling for idiosyncratic volatility. We first form decile portfolios ranked based on idiosyncratic volatility, and within each IVOL decile we sort stocks into decile portfolios based on MAX or MAX(5) so that decile 1 (decile 10) contains stocks with the lowest (highest) MAX(N). Panel A shows the average of the value-weighted and equal-weighted returns across the IVOL deciles and the associated Newey-West t-statistics. The key statistics are the return and 4-factor alpha differences (and Newey-West t-statistics) between the low MAX(N) and high MAX(N) portfolios, i.e., the differences between returns on portfolios that vary in MAX(N) but have approximately the same levels of idiosyncratic volatility. \n\nThe value-weighted average raw return difference between the low MAX and high MAX deciles is –0.35% per month with a t-statistic of –2.42. The 10-1 difference in the 4-factor alphas is also negative, \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n18 \n\n–0.34% per month, and highly significant. These magnitudes are much smaller than we have seen previously, but this result is hardly surprising. Idiosyncratic volatility and MAX are highly correlated; thus, after controlling for idiosyncratic volatility, the spread in maximum returns is significantly reduced. Nevertheless, idiosyncratic volatility does not completely explain the high (low) returns to low (high) MAX stocks. The equal-weighted average raw and risk-adjusted return differences between the low MAX and high MAX portfolios are much more negative, greater than 90 basis points per month in absolute magnitude, and highly significant with the t-statistics of –7.86 to –7.96, respectively. However, recall that the idiosyncratic volatility effect does not exist in equal-weighted portfolios. \n\nWhen we sort on the average of the five highest daily returns within the month, the return and alpha differences for both value-weighted and equal-weighted portfolios exhibit substantially greater economic and statistical significance, consistent with the univariate results reported in Table II. In both cases, if we examine the alpha differences individually for each IVOL decile, the pattern is intuitive. Given the high correlation between MAX and IVOL, it is only in the higher IVOL deciles where there are larger numbers of stocks with extreme positive returns. Therefore, the MAX effect tends to increase in magnitude and statistically significance as IVOL increases. \n\nWhat happens if we perform the reverse sort, i.e., if we examine the explanatory power of idiosyncratic volatility after controlling for MAX(N)? In Table IX, Panel B we first form decile portfolios ranked based either on the maximum daily returns over the past one month (MAX) or the average of the five highest daily returns (MAX(5)). Then, within each MAX(N) decile, we sort stocks into decile portfolios ranked based on IVOL so that decile 1 (decile 10) contains stocks with the lowest (highest) IVOL. When controlling for MAX, the average value-weighted raw return difference between the low IVOL and high IVOL portfolios is –0.38% per month with a t-statistic of –1.98. The 10-1 difference in the 4-factor alphas is also negative, –0.44% per month, and statistically significant. These magnitudes are much smaller than those obtained from the univariate volatility portfolios; nevertheless, for the valueweighted portfolios, maximum daily return does not completely explain the idiosyncratic volatility puzzle in a simple bivariate sort. \n\nThere are two possible explanations for this result in combination with the results of Table IX, Panel A, and the significance of IVOL in the context of a univariate sort. First, MAX and IVOL could be picking up separate effects, both of which exist in the data. The absence of an idiosyncratic volatility effect in equal-weighted portfolios could be due to measurement issues for smaller stocks. Alternatively, it could be that bivariate sorts are not powerful enough to disentangle the true effect. While the idea of the bivariate sort is to produce portfolios with variation in the variable of interest but similar levels of the control variable, this goal is extremely difficult to achieve for highly correlated variables. While the stocks in the portfolios whose returns are reported in the first column of Table IX, Panel B do vary in \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n19 \n\ntheir levels of idiosyncratic volatility, they also vary in their maximum daily returns. For example, the averages of the median idiosyncratic volatilities are 1.69% and 4.57% for the low and high IVOL portfolios, respectively, but the averages of the median MAX for these portfolios are 6.03% and 8.90%. Thus, it is difficult to know which effect is actually producing the negative return and alpha differences between these portfolios. One might think that an independent bivariate sort would solve this problem. Unfortunately, such a sort is infeasible because there are so few stocks with extreme positive returns and low volatility, or high volatility and no extreme returns. As a result, the portfolios of interest are exactly those for which we cannot observe reliable returns. \n\nHowever, Columns two through four of Panel B do shed further light on the issue of disentangling the effects of the two variables. In column two, we report the results for equal-weighted portfolios, controlling for MAX. The average return difference between the high IVOL and low IVOL portfolios is about 0.98% per month with a Newey-West t-statistic of 4.88. The 10-1 difference in the 4- factor alphas is 0.95% per month with a t-statistic of 4.76. Thus, after controlling for MAX, we find a significant and positive relation between IVOL and the cross-section of expected returns. This is the reverse of the counter-intuitive negative relation documented by Ang et al. (2006, 2009). Once we control for extreme positive returns, there appears to be a reward for holding idiosyncratic risk. This result is consistent with a world in which risk averse and poorly diversified agents set prices, yet these agents have a preference for lottery like assets, i.e., assets with extreme positive returns in some states. \n\nFirst, note that measurement error in idiosyncratic volatility cannot explain this positive and significant relation between idiosyncratic volatility and returns. Measurement error in the sorting variable will push return differences toward zero, but it cannot explain a sign reversal that is statistically significant, especially at the levels we report. Second, the inability to adequately control for variation in the control variable MAX is also not a viable explanation for these results. Residual variation in MAX is generating, if anything, the opposite effect. Finally, a positive relation between idiosyncratic volatility and returns and a negative relation between MAX and returns provides an explanation for the absence of a univariate idiosyncratic volatility effect in equal-weighted portfolios. This particular weighting scheme causes the IVOL and MAX effects to cancel, generating small and insignificant return differences. \n\nTo confirm these conclusions, the last two columns of Table IX, Panel B present results for portfolios that control for our somewhat more powerful measure of extreme returns, the average of the five highest daily returns during the month (MAX(5)). Using this control variable, the differences between the raw and risk-adjusted returns on high IVOL and low IVOL portfolios are positive, albeit insignificant, and the differences for equal-weighted portfolios are positive and extremely economically and statistically significant. The evidence supports the theoretically coherent hypothesis that lottery-like stocks command a price premium and those with high idiosyncratic risk trade at a discount. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n20 \n\nWe further examine the cross-sectional relation between IVOL and expected returns at the firm level using Fama-MacBeth regressions, with the results reported in the top half of Table X. In the univariate regression the average slope coefficient on IVOL is negative, –0.05, but it is not statistically significant (t-stat = –0.97). This lack of significance mirrors the result that there is little or no relation between volatility and future returns in equal-weighted portfolios. The cross-sectional regressions put equal weight on each firm observation. \n\nWhen we add MAX to the regression, the negative relation between idiosyncratic volatility and expected returns is reversed. Specifically, the estimated average slope coefficient on IVOL is 0.39 with a Newey-West t-statistic of 4.69. This positive relation between IVOL and expected returns remains significant even after augmenting the regression with the 6 control variables. \n\nBased on the bivariate equal-weighted portfolios and the firm-level cross-sectional regressions with MAX and IVOL, our conclusion is that there is no idiosyncratic volatility puzzle as recently documented in Ang et al. (2006, 2009).  In fact, stocks with high idiosyncratic volatility have higher future returns as would be expected in a world where poorly diversified and risk averse investors help determine prices. We conclude that the reason for the presence of a negative relation between IVOL and expected returns documented by Ang et al. is that IVOL is a proxy for MAX. Interestingly, Han and Kumar (2008) provide evidence that the idiosyncratic volatility puzzle is concentrated in stocks dominated by retail investors. This evidence complements our results, since it is retail investors who more likely to suffer from under-diversification and exhibit a preference for lottery-like assets. \n\nA slightly different way to examine the relation between extreme returns and volatility is to look at minimum returns. If it is a volatility effect that is driving returns, then MIN (the minimum daily return over the month), which is also highly correlated with volatility, should generate a similar effect to MAX. On the other hand, much of the theoretical literature would predict that the effect of MIN should be the opposite of that of MAX. For example, if investors have a skewness preference, then stocks with negatively skewed returns should require higher returns. Similarly, under the CPT of Barberis and Huang, small probabilities or large losses are over-weighted, and thus these stocks have lower prices and higher expected returns. \n\nTo examine this issue we form portfolios of stocks sorted on MIN after controlling for MAX. For brevity the results are not reported, but the return and alpha differences are positive and statistically significant, although both the magnitudes and level of significance are lower than those for MAX. This evidence suggests that stocks with extreme low returns have higher expected returns in the subsequent month. The opposite effects of MAX and MIN are consistent with cumulative prospect theory and skewness preference, but they are not consistent with the hypothesis that extreme returns are simply proxying for idiosyncratic volatility. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n21 \n\nIn addition to the portfolio-level analyses, we run firm-level Fama-MacBeth cross-sectional regressions with MAX, MIN and IVOL. The bottom half of Table X presents the average slope coefficients and the Newey-West adjusted t-statistics. For all econometric specifications, the average slope on MAX remains negative and significant, confirming our earlier findings from the bivariate sorts. After controlling for MIN and IVOL, as well as market beta, size, book-to-market, momentum, short-term reversals and liquidity, the average slope on MAX is –0.089 with a t-statistic of –6.67. \n\nFor specifications with MAX and MIN, but not IVOL, the average slope on MIN is positive and both economically and statistically significant. Note that the original minimum returns are multiplied by –1 in constructing the variable MIN. Therefore, the positive slope coefficient means that the more a stock fell in value the higher the future expected return. The addition of the 6 control variables clearly weakens the estimated effect. This result is not surprising since stocks with extreme negative returns have characteristics similar to those of firms with extreme positive returns, i.e., they tend to be small and illiquid. Thus, size and illiquidity both serve to explain some of the positive returns earned by these stocks. Moreover, the MIN effect is not robust to the same sub-sampling exercises we report in Section II.B for MAX. When we exclude stocks whose market capitalizations would place them in the smallest NYSE size quintile, or when we examine NYSE stocks only, the MIN effect is no longer statistically significant, and, in fact, the sign of the effect is often reversed. Thus, the MIN effect, in contrast to the MAX effect, appears to be limited to micro-cap stocks. This result is perhaps not surprising because it may be costly to engage in the short-selling necessary to exploit the MAX effect, while exploiting the MIN effect involves taking a long position in the relevant stocks. \n\nFor the full specification with MAX, MIN, and IVOL, the coefficients on MIN and IVOL are no longer statistically significant. However, this result is most likely due to the multicollinearity in the regression, i.e., the correlations between MIN and IVOL (see Table VIII) and between MIN, IVOL and the control variables. The true economic effect of extreme negative returns is still an open issue, but these regressions provide further evidence that there is no idiosyncratic volatility puzzle. \n\n## **IV.  Skewness and MAX** \n\nOur final empirical exercise is to examine the link, if any, between extreme positive returns and skewness in terms of their ability to explain the cross-section of expected returns. The investigation of the role of higher moments in asset pricing has a long history. Arditti (1967), Kraus and Litzenberger (1976), and Kane (1982) extend the standard mean-variance portfolio theory to incorporate the effect of skewness on valuation. They present a three-moment asset pricing model in which investors hold concave preferences and like positive skewness. In this framework, assets that decrease a portfolio’s skewness (i.e., that make the portfolio returns more left-skewed) are less desirable and should command higher \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n22 \n\nexpected returns. Similarly, assets that increase a portfolio’s skewness should generate lower expected returns.[9] \n\nFrom our perspective, the key implication of these models is that it is systematic skewness, not idiosyncratic skewness, that explains the cross-sectional variation in stocks returns. Investors hold the market portfolio in which idiosyncratic skewness is diversified away, and thus the appropriate measure of risk is co-skewness—the extent to which the return on an individual asset covaries with the variance of market returns. Harvey and Siddique (1999, 2000) and Smith (2007) measure conditional co-skewness and find that stocks with lower co-skewness outperform stocks with higher co-skewness, consistent with the theory, and that this premium varies significantly over time. \n\nIn contrast, the extreme daily returns measured by MAX are almost exclusively idiosyncratic in nature, at least for the high MAX stocks, which produce the anomalous, low subsequent returns. Of course, this does not mean that MAX is not proxying for the systematic skewness, or co-skewness, of stocks. Thus, the first question is whether MAX, despite its idiosyncratic nature, is robust to controls for co-skewness. \n\nThe second question is whether MAX is priced because it proxies for idiosyncratic skewness. In other words, is MAX simply a good proxy for the third moment of returns? There is some empirical evidence for a skewness effect in returns. For example, Zhang (2005) computes a measure of crosssectional skewness, e.g., the skewness of firm returns within an industry, that predicts future returns at the portfolio level. Boyer, Mitton and Vorkink (2009) employ a measure of expected skewness, i.e., a projection of 5-year ahead skewness on a set of pre-determined variables, including stock characteristics, to predict portfolio returns over the subsequent month. Finally, Conrad, Dittmar and Ghysels (2008) show that measures of risk-neutral skewness from option prices predict subsequent returns. In all three cases the direction of the results is consistent with our evidence, i.e., more positively skewed stocks have lower returns, but these effects are generally weaker than the economically and statistically strong evidence we document in Section II. \n\nOf equal importance, there is no theoretical reason to prefer return skewness to extreme returns as a potential variable to explain the cross-section of expected returns. In the model of Barberis and Huang (2008), based on the cumulative prospect theory of Tversky and Kahneman (1992), it is the low probability, extreme return states that drive the results, not skewness directly. Similarly, in the optimal beliefs model of Brunnermeier, Gollier and Parker (2007), it is again low probability states that drive the relevant pricing effects. Only in the model of Mitton and Vorkink (2007), who assume a preference for positive skewness, is skewness the natural measure. \n\n> 9 Arditti (1971), Friend and Westerfield (1980), Sears and Wei (1985), Barone-Adesi (1985), and Lim (1989) provide empirical analyses of the role of skewness. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n23 \n\nTo determine whether the information content of maximum daily returns and skewness are similar, we test the significance of the cross-sectional relation between MAX and future stock returns after controlling for total skewness (TSKEW), idiosyncratic skewness (ISKEW) and systematic skewness (SSKEW). In contrast with our other control variables, we calculate these skewness measures primarily over one year using daily returns.[10] A one-year horizon provides a reasonable tradeoff between having a sufficient number of observations to estimate skewness and accommodating time-variation in skewness. Total skewness is the natural measure of the third central moment of returns; systematic skewness, or coskewness, is the coefficient of a regression of returns on squared market returns, including the market return as a second regressor (as in Harvey and Siddique (2000)); and idiosyncratic skewness is the skewness of the residuals from this regression. These variables are defined in more detail in the Appendix. Total skewness and idiosyncratic skewness are similar for most stocks due to the low explanatory power of the regression using daily data. \n\nWe first perform bivariate sorts on MAX while controlling for skewness. We control for total skewness by forming decile portfolios ranked based on TSKEW. Then, within each TSKEW decile, we sort stocks into decile portfolios ranked based on MAX so that decile 1 (decile 10) contains stocks with the lowest (highest) MAX. The first column of Table XI shows returns averaged across the 10 TSKEW deciles to produce decile portfolios with dispersion in MAX, but which contain firms with all levels of total skewness. After controlling for total skewness, the value-weighted average return difference between the low MAX and high MAX portfolios is about –0.94% per month with a Newey-West t-statistic of –3.06. The 10-1 difference in the 4-factor alphas is –1.00% per month with a t-statistic of –4.34. Thus, total skewness does not explain the high (low) returns to low (high) MAX stocks. \n\nThe last two columns of Table XI present similar results from the bivariate sorts of portfolios formed based on MAX after controlling for systematic and idiosyncratic skewness, respectively. After controlling for systematic skewness, or co-skewness, the value-weighted average raw and risk-adjusted return differences between the low MAX and high MAX portfolios are in the range of 110 to 123 basis points per month and highly significant. After controlling for idiosyncratic skewness, the value-weighted average raw and risk-adjusted return differences between the low MAX and high MAX portfolios are –0.93% to –1.01% per month with the t-statistics of –2.96 and –4.34. These results indicate that systematic and idiosyncratic skewness cannot explain the significantly negative relation between MAX and expected stock returns. \n\nOne concern with this analysis is that lagged skewness may not be a good predictor of future skewness, as argued by Boyer, Mitton and Vorkink (2009). In a rational market, it is expected future \n\n> 10 We test the robustness of our conclusions to variation in the measurement horizon (1, 3, 6, and 12 months) and find similar results. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n24 \n\nskewness that matters. This issue is addressed in Table XII, which presents results from cross-sectional, firm-level regressions of total skewness on lagged values of total skewness and our six control variables.[11] Skewness is significantly persistent, both in a univariate and multivariate context, although the explanatory power of the regressions is not very high. One possibility is to use the fitted values from the month-by-month cross-sectional regressions as a measure of expected skewness (as in Boyer, Mitton and Vorkink (2009)), and thus we include this variable in the cross-sectional return regressions that follow. \n\nTable XIII presents the cross-sectional Fama-MacBeth regression results including TSKEW, SSKEW, ISKEW and expected total skewness (E(TSKEW)) as control variables. The table reports the time series averages of the slope coefficients over the sample period July 1962 to December 2005, with Newey-West adjusted t-statistics given in parentheses. The inclusion of any of the skewness measures has only a limited effect on MAX. The average coefficients on MAX in the different specifications are all approximately –0.055, slightly smaller in magnitude than the –0.064 reported in Table VII, but still economically very significant and statistically significant at all conventional levels, with t-statistics above 5 in magnitude. In all the specifications the coefficients on the skewness variables are positive, the opposite of the sign one would expect if investors have a preference for positive skewness. However, in the full specifications these average coefficients are statistically insignificant. The results for systematic skewness (co-skewness) differ from the significant negative relation found in Harvey and Siddique (2000) and Smith (2007), presumably due to differences in the methodology. For idiosyncratic skewness, we cannot replicate the negative and significant relation found in Zhang (2005) and Boyer, Mitton and Vorkink (2009). Again differences in methodology presumably account for the discrepancy, a key difference being that both papers predict only portfolio returns, not the returns on individual securities. \n\nFor our purposes, however, the message of Tables XI and XIII is clear. There is no evidence that the effect of extreme positive returns that we document is subsumed by available measures of skewness. \n\n## **V.  Conclusion** \n\nWe document a statistically and economically significant relation between lagged extreme positive returns, as measured by the maximum daily return over the prior month or the average of the highest daily returns within the month, and future returns. This result is robust to controls for numerous other potential risk factors and control variables. Of particular interest, inclusion of our MAX variable reverses the anomalous negative relation between idiosyncratic volatility and returns in Ang et al. (2006, 2009). We interpret our results in the context of a market with poorly diversified yet risk averse investors who have a preference for lottery-like assets. In fact, it may be the preference for lottery-like payoffs that causes under-diversification in the first place, since well-diversified equity portfolios do not exhibit this \n\n> 11 Using idiosyncratic skewness generates similar results. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n25 \n\nfeature. Thus, the expected returns on stocks that exhibit extreme positive returns are low but, controlling for this effect, the expected returns on stocks with high idiosyncratic risk are high. \n\nWhy is the effect we document not traded away by other well-diversified investors? Exploiting this phenomenon would require shorting stocks with extreme positive returns. The inability and/or unwillingness of many investors to engage in short selling has been discussed extensively in the literature. Moreover, stocks with extreme positive returns are small and illiquid on average, suggesting that transactions costs may be a serious impediment to implementing the relevant trading strategy. Finally, these small stocks tend to be held and traded by individual investors, rather than by institutions who might attempt to exploit this phenomenon. \n\nWe also present some evidence that stocks with extreme negative returns exhibit the reverse effect, i.e., investors find them undesirable and hence they offer higher future returns. However, this phenomenon is not robust in all our cross-sectional regression specifications, and it appears to be concentrated in a smaller subsample of stocks than the effect of extreme positive returns. Of course, since exploiting this anomaly does not require taking a short position, one might expect the effect to be smaller than for stocks with extreme positive returns due to the actions of well-diversified traders. \n\nWhile the extreme daily returns we exploit are clearly idiosyncratic, we make no effort to classify them further. In other words, we do not discriminate between returns due to earnings announcements, takeovers, other corporate events, or releases of analyst recommendations. Nor do we distinguish price moves that occur in the absence of any new public information. Interestingly, the preponderance of existing evidence indicates that stocks under-react rather than over-react to firm specific news;[12] therefore, if the extreme positive returns were caused by good news, one should expect to see the reverse of the effect that we document. Given the magnitude and robustness of our results, this presents a potentially fruitful avenue of further research. Investigating the time series patterns in the return premia we document is also of interest. \n\n> 12 See Daniel, Hirshleifer and Subrahmanyam (1998) for a survey of some of this literature. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n26 \n\n## **Appendix: Variable Definitions** \n\nMAXIMUM: MAX is the maximum daily return within a month: \n\n**==> picture [319 x 13] intentionally omitted <==**\n\n> where _[R] i_ , _d_[ is the return on stock ] _[i]_[ on day ] _[d]_[ and ] _D t_ is the number of trading days in month _t_ . \n\nMINIMUM: MIN is the negative of the minimum daily return within a month: \n\n**==> picture [321 x 13] intentionally omitted <==**\n\n> where _[R] i_ , _d_[ is the return on stock ] _[i]_[ on day ] _[d]_[ and ] _D t_ is the number of trading days in month _t_ . \n\n> TOTAL VOLATILITY: The total volatility of stock _i_ in month _t_ is defined as the standard deviation of daily returns within month _t_ : \n\n**==> picture [278 x 13] intentionally omitted <==**\n\nBETA: To take into account nonsynchronous trading, we follow Scholes and Williams (1977) and Dimson (1979) and use the lag and lead of the market portfolio as well as the current market when estimating beta: \n\n**==> picture [472 x 84] intentionally omitted <==**\n\nIDIOSYNCRATIC VOLATILITY: To estimate the monthly idiosyncratic volatility of an individual stock, we assume a single factor return generating process: \n\n**==> picture [324 x 13] intentionally omitted <==**\n\nwhere ε _i_ , _d_ is the idiosyncratic return on day _d_ . The idiosyncratic volatility of stock _i_ in month _t_ is defined as the standard deviation of daily residuals in month _t_ : \n\n**==> picture [275 x 12] intentionally omitted <==**\n\n> 13 In our empirical analysis, _Rm,d_ is measured by the CRSP daily value-weighted index and _rf,d_ is the one-month T- bill return available at Kenneth French’s online data library. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n27 \n\nSIZE: Following the existing literature, firm size is measured by the natural logarithm of the market value of equity (a stock’s price times shares outstanding in millions of dollars) at the end of month t-1 for each stock. \n\nBOOK-TO-MARKET: Following Fama and French (1992), we compute a firm’s book-to-market ratio in month _t_ using the market value of its equity at the end of December of the previous year and the book value of common equity plus balance-sheet deferred taxes for the firm’s latest fiscal year ending in prior calendar year.[14] \n\nINTERMEDIATE-TERM MOMENTUM:  Following Jegadeesh and Titman (1993), the momentum variable for each stock in month _t_ is defined as the cumulative return on the stock over the previous 11 months starting 2 months ago, i.e., the cumulative return from month _t_ –12 to month _t_ –2. \n\nSHORT-TERM REVERSAL: Following Jegadeesh (1990) and Lehmann (1990), the reversal variable for each stock in month _t_ is defined as the return on the stock over the previous month, i.e., the return in month _t_ –1. \n\nILLIQUIDITY:  Following Amihud (2002), we measure stock illiquidity for each stock in month _t_ as the ratio of the absolute monthly stock return to its dollar trading volume: \n\n**==> picture [288 x 13] intentionally omitted <==**\n\nwhere _Ri,t_ is the return on stock _i_ in month _t_ , and _VOLDi,t_ is the respective monthly trading volume in dollars. \n\nTOTAL SKEWNESS: The total skewness of stock _i_ for month _t_ is computed using daily returns within year _t_ : \n\n**==> picture [288 x 34] intentionally omitted <==**\n\nwhere _Dt_ is the number of trading days in year _t_ , _[R] i_ , _d_[ is the return on stock ] _[i]_[ on day ] _[d]_[, ] μ _i_ is the mean of returns of stock _i_ in year _t_ , and σ _i_ is the standard deviation of returns of stock _i_ in year _t_ . \n\n> 14 To avoid issues with extreme observations, following Fama and French (1992), the book-to-market ratios are winsorized at the 0.5% and 99.5% levels, i.e., the smallest and largest 0.5% of the observations on the book-tomarket ratio are set equal to the 0.5[th] and 99.5[th] percentiles, respectively. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n28 \n\nSYSTEMATIC and IDIOSYNCRATIC SKEWNESS: Following Harvey and Siddique (2000), we decompose total skewness into idiosyncratic and systematic components by estimating the following regression for each stock: \n\n**==> picture [352 x 15] intentionally omitted <==**\n\nwhere _[R] i_ , _d_[ is the return on stock ] _[i]_[ on day ] _[d]_[, ] _Rm_ , _d_[ is the market return on day ] _[d]_[, ] _[r] f_ , _d_[ is the risk-free rate ] on day _d_ , and ε _i_ , _d_ is the idiosyncratic return on day _d_ . The idiosyncratic skewness ( _ISKEW_ ) of stock _i_ in year _t_ is defined as the skewness of daily residuals ε _i_ , _d_ in year _t_ . The systematic skewness ( _SSKEW_ ) or co-skewness of stock _i_ in year _t_ is the estimated slope coefficient[γ][ˆ] _i_ , _t_ in equation (10). \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n29 \n\n## **References** \n\nAmihud, Yakov, 2002, Illiquidity and stock returns: Cross-section and time-series effects, _Journal of Financial Markets_ 5, 31-56. \n\nAng, Andrew, Robert J. Hodrick, Yuhang Xing, and Xiaoyan Zhang, 2006, The cross-section of volatility and expected returns, _Journal of Finance_ 61, 259-299. \n\nAng, Andrew, Robert J. Hodrick, Yuhang Xing, and Xiaoyan Zhang, 2009, High idiosyncratic volatility and low returns: International and further U.S. evidence, _Journal of Financial Economics_ 91, 1-23. \n\nArditti, Fred D., 1967, Risk and the required return on equity, _Journal of Finance_ 22, 19-36. \n\nArditti, Fred D., 1971, Another look at mutual fund performance, _Journal of Financial and Quantitative Analysis_ 6, 909-912. \n\nBali, Turan G., and Nusret Cakici, 2008, Idiosyncratic volatility and the cross-section of expected returns, _Journal of Financial and Quantitative Analysis_ 43, 29-58. \n\nBaker, Malcolm, and Jeffrey Wurgler, 2007, Investor sentiment in the stock market, _Journal of Economic Perspectives_ 21, 129-151. \n\nBarberis, Nicholas, and Ming Huang, 2008, Stocks as lotteries: The implications of probability weighting for security prices, _American Economic Review_ , forthcoming. \n\nBarone-Adesi, Giovanni, 1985, Arbitrage equilibrium with skewed asset returns, _Journal of Financial and Quantitative Analysis_ 20, 299-313. \n\nBoyer, Brian, Todd Mitton and Keith Vorkink, 2009, Expected idiosyncratic skewness, _Review of Financial Studies_ , forthcoming. \n\nBrunnermeier, Markus K., Christian Gollier, and Jonathan A. Parker, 2007, Optimal beliefs, asset prices and the preference for skewed returns, _American Economic Review_ 97, 159-165. \n\nCalvet, Laurent E., John Y. Campbell, and Paolo Sodini, 2007, Down or out: Asssessing the welfare costs of household investment mistakes, _Journal of Political Economy_ 115, 707-747. \n\nCarhart, Mark M., 1997, On persistence in mutual fund performance, _Journal of Finance_ 52, 57-82. \n\nConrad, Jennifer, Robert F. Dittmar, and Eric Ghysels, 2008, Skewness and the bubble, Working Paper, University of North Carolina at Chapel Hill. \n\nDaniel, Kent, David Hirshleifer, and Avanidhar Subrahmanyam, 1998, Investor psychology and security market under- and overreactions, _Journal of Finance_ 53, 1839-1885. \n\nDaniel, Kent, and Sheridan Titman, 1997, Evidence on the characteristics of cross-sectional variation in stock returns, _Journal of Finance_ 52, 1-33. \n\nDimson, Elroy, 1979, Risk measurement when shares are subject to infrequent trading, _Journal of Financial Economics_ 7, 197-226. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n30 \n\nFama, Eugene F., and Kenneth French, 1992, Cross-section of expected stock returns, _Journal of Finance_ 47, 427-465. \n\nFama, Eugene F., and Kenneth French, 1993, Common risk factors in the returns on stocks and bonds, _Journal of Financial Economics_ 33, 3-56. \n\nFama, Eugene F., and Kenneth R. French, 2008, Average returns, B/M, and share issues, _Journal of Finance_ 63, 2971-2995. \n\nFama, Eugene F., and James D. MacBeth, 1973, Risk and return: Some empirical tests, _Journal of Political Economy_ 81, 607-636. \n\nFang, Lily, and Joel Peress, 2008, Media coverage and the cross-section of stock returns, _Journal of Finance_ forthcoming. \n\nFriend, Irwin, and Randolph Westerfield, 1980, Co-skewness and capital asset pricing, _Journal of Finance_ 35, 897-913. \n\nFu, Fangjian, 2009, Idiosyncratic risk and the cross-section of expected stock returns, _Journal of Financial Economics_ 91, 24-37. \n\nGarrett, Thomas A., and Russell S. Sobel, 1999, Gamblers favor skewness, not risk: Further evidence from United States’ lottery games, _Economics Letters_ 63, 85-90. \n\nGoetzmann, William N., and Alok Kumar, 2008, Equity portfolio diversification, _Review of Finance_ 12, 433-463. \n\nHan, Bing, and Alok Kumar, 2008, Retail clienteles and the idiosyncratic volatility puzzle, Working Paper, University of Texas at Austin. \n\nHarvey, Campbell, and Akhtar Siddique, 1999, Autoregressive conditional skewness, _Journal of Financial and Quantitative Analysis_ 34, 465-487. \n\nHarvey, Campbell, and Akhtar Siddique, 2000, Conditional skewness in asset pricing tests, _Journal of Finance_ 55, 1263-1295. \n\nHuang,Wei, Qianqiu Liu, Ghon Rhee, and Liang Zhang, 2008, Another look at idiosyncratic risk and expected returns, _Review of Financial Studies_ forthcoming. \n\nJegadeesh, Narasimhan, 1990, Evidence of predictable behavior of security returns, _Journal of Finance_ 45, 881-898. \n\nJegadeesh, Narasimhan, and Sheridan Titman, 1993, Returns to buying winners and selling losers: Implications for stock market efficiency, _Journal of Finance_ 48, 65-91. \n\nKane, Alex, 1982, Skewness preference and portfolio choice, _Journal of Financial and Quantitative Analysis_ 17, 15-25. \n\nKeim, Donald B., 1999, An analysis of mutual fund design: The case of investing in small-cap stocks, _Journal of Financial Economics_ 51, 173 _-_ 194. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n31 \n\nKraus, Alan, and Robert H., Litzenberger, 1976, Skewness preference and the valuation of risk assets, _Journal of Finance_ 31, 1085-1100. \n\nKumar, Alok, 2009, Who gambles in the stock market? _Journal of Finance_ 64, 1889-1933. \n\nLehmann, Bruce, 1990, Fads, martingales, and market efficiency, _Quarterly Journal of Economics_ 105, 1- 28. \n\nLim, Kian-Guan, 1989, A new test of the three-moment capital asset pricing model, _Journal of Financial and Quantitative Analysis_ 24, 205-216. \n\nLintner, John, 1965, The valuation of risky assets and the selection of risky investments in stock portfolios and capital budgets, _Review of Economics and Statistics_ 47, 13-37. \n\nMitton, Todd, and Keith Vorkink, 2007, Equilibrium underdiversification and the preference for skewness, _Review of Financial Studies_ 20, 1255-1288. \n\nMossin, Jan, 1966, Equilibrium in a capital asset market, _Econometrica_ 34, 768-783. \n\nNewey, Whitney K., and Kenneth D. West, 1987, A simple, positive semi-definite, heteroskedasticity and autocorrelation consistent covariance matrix, _Econometrica_ 55, 703-708. \n\nNyberg, Peter, 2008, The dynamic behavior of the idiosyncratic volatility discount: Aggregate idiosyncratic volatility and return reversals revisited, Working Paper. \n\nOdean, Terrence, 1999, Do investors trade too much? _American Economic Review_ 89, 1279-1298. \n\nPatel, Nitin R., and Marti G. Subrahmanyam, 1978, Utility theory and participation in unfair lotteries, _Journal of Economic Theory_ 19, 555-557. \n\nPastor, Lubos, and Robert Stambaugh, 2003, Liquidity risk and expected stock returns, _Journal of Political Economy_ 111, 642-685. \n\nSears, R. Stephen, and K. C. John Wei, 1984, Asset pricing, higher moments, an the market risk premium: A note, _Journal of Finance_ 40, 1251-1253. \n\nScholes, Myron, and Joseph Williams, 1977, Estimating betas from nonsynchronous data, _Journal of Financial Economics_ 5, 309-327. \n\nSharpe, William F., 1964, Capital asset prices: A theory of market equilibrium under conditions of risk, _Journal of Finance_ 19, 425-442. \n\nSmith, Daniel R., 2007, Conditional coskewness and asset pricing, _Journal of Empirical Finance_ 14, 91119. \n\nSpiegel, Matthew I., and Xiaotong Wang, 2005, Cross-sectional variation in stock returns: Liquidity and idiosyncratic risk, Working Paper. \n\nThaler, Richard H., and William T. Ziemba, 1988, Parimutuel betting markets: Racetracks and lotteries, _Journal of Economic Perspectives_ 2, 161-174. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n32 \n\nTversky, Amos, and Daniel Kahneman, 1992, Advance in prospect theory: Cumulative representation of uncertainty, _Journal of Risk and Uncertainty_ 5, 297-323. \n\nVan Nieuwerburgh, Stijn, and Laura Veldkamp, 2008, Information acquisition and under-diversification, Working Paper, NYU. \n\nWalker, Ian, and Juliet Young, 2001, An economist’s guide to lottery design, _Economic Journal_ 111, F700-F722. \n\nZhang, Yijie, 2005, Individual skewness and the cross-section of expected returns, Working Paper, Yale University. \n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n33 \n\n## **Table I.  Returns and Alphas on Portfolios of Stocks Sorted by MAX** \n\nDecile portfolios are formed every month from July 1962 to December 2005 by sorting stocks based on the maximum daily return (MAX) over the past one month. Portfolio 1 (10) is the portfolio of stocks with the lowest (highest) maximum daily returns over the past one month. The table reports the value-weighted and equal-weighted average monthly returns, the 4-factor Fama-French-Carhart alphas on the valueweighted and equal-weighted portfolios, and the average maximum daily return of stocks within a month. The last two rows present the differences in monthly returns and the differences in alphas with respect to the 4-factor Fama-French-Carhart model between portfolios 10 and 1 and the corresponding t-statistics. Average raw and risk-adjusted returns, and average daily maximum returns are given in percentage terms. Newey-West (1987) adjusted t-statistics are reported in parentheses. \n\n||**VW Portfolios**|**VW Portfolios**|**EW  Portfolios**|**EW  Portfolios**||\n|---|---|---|---|---|---|\n|**Decile**|**Average Return**|**4-factor Alpha**|**Average Return**|**4-factor Alpha**|**Average MAX**|\n|Low MAX|1.01|0.05|1.29|0.22|1.30|\n|2|1.00|0.00|1.45|0.33|2.47|\n|3|1.00|0.04|1.55|0.39|3.26|\n|4|1.11|0.16|1.55|0.39|4.06|\n|5|1.02|0.09|1.49|0.31|4.93|\n|6|1.16|0.15|1.49|0.33|5.97|\n|7|1.00|0.03|1.37|0.23|7.27|\n|8|0.86|-0.21|1.32|0.20|9.07|\n|9|0.52|-0.49|1.04|-0.09|12.09|\n|High MAX|-0.02|-1.13|0.64|-0.44|23.60|\n|**10-1**|**-1.03**|**-1.18**|**-0.65**|**-0.66**||\n|**Difference**|**(-2.83)**|**(-4.71)**|**(-1.83)**|**(-2.31)**||\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n34 \n\n## **Table II.  Returns on Portfolios of Stocks Sorted by Multi-Day Maximum Returns** \n\nDecile portfolios are formed every month from July 1962 to December 2005 by sorting stocks based on the average of the _N_ highest daily returns (MAX(N)) over the past one month. Portfolio 1 (10) is the portfolio of stocks with the lowest (highest) maximum multi-day returns over the past one month. The table reports the value-weighted (Panel A) and equal-weighted (Panel B) average monthly returns for N=1,…,5. The last two rows present the differences in monthly returns and the differences in alphas with respect to the 4-factor Fama-French-Carhart model between portfolios 10 and 1. Average raw and riskadjusted returns are given in percentage terms. Newey-West (1987) adjusted t-statistics are reported in parentheses. \n\n**Panel A.  Value-Weighted Returns on MAX(N) Portfolios** \n\n|**Decile**|**N=1**|**N=2**|**N=3**|**N=4**|**N=5**|\n|---|---|---|---|---|---|\n|Low MAX(N)|1.01|1.00|1.05|1.02|1.05|\n|2|1.00|0.96|0.98|1.02|1.07|\n|3|1.00|1.06|1.09|1.08|1.06|\n|4|1.11|1.08|1.02|1.01|1.04|\n|5|1.02|1.08|1.05|1.06|1.04|\n|6|1.16|1.03|1.08|1.03|1.01|\n|7|1.00|1.04|1.00|1.06|1.06|\n|8|0.86|0.78|0.68|0.70|0.70|\n|9|0.52|0.50|0.49|0.43|0.48|\n|High MAX(N)|-0.02|-0.16|-0.13|-0.12|-0.18|\n|**Return**|**-1.03**|**-1.16**|**-1.18**|**-1.14**|**-1.23**|\n|**Difference**|**(-2.83)**|**(-2.97)**|**(-2.95)**|**(-2.74)**|**(-2.93)**|\n|**Alpha**|**-1.18**|**-1.29**|**-1.26**|**-1.21**|**-1.32**|\n|**Difference**|**(-4.71)**|**(-4.56)**|**(-4.12)**|**(-3.71)**|**(-4.07)**|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n35 \n\n## **Table II (continued)** \n\n## **Panel B.  Equal-Weighted Returns on MAX(N) Portfolios** \n\n|**Decile**|**N=1**|**N=2**|**N=3**|**N=4**|**N=5**|\n|---|---|---|---|---|---|\n|Low MAX(N)|1.29|1.28|1.27|1.29|1.30|\n|2|1.45|1.45|1.48|1.49|1.54|\n|3|1.55|1.55|1.56|1.59|1.59|\n|4|1.55|1.58|1.61|1.62|1.60|\n|5|1.49|1.56|1.56|1.52|1.55|\n|6|1.49|1.45|1.49|1.53|1.52|\n|7|1.37|1.44|1.43|1.42|1.43|\n|8|1.32|1.28|1.27|1.28|1.26|\n|9|1.04|1.01|1.00|0.95|0.94|\n|High MAX(N)|0.64|0.59|0.54|0.51|0.49|\n|**Return**|**-0.65**|**-0.69**|**-0.73**|**-0.78**|**-0.81**|\n|**Difference**|**(-1.83)**|**(-1.88)**|**(-1.99)**|**(-2.11)**|**(-2.21)**|\n|**Alpha**|**-0.66**|**-0.72**|**-0.78**|**-0.84**|**-0.89**|\n|**Difference**|**(-2.31)**|**(-2.36)**|**(-2.53)**|**(-2.75)**|**(-2.93)**|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n36 \n\n## **Table III. Cross-Sectional Predictability of MAX** \n\nEach month from July 1962 to December 2005 we run a firm-level cross-sectional regression of the maximum daily return in that month (MAX) on subsets of lagged predictor variables including MAX in the previous month and seven control variables that are defined in the Appendix. The table reports the time series averages of the cross-sectional regression coefficients, their associated Newey-West (1987) adjusted t- statistics (in parentheses), and the regression R-squareds. \n\n|**MAX**<br>**BETA**<br>**SIZE**<br>**BM**<br>**MOM**|**REV**<br>**ILLIQ**<br>**IVOL**<br>**R2 **|\n|---|---|\n|0.4054<br>(45.34)<br>0.1116<br>(4.47)<br>**–**1.3381<br>(**–**22.42)<br>0.5334<br>(6.41)<br>**–**1.7264<br>(**–**6.87)<br>0.3325<br>0.2500<br>**–**0.4737<br>**–**0.1277<br>**–**0.3432<br>(31.31)<br>(12.14)<br>(**–**30.45)<br>(**–**5.86)<br>(**–**4.47)|16.64%<br>1.00%<br>15.99%<br>1.81%<br>3.52%<br>**–**0.0655<br>3.31%<br>(**–**11.19)<br>0.1209<br>4.28%<br>(8.13)<br>0.1643<br>27.36%<br>(86.41)<br>**–**0.0504<br>0.0200<br>0.1930<br>35.10%<br>(**–**22.25)<br>(6.16)<br>(41.60)|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n37 \n\n## **Table IV. Distribution of Monthly Returns for Stocks in the High and Low MAX Portfolios** \n\nDecile portfolios are formed every month from July 1962 to December 2005 by sorting stocks based on the maximum daily returns (MAX) over the past one month. The table reports descriptive statistics for the approximately 240,000 monthly returns on the individual stocks in deciles 1 (low MAX) and 10 (high MAX) in the following month. The tails of the return distribution are trimmed by removing the 0.5% most extreme observations in each tail prior to the calculation of the statistics in the final two columns. \n\n||||**Trimmed**|**Trimmed**|\n|---|---|---|---|---|\n||**Low MAX**|**High MAX**|**Low MAX**|**High MAX**|\n|**Mean**|1.26%|0.60%|1.04%|-0.16%|\n|**Median**|0.35%|-2.50%|0.35%|-2.50%|\n|**Std Dev**|12.54%|30.21%|9.70%|24.12%|\n|**Skewness**|4.26|5.80|0.59|1.35|\n|**Percentiles**|||||\n|**1%**|-29.6%|-52.1%|||\n|**5%**|-14.7%|-33.8%|||\n|**10%**|-9.3%|-25.9%|||\n|**25%**|-3.4%|-14.3%|||\n|**50%**|0.3%|-2.5%|||\n|**75%**|5.1%|9.5%|||\n|**90%**|11.6%|28.6%|||\n|**95%**|17.7%|46.3%|||\n|**99%**|40.0%|100.0%|||\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n38 \n\n## **Table V.  Summary Statistics for Decile Portfolios of Stocks Sorted by MAX** \n\nDecile portfolios are formed every month from July 1962 to December 2005 by sorting stocks based on the maximum (MAX) daily returns over the past one month. Portfolio 1 (10) is the portfolio of stocks with the lowest (highest) maximum daily returns over the past one month. The table reports for each decile the average across the months in the sample of the median values within each month of various characteristics for the stocks—the maximum daily return (in percent), the market beta, the market capitalization (in millions of dollars), the book-to-market (BM) ratio, our measure of illiquidity (scaled by 10[5] ), the price (in dollars), the return in the portfolio formation month (labeled REV), the cumulative return over the 11 months prior to portfolio formation (labeled MOM), and the idiosyncratic volatility over the past one month (IVOL). There is an average of 309 stocks per portfolio. \n\n|**Decile**|**MAX**|**Size**($106)|**Price**($)|**Market Beta**|**BM Ratio**|**Illiquidity **(105)|**REV**|**MOM**|**IVOL**|\n|---|---|---|---|---|---|---|---|---|---|\n|Low MAX|1.62|316.19|25.44|0.33|0.7259|0.2842|–2.44|10.95|0.97|\n|2|2.51|331.47|25.85|0.55|0.6809|0.1418|–0.96|11.16|1.26|\n|3|3.22|250.98|23.88|0.68|0.6657|0.1547|–0.42|10.90|1.51|\n|4|3.92|188.27|21.47|0.76|0.6563|0.1935|–0.01|10.25|1.77|\n|5|4.71|142.47|19.27|0.87|0.6605|0.2456|0.43|9.77|2.05|\n|6|5.63|108.56|16.95|0.97|0.6636|0.3242|0.82|8.62|2.37|\n|7|6.80|80.43|14.53|1.04|0.6738|0.4501|1.48|6.71|2.76|\n|8|8.40|58.69|12.21|1.12|0.7013|0.7067|2.34|3.75|3.27|\n|9|11.01|39.92|9.57|1.15|0.7487|1.3002|4.01|–0.85|4.07|\n|High MAX|17.77|21.52|6.47|1.20|0.8890|4.0015|9.18|–11.74|6.22|\n\n\n\n\n\n39 \n\n## **Table VI.  Returns on Portfolios of Stocks Sorted by MAX After Controlling for SIZE, BM, MOM, REV, and ILLIQ** \n\nDouble-sorted, value-weighted (Panel A) and equal-weighted (Panel B) decile portfolios are formed every month from July 1962 to December 2005 by sorting stocks based on the maximum daily returns after controlling for size, book-to-market, intermediate-term momentum, short-term reversals and illiquidity. In each case, we first sort the stocks into deciles using the control variable, then within each decile, we sort stocks into decile portfolios based on the maximum daily returns over the previous month so that decile 1 (10) contains stocks with the lowest (highest) MAX. This table presents average returns across the 10 control deciles to produce decile portfolios with dispersion in MAX but with similar levels of the control variable. “Return Difference” is the difference in average monthly returns between the High MAX and Low MAX portfolios. “Alpha Difference” is the difference in 4-factor alphas on the High MAX and Low MAX portfolios. Newey-West (1987) adjusted t-statistics are reported in parentheses. \n\n## **Panel A: Value-Weighted Portfolios** \n\n|**Decile**<br>**SIZE**<br>**BM**<br>**MOM**|**REV**<br>**ILLIQ**|\n|---|---|\n|Low MAX<br>1.47<br>1.22<br>1.32<br>2<br>1.60<br>1.19<br>1.14<br>3<br>1.69<br>1.27<br>1.17<br>4<br>1.65<br>1.19<br>1.07<br>5<br>1.57<br>1.17<br>1.03<br>6<br>1.49<br>1.23<br>1.03<br>7<br>1.29<br>1.13<br>0.96<br>8<br>1.20<br>0.99<br>0.93<br>9<br>0.93<br>0.89<br>0.88<br>High MAX<br>0.25<br>0.29<br>0.67|1.06<br>1.29<br>1.18<br>1.31<br>1.19<br>1.30<br>1.18<br>1.23<br>1.15<br>1.12<br>1.15<br>1.06<br>1.04<br>0.99<br>1.07<br>0.88<br>0.86<br>0.60<br>0.25<br>0.18|\n|**Return**<br>**Difference**<br>**-1.22**<br>**(-4.49)**<br>**-0.93**<br>**(3.23)**<br>**-0.65**<br>**(-3.18)**|**-0.81**<br>**(-2.70)**<br>**-1.11**<br>**(-4.07)**|\n|**Alpha**<br>**Difference**<br>**-1.19**<br>**(-5.98)**<br>**-1.06**<br>**(-4.87)**<br>**-0.70**<br>**(-5.30)**|**-0.98**<br>**(-5.37)**<br>**-1.12**<br>**(-5.74)**|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n40 \n\n## **Table VI (continued)** \n\n## **Panel B: Equal-Weighted Portfolios** \n\n|**Decile**|**SIZE**|**BM**|**MOM**|**REV**|**ILLIQ**|\n|---|---|---|---|---|---|\n|Low MAX|1.52|1.37|1.47|1.36|1.40|\n|2|1.63|1.50|1.45|1.56|1.59|\n|3|1.73|1.53|1.38|1.60|1.60|\n|4|1.70|1.54|1.32|1.58|1.58|\n|5|1.62|1.48|1.29|1.59|1.52|\n|6|1.54|1.52|1.20|1.53|1.52|\n|7|1.38|1.45|1.15|1.44|1.40|\n|8|1.27|1.33|1.08|1.33|1.32|\n|9|1.04|1.19|1.03|1.15|1.05|\n|High MAX|0.41|0.78|0.71|0.52|0.59|\n|**Return**|**-1.11**|**-0.59**|**-0.76**|**-0.83**|**-0.81**|\n|**Difference**|**(-4.05)**|**(-2.00)**|**(-3.70)**|**(-2.83)**|**(-2.68)**|\n|**Alpha**|**-1.06**|**-0.54**|**-0.88**|**-1.02**|**-0.79**|\n|**Difference**|**(-5.18)**|**(-1.96)**|**(-7.62)**|**(-5.09)**|**(-3.40)**|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n41 \n\n## **Table VII.  Firm-Level Cross-Sectional Return Regressions** \n\nEach month from July 1962 to December 2005 we run a firm-level cross-sectional regression of the return in that month on subsets of lagged predictor variables including MAX in the previous month and six control variables that are defined in the Appendix. In each row, the table reports the time series averages of the cross-sectional regression slope coefficients and their associated Newey-West (1987) adjusted t-statistics (in parentheses). \n\n|**MAX**|**BETA**|**SIZE**|**BM**|**MOM**|**REV**|**ILLIQ**|\n|---|---|---|---|---|---|---|\n|–0.0434|||||||\n|(–2.92)|||||||\n||–0.0118||||||\n||(–0.43)||||||\n|||–0.1988|||||\n|||(–4.08)|||||\n||||0.4651||||\n||||(6.73)||||\n|||||0.7317|||\n|||||(4.67)|||\n||||||–0.0675||\n||||||(–11.24)||\n|||||||0.0371|\n|||||||(3.87)|\n||0.0140|–0.0865|0.3390|0.7436|–0.0751|0.0223|\n||(0.56)|(–1.73)|(4.82)|(5.29)|(–14.15)|(3.64)|\n|–0.0637|0.0485|–0.1358|0.3201|0.6866|–0.0712|0.0224|\n|(–6.16)|(2.18)|(–3.10)|(4.69)|(4.97)|(–13.53)|(3.78)|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n42 \n\n## **Table VIII.  Time-Series Average of Cross-Sectional Correlations** \n\nThe table reports the average across months of the cross-sectional correlation of the maximum daily return in a month (MAX), the average of the highest five daily returns in a month (MAX(5)), the minimum daily return in a month (MIN), total volatility (TVOL), and idiosyncratic volatility (IVOL) for the period July 1962 to December 2005. \n\n|**MAX**<br>**MAX(5)**<br>**MIN**|**TVOL**<br>**IVOL**|\n|---|---|\n|**MAX**<br>1<br>0.8981<br>0.5491<br>**MAX(5)**<br>1<br>0.6153<br>**MIN**<br>1<br>**TVOL**<br>**IVOL**|0.7591<br>0.7533<br>0.8312<br>0.8204<br>0.7603<br>0.7554<br>1<br>0.9842<br>1|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n43 \n\n## **Table IX. Returns on Portfolios of Stocks Sorted by MAX and IVOL After Controlling for IVOL and MAX** \n\nDouble-sorted, value-weighted (VW) and equal-weighted (EW) decile portfolios are formed every month from July 1962 to December 2005. In Panel A we sort stocks based on the maximum daily return (MAX) or average of the 5 highest daily returns (MAX(5)) after controlling for idiosyncratic volatility (IVOL). In Panel B we sort stocks based on idiosyncratic volatility (IVOL) after controlling for the maximum daily return (MAX) or average of the 5 highest daily returns (MAX(5)). In both cases we first sort the stocks into deciles using the control variable, then within each decile, we sort stocks into decile portfolios based on the variable of interest. The columns report average returns across the 10 control deciles to produce decile portfolios with dispersion in the variable of interest but with similar levels of the control variable. “Return Difference” is the difference in average monthly returns between deciles 10 and 1. “Alpha Difference” is the difference in 4-factor alphas between deciles 10 and 1. NeweyWest (1987) adjusted t-statistics are reported in parentheses. \n\n**Panel A.  Sorted by MAX and MAX(5) Controlling for IVOL** \n\n||**N=1**|**N=1**|**N=5**|**N=5**|\n|---|---|---|---|---|\n|**Decile**|**VW**|**EW**|**VW**|**EW**|\n|Low MAX(N)|1.12|2.01|1.39|2.25|\n|2|1.09|1.65|1.18|1.81|\n|3|0.94|1.54|1.20|1.67|\n|4|0.93|1.41|1.11|1.51|\n|5|0.80|1.34|0.99|1.38|\n|6|0.77|1.22|0.84|1.21|\n|7|0.79|1.19|0.74|1.11|\n|8|0.82|1.23|0.79|1.06|\n|9|0.76|1.04|0.67|0.93|\n|High MAX(N)|0.77|1.10|0.53|0.75|\n|**Return**|**-0.35**|**-0.91**|**-0.86**|**-1.50**|\n|**Difference**|**(-2.42)**|**(-7.86)**|**(-4.36)**|**(-9.21)**|\n|**Alpha**|**-0.34**|**-0.92**|**-0.84**|**-1.58**|\n|**Difference**|**(-2.48)**|**(-7.96)**|**(-4.98)**|**(-10.05)**|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n44 \n\n## **Table IX (continued)** \n\n## **Panel B.  Sorted by IVOL Controlling for MAX and MAX(5)** \n\n||**MAX**|**MAX**|**MAX(5)**|**MAX(5)**|\n|---|---|---|---|---|\n|**Decile**|**VW**|**EW**|**VW**|**EW**|\n|Low IVOL|1.03|1.18|0.89|0.84|\n|2|0.93|1.15|0.86|1.02|\n|3|0.90|1.10|0.78|1.03|\n|4|0.92|1.17|0.93|1.17|\n|5|0.95|1.27|0.97|1.20|\n|6|0.88|1.21|0.98|1.28|\n|7|0.94|1.37|0.99|1.40|\n|8|0.83|1.48|1.09|1.56|\n|9|0.73|1.52|0.96|1.69|\n|High IVOL|0.66|2.16|0.95|2.51|\n|**Return**|**-0.38**|**0.98**|**0.06**|**1.67**|\n|**Difference**|**(-1.98)**|**(4.88)**|**(0.29)**|**(8.04)**|\n|**Alpha**|**-0.44**|**0.95**|**0.05**|**1.74**|\n|**Difference**|**(-3.12)**|**(4.76)**|**(0.34)**|**(7.67)**|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n45 \n\n## **Table X.  Firm-Level Cross-Sectional Return Regressions with MAX, MIN and IVOL** \n\nEach month from July 1962 to December 2005 we run a firm-level cross-sectional regression of the return in that month on subsets of lagged predictor variables including MAX, MIN and IVOL in the previous month and six control variables that are defined in the Appendix. In each row, the table reports the time series averages of the cross-sectional regression slope coefficients and their associated Newey-West (1987) adjusted t-statistics (in parentheses). \n\n|**MAX**<br>**IVOL**<br>**MIN**<br>**BETA**<br>**SIZE**|**BM**<br>**MOM**<br>**REV**<br>**ILLIQ**|\n|---|---|\n|–0.0434<br>(–2.92)<br>–0.0530<br>(–0.97)<br>–0.1549<br>(–10.19)<br>0.3857<br>(4.69)<br>–0.0961<br>(–7.90)<br>0.1210<br>(1.95)<br>0.0496<br>(2.27)<br>–0.1047<br>(–2.71)|0.3244<br>(4.85)<br>0.7199<br>(5.35)<br>–0.0716<br>(–14.27)<br>0.0232<br>(3.76)|\n|0.0593<br>(2.41)<br>–0.0900<br>(–7.84)<br>0.1280<br>(6.21)<br>–0.0761<br>(–8.62)<br>0.0393<br>(2.66)<br>0.0390<br>(1.87)<br>–0.1135<br>(–2.77)<br>–0.1103<br>(–6.90)<br>0.0840<br>(0.94)<br>0.1029<br>(5.43)<br>–0.0886<br>(–6.67)<br>0.0589<br>(0.80)<br>0.0219<br>(1.45)<br>0.0382<br>(1.80)<br>–0.1082<br>(–2.80)|0.3312<br>(4.95)<br>0.7098<br>(5.18)<br>–0.0694<br>(–14.35)<br>0.0223<br>(3.74)<br>0.3287<br>(4.92)<br>0.7100<br>(5.31)<br>–0.0706<br>(–14.75)<br>0.0230<br>(3.73)|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n46 \n\n## **Table XI.  Returns on Portfolios of Stocks Sorted by MAX After Controlling for Skewness** \n\nDouble-sorted, value-weighted decile portfolios are formed every month from July 1962 to December 2005 by sorting stocks based on the maximum daily returns after controlling for total (TSKEW), systematic (SKEW), and idiosyncratic skewness (ISKEW). In each case, we first sort the stocks into deciles using the control variable, then within each decile, we sort stocks into decile portfolios based on the maximum daily returns over the previous month so that decile 1 (10) contains stocks with the lowest (highest) MAX. The table reports average returns across the 10 control deciles to produce decile portfolios with dispersion in MAX but with similar levels of the control variable. “Return Difference” is the difference in average monthly returns between high MAX and low MAX portfolios. “Alpha Difference” is the difference in 4-factor alphas between high MAX and low MAX portfolios. Newey-West (1987) adjusted t-statistics are reported in parentheses. \n\n|**Decile**|**TSKEW**|**SSKEW**|**ISKEW**|\n|---|---|---|---|\n|Low MAX|1.06|1.12|1.04|\n|2|1.11|1.06|1.14|\n|3|1.21|1.06|1.18|\n|4|1.07|1.10|1.08|\n|5|1.13|1.11|1.17|\n|6|1.14|1.10|1.10|\n|7|0.97|0.98|0.99|\n|8|0.87|0.89|0.91|\n|9|0.76|0.80|0.74|\n|High MAX|0.12|0.03|0.11|\n|**Return**|**-0.94**|**-1.10**|**-0.93**|\n|**Difference**|**(-3.06)**|**(-3.75)**|**(-2.96)**|\n|**Alpha**|**-1.00**|**-1.23**|**-1.01**|\n|**Difference**|**(-4.34)**|**(-5.50)**|**(-4.34)**|\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n47 \n\n## **Table XII. Cross-Sectional Predictability of Skewness** \n\nEach month from July 1962 to December 2005 we run a firm-level cross-sectional regression of the total skewness measured using daily returns over the subsequent year (TSKEW) on subsets of lagged predictor variables including TSKEW in the previous year and six control variables that are defined in the Appendix. The table reports the time series averages of the cross-sectional regression coefficients, their associated Newey-West (1987) adjusted t- statistics (in parentheses), and the regression R-squareds. \n\n|**TSKEW**|**BETA**|**SIZE**|**BM**|**MOM**|**REV**|**ILLIQ**|**R-squared**|\n|---|---|---|---|---|---|---|---|\n|0.1507|||||||2.46%|\n|(28.38)||||||||\n|0.0813|0.0026|-0.1218|-0.0472|0.1489|0.0007|0.0271|9.69%|\n|(21.70)|(1.82)|(-23.10)|(-6.30)|(12.70)|(3.79)|(1.94)||\n\n\n\nElectronic copy available at: https://ssrn.com/abstract=1262416 \n\n\n\n48 \n\n## **Table XIII.  Firm-Level Cross-Sectional Return Regressions with MAX and Skewness** \n\nEach month from July 1962 to December 2005 we run a firm-level cross-sectional regression of the return in that month on subsets of lagged predictor variables including MAX in the previous month, skewness measured over the preceding year (TSKEW, SSKEW, ISKEW), fitted expected total skewness (E(TSKEW)) based on the regression in Table XII, and six control variables that are defined in the Appendix. In each row, the table reports the time series averages of the cross-sectional regression slope coefficients and their associated Newey-West (1987) adjusted t-statistics (in parentheses). \n\n|**MAX**|**BETA**|**SIZE**|**BM**|**MOM**|**REV**|**ILLIQ**|**TSKEW**|**SSKEW**|**ISKEW**|**E(TSKEW)**|\n|---|---|---|---|---|---|---|---|---|---|---|\n||||||||0.1330||||\n||||||||(2.56)||||\n|||||||||0.2436|||\n|||||||||(0.84)|||\n||||||||||0.1324||\n||||||||||(2.53)||\n|–0.0551|0.0474|–0.1292|0.3194|0.6983|–0.0712|0.0288|0.0436||||\n|(–5.36)|(1.90)|(–2.89)|(4.54)|(4.95)|(–13.29)|(3.53)|(1.67)||||\n|–0.0538|0.0473|–0.1318|0.3214|0.7057|–0.0711|0.0290||0.5202|||\n|(–5.17)|(1.89)|(–2.89)|(4.53)|(4.98)|(–13.28)|(3.54)||(0.91)|||\n|–0.0551|0.0475|–0.1294|0.3195|0.6981|–0.0712|0.0287|||0.0426||\n|(–5.36)|(1.90)|(–2.90)|(4.54)|(4.95)|(–13.29)|(3.53)|||(1.63)||\n|||||||||||1.5188|\n|||||||||||(3.92)|\n|**–**0.0524|0.0435|**–**0.0112|0.3366|0.5073|**–**0.0752|0.0108||||0.9947|\n|(**–**4.82)|(1.30)|(**–**0.10)|(3.55)|(2.68)|(**–**12.06)|(0.05)||||(0.87)|\n\n\n\n"
+}

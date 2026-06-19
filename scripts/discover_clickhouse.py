@@ -8,7 +8,7 @@ Usage (CLI):
 
 Usage (agent):
     The agent runs this script once to learn the database schema,
-    then reads ``paper2spec/resources/clickhouse_catalog.yaml`` for
+    then reads ``paper2spec/resources/clickhouse_catalog.json`` for
     all subsequent sessions.
 
 Output: YAML catalog file listing every table with column names,

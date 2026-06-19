@@ -2,7 +2,7 @@
 
 Read-on data extraction rules for academic dataset replication.  Connection
 details are in ``.env``; the auto-generated schema catalog lives at
-``paper2spec/resources/clickhouse_catalog.yaml``.
+``paper2spec/resources/clickhouse_catalog.json``.
 
 ---
 
@@ -204,7 +204,7 @@ semantic meaning (e.g., `deleted_at` — NULL = not deleted).
 
 ## Data Catalog
 
-The auto-generated catalog at ``paper2spec/resources/clickhouse_catalog.yaml``
+The auto-generated catalog at ``paper2spec/resources/clickhouse_catalog.json``
 lists every database, table, column, row count, and date range.  Refresh with:
 
 ```bash

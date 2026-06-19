@@ -692,3 +692,86 @@ class TestTableContextIntegration:
         assert all(
             "rows" in t and "num_rows" in t for t in pc.tables
         ), "Each table entry must have 'rows' and 'num_rows' keys"
+
+
+# ── Table filtering heuristic ────────────────────────────────────
+
+
+class TestIsDataTable:
+    """Tests for the _is_data_table_md heuristic."""
+
+    def test_real_decile_table(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        md = "| Decile | VW Return | VW Alpha |\n|---|---|---|\n| Low MAX | 1.01 | 0.05 |\n| 2 | 1.00 | 0.00 |\n| High MAX | -0.02 | -1.13 |"
+        assert PDFExtractor._is_data_table_md(md) is True
+
+    def test_text_paragraph_is_false(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        md = "This paper studies the cross-section of expected stock returns."
+        assert PDFExtractor._is_data_table_md(md) is False
+
+    def test_abstract_is_false(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        md = "| Col1 | Col2 | Col3 |\n|---|---|---|\n| Motivated by existing | evidence of a preference | among investors |"
+        assert PDFExtractor._is_data_table_md(md) is False
+
+    def test_too_few_rows(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        md = "| A | 1.0 |\n|---|---|"  # Only 1 data row
+        assert PDFExtractor._is_data_table_md(md) is False
+
+    def test_no_decimal_content(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        md = "| Name | Type |\n|---|---|\n| date | Date |\n| permno | UInt32 |\n| ret | Float64 |"
+        assert PDFExtractor._is_data_table_md(md) is False
+
+
+# ── Markdown-to-grid parsing ─────────────────────────────────────
+
+
+class TestMarkdownToGrid:
+    """Tests for _markdown_to_grid — parsing markdown tables back to grids."""
+
+    def test_simple_table(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        md = "| Decile | Return |\n|---|---|\n| 1 | 1.01 |\n| 10 | -0.02 |"
+        grid = PDFExtractor._markdown_to_grid(md)
+        assert len(grid) == 3  # header + 2 data rows
+        assert grid[0] == ["Decile", "Return"]
+        assert grid[1] == ["1", "1.01"]
+        assert grid[2] == ["10", "-0.02"]
+
+    def test_skips_separator_row(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        md = "| A | B |\n|---|---|\n| x | y |"
+        grid = PDFExtractor._markdown_to_grid(md)
+        assert len(grid) == 2  # header + 1 data, separator skipped
+
+    def test_strips_whitespace(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        md = "  |  Name  |  Value  |  \n  |---|---|---  \n  |  alpha  |  1.0  |  "
+        grid = PDFExtractor._markdown_to_grid(md)
+        assert grid[0] == ["Name", "Value"]
+        assert grid[1] == ["alpha", "1.0"]
+
+    def test_empty_input(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        assert PDFExtractor._markdown_to_grid("") == []
+
+    def test_no_table_content(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        assert PDFExtractor._markdown_to_grid("Just some text.\nNo pipes here.") == []
+
+    def test_multi_column_table(self):
+        from paper2spec.pdf_utils import PDFExtractor
+        md = (
+            "| MAX | BETA | SIZE | BM | MOM | REV |\n"
+            "|---|---|---|---|---|---|\n"
+            "| 0.4054 | 0.1116 | -1.3381 | 0.5334 | -1.7264 | 0.3325 |\n"
+            "| (45.34) | (4.47) | (-22.42) | (6.41) | (-6.87) | |"
+        )
+        grid = PDFExtractor._markdown_to_grid(md)
+        assert len(grid) == 3  # header + 2 data rows
+        assert len(grid[0]) == 6  # 6 columns
+        assert grid[1][0] == "0.4054"
+        assert grid[2][0] == "(45.34)"

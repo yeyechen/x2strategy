@@ -1,0 +1,47 @@
+[
+  {
+    "commission": 0.0,
+    "final_value": 2016.67,
+    "return_value": 2016.67,
+    "total_return": -97.98,
+    "sharpe_ratio": -0.5588,
+    "max_drawdown_pct": 98.31,
+    "num_trades": 345,
+    "won_trades": 162,
+    "lost_trades": 183,
+    "normalized_annual_return": -32.36,
+    "sqn": -2.2294,
+    "win_rate": 46.96,
+    "profit_factor": 0.64
+  },
+  {
+    "commission": 0.0001,
+    "final_value": 1846.66,
+    "return_value": 1846.66,
+    "total_return": -98.15,
+    "sharpe_ratio": -0.5792,
+    "max_drawdown_pct": 98.41,
+    "num_trades": 345,
+    "won_trades": 161,
+    "lost_trades": 184,
+    "normalized_annual_return": -32.96,
+    "sqn": -2.2594,
+    "win_rate": 46.67,
+    "profit_factor": 0.63
+  },
+  {
+    "commission": 0.0005,
+    "final_value": 1685.23,
+    "return_value": 1685.23,
+    "total_return": -98.31,
+    "sharpe_ratio": -0.5982,
+    "max_drawdown_pct": 98.55,
+    "num_trades": 344,
+    "won_trades": 159,
+    "lost_trades": 185,
+    "normalized_annual_return": -33.57,
+    "sqn": -2.3145,
+    "win_rate": 46.22,
+    "profit_factor": 0.63
+  }
+]
