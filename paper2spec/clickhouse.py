@@ -185,10 +185,17 @@ def match_requirements(
                     })
 
         if candidates:
-            # Sort by score descending, then by row count (prefer larger tables)
-            candidates.sort(key=lambda c: (c["score"], c["row_count"]), reverse=True)
-            # Cap at top 5 to avoid noise from snapshot databases
-            for c in candidates[:5]:
+            # Sort by score descending, then prefer latest snapshot
+            candidates.sort(key=lambda c: (c["score"], c["date_range"] or ["", ""]), reverse=True)
+            # Deduplicate by table base name (e.g. "dsf", "msf")
+            # — keep only the best-scoring / latest snapshot per base name
+            seen_tables: set[str] = set()
+            deduped: list[dict] = []
+            for c in candidates:
+                if c["table"] not in seen_tables:
+                    seen_tables.add(c["table"])
+                    deduped.append(c)
+            for c in deduped[:10]:
                 matches.append({"requirement": req["id"], **c})
         else:
             best_score = max(
@@ -228,7 +235,7 @@ def discover_schema(output_path: str | None = None) -> dict[str, Any]:
     ``resources/clickhouse_catalog.json``) and also returned as a dict.
     """
     cfg = get_clickhouse_config()
-    base_url = f"http://{cfg['host']}:8123/"
+    base_url = f"http://{cfg['host']}:{cfg['port']}/"
     # Build auth WITHOUT locking to a single database
     auth = _build_auth(cfg, include_database=False)
 
