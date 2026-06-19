@@ -4,6 +4,16 @@ Read-on data extraction rules for academic dataset replication.  Connection
 details are in ``.env``; the auto-generated schema catalog lives at
 ``paper2spec/resources/clickhouse_catalog.json``.
 
+**IMPORTANT**: Do NOT attempt to connect to ClickHouse from the code-generation
+environment (Claude, Copilot, etc.) — the host is on a private network and will
+be unreachable.  During code generation, use these files for schema information:
+
+- ``paper2spec/resources/clickhouse_catalog.json`` — all tables, columns, types, date ranges
+- ``data_match_report.json`` — which tables provide each dataset for the current paper
+
+Generate code that reads credentials from ``os.getenv()`` at runtime.  The
+connection will work when the user runs ``strategy.py`` from their terminal.
+
 ---
 
 ## Connection
