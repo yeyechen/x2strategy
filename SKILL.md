@@ -202,10 +202,11 @@ Use one workflow for all tasks. Do not choose between competing routers.
 4. **paper2spec: extract** — extract candidate strategy specs/plans from the content plus user instructions.
 5. **paper2spec: repair/review** — read `references/extraction_quality.md`, retrieve relevant operator pitfalls when high-risk formulas are present, and repair only the selected plan/spec with grounded evidence.
 6. **HITL review** — after repair, always inspect `needs_human_review`. If any item exists, present it through the interactive dialog and do not continue until answered or explicitly accepted. If none exists, still report that review found no open items and ask for implementation approval.
-7. **spec2code** — after HITL approval, confirm the implementation target and generate code for that target.
-8. **Validation/backtest/diagnosis** — validate generated code, run available checks/backtests, compare against expected or reference outputs, summarize mismatches, then ask what to do next.
+7. **Data bridge** — run `scripts/extract_requirements.py` to extract structured data needs from the spec and match against the ClickHouse catalog. Read `data_match_report.json` to learn which tables provide each dataset, which columns are available, and what date ranges are covered. This report is the single source of truth for code generation — never fall back to yfinance or hardcoded ticker lists.
+8. **spec2code** — after the data bridge, read `data_match_report.json` and generate code that queries ClickHouse via HTTP for all data. See `references/spec2code.md` §Data Source for the required pattern. Do not use yfinance or any other external API for data.
+9. **Validation/backtest/diagnosis** — validate generated code, run available checks/backtests, compare against expected or reference outputs, summarize mismatches, then ask what to do next.
 
-No bypass: never silently chain extraction → repair → implementation. User-provided papers, instructions, data files, existing specs, or reference outputs are evidence, not permission to skip review or HITL.
+No bypass: never silently chain extraction → repair → implementation. User-provided papers, instructions, data files, existing specs, or reference outputs are evidence, not permission to skip review or HITL. Never generate code that uses yfinance or hardcoded ticker lists — always read `data_match_report.json` and query ClickHouse.
 
 When previous Copilot, VS Code, or agent logs are mentioned, verify that the referenced path exists and contains the needed files before using them. If the path is missing, empty, or incomplete, regenerate the required artifacts from the original paper/instructions/data instead of relying on the log summary.
 
@@ -246,8 +247,9 @@ For US equity strategies, SPY must be included and highlighted as the market bas
 4. paper2spec: extract candidate specs/plans
 5. paper2spec: select target plan/spec and repair with extraction_quality + matched pitfalls
 6. HITL: inspect needs_human_review and resolve through interactive dialog
-7. spec2code: confirm output contract, generate code, validate, run checks/backtest
-8. Diagnose results and ask next action
+7. Data bridge: extract requirements, match against ClickHouse catalog
+8. spec2code: generate code using matched tables, validate, run backtest
+9. Diagnose results and ask next action
 ```
 
 For code generation patterns: [references/spec2code.md](references/spec2code.md)
@@ -269,6 +271,9 @@ uv run python scripts/extract.py content.json -o spec.json
 
 # Matched operator-pitfall context for repair/review
 uv run python scripts/operator_pitfalls.py spec.json -o operator_pitfall_context.md
+
+# Extract data requirements and match against ClickHouse catalog
+uv run python scripts/extract_requirements.py library/<slug>/spec.json -o library/<slug>/
 
 # Validate generated code
 uv run python scripts/validate_strategy.py library/<slug>/strategy_1.py
@@ -315,7 +320,7 @@ Read on demand for implementation details:
 - [references/backtrader_patterns.md](references/backtrader_patterns.md) — Strategy class, data loading, position sizing
 - [references/clickhouse.md](references/clickhouse.md) — ClickHouse query patterns, schema discovery, data extraction rules
 - [references/indicator_cookbook.md](references/indicator_cookbook.md) — Built-in and custom indicators
-- [references/data_sources.md](references/data_sources.md) — yfinance, akshare, FRED API
+- [references/data_sources.md](references/data_sources.md) — ClickHouse data connection and catalog
 
 ## Limitations
 

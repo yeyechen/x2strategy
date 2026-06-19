@@ -38,8 +38,8 @@ def main():
     parser.add_argument(
         "--mode",
         choices=["builtin", "agent"],
-        default="builtin",
-        help="Extraction mode: 'builtin' (direct LLM, no embeddings) or 'agent' (FAISS semantic search)",
+        default="agent",
+        help="Extraction mode: 'agent' (FAISS semantic search, full context, recommended) or 'builtin' (direct LLM, truncates at 100K chars)",
     )
     parser.add_argument(
         "--model",

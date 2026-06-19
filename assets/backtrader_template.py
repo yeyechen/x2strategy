@@ -1,5 +1,6 @@
 """Authoritative, copy-into-place template for a self-contained x2strategy
-backtest runner (data cache + Cerebro + analyzers + headless visualization).
+backtest runner (ClickHouse data fetch + Cerebro + analyzers + headless
+visualization).
 
 WHY THIS FILE EXISTS
 --------------------
@@ -13,9 +14,16 @@ HOW TO USE
 ----------
 Do NOT import this module. COPY the relevant function bodies into the generated
 `strategy.py` and adapt only the marked spots:
-  - `fetch_data_cached`      : adapt the source (yfinance / akshare / FRED / CSV)
-  - `MyStrategy`             : fill __init__/next from the spec (see spec2code.md §4/§6/§7)
+  - `fetch_data_cached`      : adapt the ClickHouse table/columns from
+                                data_match_report.json
+  - `MyStrategy`             : fill __init__/next from the spec (see
+                                spec2code.md §4/§6/§7)
   - the universe / SPY symbol: set from the spec
+
+The data source is ALWAYS ClickHouse via HTTP.  Connection details are
+read from environment variables (CLICKHOUSE_HOST, CLICKHOUSE_PORT,
+CLICKHOUSE_USER, CLICKHOUSE_PASSWORD).  Adapt `fetch_data_cached` to
+query the correct table and columns for the paper.
 
 Everything else — the local cache, the analyzer `_name` strings, the headless
 matplotlib backend, the three-commission sweep, and the portfolio-vs-assets
@@ -57,30 +65,63 @@ INITIAL_CASH = 100_000.0
 COMMISSION_RATES = (0.0, 0.0001, 0.0005)
 
 # ── Mandatory local data cache ────────────────────────────────────────────────
-# Every network fetch is cached as a CSV and reused on later runs. Never hit the
-# network when a valid cache file already exists. Adapt the `_download` body to
-# the spec's data source (yfinance shown; swap for akshare / FRED / CSV).
-def fetch_data_cached(symbol: str, start: str, end: str) -> pd.DataFrame:
-    """Return OHLCV for `symbol`, fetching from cache first, network second.
+# Every ClickHouse fetch is cached as a CSV and reused on later runs. Never hit
+# the network when a valid cache file already exists.
+# Connection details are read from environment variables.
+# Adapt the table name, columns, and WHERE clause to the paper's data needs
+# using data_match_report.json.
 
-    yfinance note: `end` is EXCLUSIVE; since v0.2.47 `download` returns a
-    MultiIndex even for one ticker — flatten with `multi_level_index=False`.
+def _clickhouse_query(query: str) -> bytes:
+    """Run a single ClickHouse query via HTTP and return raw response bytes."""
+    host = os.getenv("CLICKHOUSE_HOST", "localhost")
+    port = os.getenv("CLICKHOUSE_PORT", "8123")
+    user = os.getenv("CLICKHOUSE_USER", "default")
+    pw = os.getenv("CLICKHOUSE_PASSWORD", "")
+    url = f"http://{host}:{port}/?user={user}&password={pw}"
+    import urllib.request
+    return urllib.request.urlopen(
+        url, urllib.request.quote(query).encode(), timeout=60
+    ).read()
+
+
+def fetch_data_cached(table: str, columns: list[str], start: str,
+                      end: str, extra_where: str = "",
+                      date_col: str = "date") -> pd.DataFrame:
+    """Return data from ClickHouse, fetching from cache first, network second.
+
+    ``table`` is a fully-qualified name (e.g. ``crsp.dsf``).
+    ``columns`` are the SQL column names to select.
+    ``extra_where`` is an optional additional WHERE clause (e.g. share codes).
     """
-    cache_path = DATA_DIR / f"{symbol}_{start}_{end}.csv"
+    cols_str = ", ".join(columns)
+    cache_key = f"{table.replace('.', '_')}_{start}_{end}"
+    if extra_where:
+        cache_key += "_filtered"
+    cache_path = DATA_DIR / f"{cache_key}.csv"
     if cache_path.is_file():
         df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
         if not df.empty:
             return df
 
-    # ── adapt this block to the spec's source ──
-    import yfinance as yf
-    df = yf.download(
-        symbol, start=start, end=end,
-        auto_adjust=True, multi_level_index=False, progress=False,
+    # ── adapt this block to the paper's match report ──
+    where = f"{date_col} >= '{start}' AND {date_col} < '{end}'"
+    if extra_where:
+        where += f" AND {extra_where}"
+    query = (
+        f"SELECT {cols_str} FROM {table} "
+        f"WHERE {where} "
+        f"ORDER BY {date_col} "
+        f"FORMAT TabSeparatedWithNames"
+    )
+    raw = _clickhouse_query(query)
+    # Parse TabSeparatedWithNames into DataFrame
+    import io
+    df = pd.read_csv(
+        io.StringIO(raw.decode("utf-8")),
+        sep="\t", parse_dates=[date_col], index_col=date_col,
     )
     if df is None or df.empty:
-        raise ValueError(f"No data returned for {symbol} ({start}..{end})")
-    df.index = pd.to_datetime(df.index).tz_localize(None)
+        raise ValueError(f"No data returned for {table} ({start}..{end})")
     df.to_csv(cache_path)
     return df
 

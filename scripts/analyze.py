@@ -80,8 +80,8 @@ def main():
     parser.add_argument(
         "--parser-mode",
         choices=["builtin", "agent"],
-        default="builtin",
-        help="Parser mode: 'builtin' (fast, no embeddings) or 'agent' (FAISS, better for long papers)",
+        default="agent",
+        help="Parser mode: 'agent' (FAISS, recommended) or 'builtin' (fast, truncates at 100K chars)",
     )
     parser.add_argument(
         "--extractor-mode",

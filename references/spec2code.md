@@ -78,8 +78,12 @@ sizing → `self.broker.getvalue()` calculations.
 
 Generate a **single self-contained Python file** (`strategy.py`) that includes:
 
-1. **Imports** — `backtrader as bt`, `yfinance`, `datetime`, `json`
-2. **Data loading with local cache** — Download OHLCV/fundamental/macro data via yfinance/akshare/FRED/etc. only when the matching local cache is missing
+1. **Imports** — `backtrader as bt`, `json`, `datetime`, `urllib.request`, `os`
+2. **Data loading from ClickHouse** — Before writing any code, read
+   `data_match_report.json` to learn which tables provide each dataset.
+   Fetch ALL data via ClickHouse HTTP queries (see §Data Source below).
+   Cache results locally as CSV and reuse on subsequent runs.
+   **Never use yfinance, akshare, or hardcoded ticker lists.**
 3. **Strategy class** — `class MyStrategy(bt.Strategy)` with `__init__` and `next`
 4. **Cerebro setup** — Broker config, analyzers, initial cash
 5. **Metrics output** — Print key metrics as JSON to stdout
@@ -90,28 +94,67 @@ Generate a **single self-contained Python file** (`strategy.py`) that includes:
 
 Read [backtrader_patterns.md](backtrader_patterns.md) for canonical patterns.
 Read [indicator_cookbook.md](indicator_cookbook.md) for indicator implementations.
-Read [data_sources.md](data_sources.md) for data API usage.
+Read [data_sources.md](data_sources.md) for ClickHouse connection details.
 
 **Start from the bundled runner template** [assets/backtrader_template.py](../assets/backtrader_template.py).
 Copy its structural parts verbatim and adapt only the marked spots
-(`fetch_data_cached` source, `MyStrategy.__init__/next`, universe/SPY symbol).
-The local data cache, analyzer `_name` strings, headless `matplotlib.use('Agg')`,
-the three-commission sweep, and the `portfolio_vs_assets` chart with SPY +
-portfolio boldface are the output contract — keep them as-is. Generating the
-runner/plotting block from scratch is the main source of missing-chart and
-GUI-on-headless failures.
+(`fetch_data_cached` source — see §Data Source below, `MyStrategy.__init__/next`,
+universe/SPY symbol). The local data cache, analyzer `_name` strings, headless
+`matplotlib.use('Agg')`, the three-commission sweep, and the `portfolio_vs_assets`
+chart with SPY + portfolio boldface are the output contract — keep them as-is.
+
+#### Data Source (ClickHouse HTTP)
+
+All data comes from ClickHouse.  Read ``data_match_report.json`` to map
+each paper dataset to a concrete table.
+
+Connection details are in ``.env`` (``CLICKHOUSE_HOST``, ``CLICKHOUSE_PORT``,
+``CLICKHOUSE_USER``, ``CLICKHOUSE_PASSWORD``, ``CLICKHOUSE_DATABASE``).
+Read them via ``paper2spec.config.get_clickhouse_config()`` or directly
+from ``os.getenv()``.
+
+```python
+import os, json, urllib.request
+
+def fetch_cached(table: str, columns: list[str], start: str, end: str,
+                 extra_where: str = "") -> pd.DataFrame:
+    \"\"\"Query ClickHouse and cache the result as CSV.\"\"\"
+    cache_path = DATA_DIR / f\"{table}_{start}_{end}.csv\"
+    if cache_path.is_file():
+        return pd.read_csv(cache_path, index_col=0, parse_dates=True)
+
+    host = os.getenv(\"CLICKHOUSE_HOST\", \"localhost\")
+    port = os.getenv(\"CLICKHOUSE_PORT\", \"8123\")
+    user = os.getenv(\"CLICKHOUSE_USER\", \"default\")
+    pw = os.getenv(\"CLICKHOUSE_PASSWORD\", \"\")
+    cols = \", \".join(columns)
+    where = f\"date >= '{start}' AND date < '{end}'\"
+    if extra_where:
+        where += f\" AND {extra_where}\"
+    query = (
+        f\"SELECT {cols} FROM {table} WHERE {where} \"
+        f\"ORDER BY date, permno FORMAT TabSeparatedWithNames\"
+    )
+    url = f\"http://{host}:{port}/?user={user}&password={pw}\"
+    data = urllib.request.urlopen(
+        url, urllib.request.quote(query).encode(), timeout=60
+    ).read()
+    # ... parse TabSeparatedWithNames into DataFrame, write CSV cache ...
+```
 
 #### Mandatory Data Cache
 
-Any generated strategy that fetches data from the user-provided dirs or network must persist under a local cache directory before using it in the backtest.
+Any generated strategy that fetches data from ClickHouse must persist
+under a local cache directory before using it in the backtest.
 
 #### Strategy File Template Structure
 
 ```python
 import backtrader as bt
-import yfinance as yf
 import json
 import datetime
+import os
+import urllib.request
 
 class MyStrategy(bt.Strategy):
     params = (...)
@@ -279,12 +322,12 @@ Read stdout for metrics JSON. Read stderr for errors.
 **Important**: The strategy file should be self-contained — it fetches its
 own data, runs the backtest, and prints results. No external executor needed.
 
-If the strategy requires backtrader/yfinance that aren't in the skill's
-main venv, create a dedicated venv in the library subdirectory:
+If the strategy requires backtrader that isn't in the skill's main venv,
+create a dedicated venv in the library subdirectory:
 
 ```bash
 cd library/<paper>/
-uv venv && uv pip install backtrader yfinance akshare
+uv venv && uv pip install backtrader
 uv run python strategy_1.py
 ```
 
@@ -303,7 +346,7 @@ Compare the backtest output against the spec's `expected_performance`:
 - Zero trades → strategy logic is likely broken
 
 **Common causes of deviation:**
-- Different data source (paper used Bloomberg, we use yfinance)
+- Different data source (paper used Bloomberg/CRSP, we use ClickHouse)
 - Different time period
 - Transaction costs / slippage not modeled
 - Survivorship bias in paper's data
@@ -320,7 +363,7 @@ When the strategy crashes or produces unexpected output, follow this triage flow
 | Error Pattern | Category | Typical Fix |
 |--------------|----------|-------------|
 | `ModuleNotFoundError: No module named 'xxx'` | Missing dependency | `uv pip install xxx` in strategy venv |
-| `HTTPError` / `ConnectionError` / `No data found` | Data fetch failure | Check ticker symbol, date range, yfinance vs akshare |
+| `HTTPError` / `ConnectionError` / `No data found` | Data fetch failure | Check ClickHouse connection, table/column names in match report, date range |
 | `IndexError: array assignment index is out of range` | Indicator warmup | Add `if len(self) < self.p.period: return` at top of `next()` |
 | `ValueError: ...` in indicator init | Bad parameters | Cross-check indicator params with [indicator_cookbook.md](indicator_cookbook.md) |
 | Strategy runs but `num_trades: 0` | Dead logic | Entry conditions too strict, or data period doesn't contain signals |

@@ -60,7 +60,7 @@ def _ensure_mode_b_deps():
 # ── Public API ───────────────────────────────────────────────
 
 
-def parse_pdf(pdf_path: str, *, mode: str = "builtin", model: Optional[str] = None) -> PaperContent:
+def parse_pdf(pdf_path: str, *, mode: str = "agent", model: Optional[str] = None) -> PaperContent:
     """Synchronous entry point: PDF path → PaperContent.
 
     Args:
@@ -72,7 +72,7 @@ def parse_pdf(pdf_path: str, *, mode: str = "builtin", model: Optional[str] = No
 
 
 async def aparse_pdf(
-    pdf_path: str, *, mode: str = "builtin", model: Optional[str] = None
+    pdf_path: str, *, mode: str = "agent", model: Optional[str] = None
 ) -> PaperContent:
     """Async entry point: PDF path → PaperContent."""
     logger.info("Parsing %s (mode=%s)", pdf_path, mode)
@@ -174,6 +174,16 @@ async def aparse_document(
     return await handler(path, mode=mode, model=model)
 
 
+def _format_table_context(tables: list | None) -> str:
+    """Format all extracted tables for injection into LLM prompts."""
+    if not tables:
+        return ""
+    parts = []
+    for i, t in enumerate(tables):
+        parts.append(f"TABLE {i+1}:\n{_format_table_for_llm(t)}")
+    return "\n\n=== EXTRACTED TABLES ===\n\n" + "\n\n".join(parts)
+
+
 def _format_table_for_llm(table: list[list[str]]) -> str:
     """Format an extracted table as markdown for LLM consumption."""
     if not table:
@@ -212,14 +222,25 @@ async def _parse_text(
         ]
 
     if mode == "agent":
+        try:
+            _ensure_mode_b_deps()
+        except ImportError:
+            logger.warning(
+                "Mode B dependencies not installed — falling back to Mode A. "
+                "Install with: pip install langchain-community langchain-text-splitters "
+                "sentence-transformers faiss-cpu"
+            )
+            mode = "builtin"
+
+    if mode == "agent":
         # Mode B: FAISS semantic retrieval → LLM
-        _ensure_mode_b_deps()
         vectorstore = await _build_vectorstore(full_text)
-        # 3 section extractions are independent → run in parallel
+        # Pass extracted tables so they are appended to each LLM prompt
+        table_context = _format_table_context(tables)
         pc.methodology, pc.data_description, pc.signal_logic = await asyncio.gather(
-            _extract_section_semantic(vectorstore, METHODOLOGY_PROMPT, _methodology_queries(), model=model),
-            _extract_section_semantic(vectorstore, DATA_DESCRIPTION_PROMPT, _data_queries(), model=model),
-            _extract_section_semantic(vectorstore, SIGNAL_LOGIC_PROMPT, _signal_queries(), model=model),
+            _extract_section_semantic(vectorstore, METHODOLOGY_PROMPT, _methodology_queries(), model=model, table_context=table_context),
+            _extract_section_semantic(vectorstore, DATA_DESCRIPTION_PROMPT, _data_queries(), model=model, table_context=table_context),
+            _extract_section_semantic(vectorstore, SIGNAL_LOGIC_PROMPT, _signal_queries(), model=model, table_context=table_context),
         )
     else:
         # Mode A (builtin): send as much text as fits in LLM context.
@@ -305,9 +326,12 @@ def _retrieve_context(vectorstore, queries: list[str], k: int = 3) -> str:
 
 
 async def _extract_section_semantic(
-    vectorstore, prompt_template: str, queries: list[str], *, model: Optional[str] = None
+    vectorstore, prompt_template: str, queries: list[str], *, model: Optional[str] = None,
+    table_context: str = "",
 ) -> str:
     ctx = _retrieve_context(vectorstore, queries)
+    if table_context:
+        ctx += table_context
     prompt = prompt_template.format(context=ctx)
     return await achat(prompt, system=SYSTEM_PROMPT, model=model)
 

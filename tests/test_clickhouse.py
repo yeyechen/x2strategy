@@ -417,3 +417,243 @@ class TestQueryJson:
         )
         rows = _query_json("http://example.com/", "user=u", "SELECT 1")
         assert rows == []
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Phase 1: E2E contract tests (TDD — these DEFINE what must work)
+# ═══════════════════════════════════════════════════════════════════
+
+
+@pytest.fixture
+def max_paper_spec_path():
+    """Path to the real MAX factor paper spec.json."""
+    import os
+    p = os.path.join(
+        os.path.dirname(__file__),
+        "..", "library", "ssrn_1262416", "spec.json",
+    )
+    if not os.path.isfile(p):
+        pytest.skip("MAX paper spec.json not found")
+    return p
+
+
+@pytest.fixture
+def max_paper_catalog():
+    """Real catalog for matching."""
+    catalog = load_catalog()
+    if catalog is None:
+        pytest.skip("Catalog not found — run discover_clickhouse.py first")
+    return catalog
+
+
+@pytest.fixture
+def codegen_ready_requirements():
+    """A requirements dict that matches the MAX paper's actual data needs."""
+    return {
+        "paper_title": "MAX Factor: Stocks as Lotteries",
+        "requirements": [
+            {
+                "id": "daily_returns",
+                "description": "Daily stock returns, prices, volume for NYSE/AMEX/NASDAQ",
+                "fields": ["date", "permno", "ret", "prc", "vol", "shrout"],
+                "frequency": "daily",
+                "date_range": ["1962-07-01", "2005-12-31"],
+                "filters": ["share_code 10/11", "NYSE/AMEX/NASDAQ"],
+            },
+            {
+                "id": "monthly_market_cap",
+                "description": "Monthly market capitalization for SIZE filter",
+                "fields": ["date", "permno", "prc", "shrout"],
+                "frequency": "monthly",
+                "date_range": ["1962-07-01", "2005-12-31"],
+                "filters": [],
+            },
+            {
+                "id": "fundamentals",
+                "description": "Annual Compustat fundamentals for BM ratio",
+                "fields": ["gvkey", "fyear", "bkvlps", "at", "lt"],
+                "frequency": "annual",
+                "date_range": ["1961-01-01", "2005-12-31"],
+                "filters": [],
+            },
+        ],
+    }
+
+
+class TestE2EContract:
+    """Tests that define the contract the E2E pipeline must satisfy.
+
+    These tests encode what a code-generation agent needs from the
+    data bridge.  They MUST pass once the implementation is complete.
+    """
+
+    def test_full_pipeline_requirements_to_match_report(
+        self, max_paper_catalog, codegen_ready_requirements
+    ):
+        """match_requirements on known reqs must produce ≥3 matches.
+
+        The MAX paper needs CRSP daily returns, CRSP monthly, and
+        Compustat fundamentals.  All three must match real tables.
+        """
+        report = match_requirements(codegen_ready_requirements, max_paper_catalog)
+        assert len(report["matches"]) >= 3, (
+            f"Expected ≥3 matches for MAX paper core datasets, got {len(report['matches'])}"
+        )
+
+    def test_match_report_has_codegen_fields(
+        self, max_paper_catalog, codegen_ready_requirements
+    ):
+        """Every match entry must contain fields the agent needs to write SQL.
+
+        Required fields per match:
+          - fq_name:  fully-qualified table name (e.g. crsp.dsf)
+          - matched_columns:  columns that exist in the table
+          - missing_columns:  columns the paper needs but the table lacks
+          - date_range:  min/max dates in the table
+          - row_count:  approximate row count
+        """
+        report = match_requirements(codegen_ready_requirements, max_paper_catalog)
+        required_fields = {
+            "fq_name", "matched_columns", "missing_columns",
+            "date_range", "row_count",
+        }
+        for match in report["matches"]:
+            missing = required_fields - set(match.keys())
+            assert not missing, (
+                f"Match [{match['requirement']}] missing required fields: {missing}"
+            )
+
+    def test_match_report_fq_name_is_dotted(
+        self, max_paper_catalog, codegen_ready_requirements
+    ):
+        """Every fq_name must be in 'database.table' format for SQL generation."""
+        report = match_requirements(codegen_ready_requirements, max_paper_catalog)
+        for match in report["matches"]:
+            fq = match["fq_name"]
+            assert "." in fq, (
+                f"fq_name must be 'db.table' format, got '{fq}'"
+            )
+            db, table = fq.split(".", 1)
+            assert db, f"Database part missing in '{fq}'"
+            assert table, f"Table part missing in '{fq}'"
+
+    def test_daily_returns_date_range_covers_paper_period(
+        self, max_paper_catalog, codegen_ready_requirements
+    ):
+        """The daily returns table must cover 1962–2005.
+
+        If the catalog shows coverage outside this range, the agent
+        must be warned so it can constrain the SQL query.
+        """
+        report = match_requirements(codegen_ready_requirements, max_paper_catalog)
+        daily = next(
+            (m for m in report["matches"] if m["requirement"] == "daily_returns"),
+            None,
+        )
+        assert daily is not None, (
+            "daily_returns must have a match — check crsp.dsf or similar"
+        )
+        dr = daily.get("date_range")
+        assert dr is not None, "daily_returns table must have a date_range"
+        # At minimum, the table must overlap with the paper's period
+        assert dr[0] <= "2005-12-31", (
+            f"Table starts {dr[0]} — later than paper end 2005-12-31"
+        )
+        assert dr[1] >= "1962-07-01", (
+            f"Table ends {dr[1]} — earlier than paper start 1962-07-01"
+        )
+
+    def test_missing_columns_surfaced_in_match(
+        self, max_paper_catalog
+    ):
+        """When a required field doesn't exist, it must appear in missing_columns.
+
+        The agent uses missing_columns to decide: workaround? warn user?
+        """
+        reqs = {
+            "requirements": [
+                {
+                    "id": "daily",
+                    "fields": ["date", "permno", "this_field_does_not_exist_xyz"],
+                }
+            ]
+        }
+        report = match_requirements(reqs, max_paper_catalog)
+        assert len(report["matches"]) >= 1, "date and permno match something"
+        match = report["matches"][0]
+        assert "this_field_does_not_exist_xyz" in match["missing_columns"], (
+            "Missing column must appear in missing_columns"
+        )
+
+    def test_gap_when_no_column_overlap(self, max_paper_catalog):
+        """A requirement with zero column matches must be a gap, not a match.
+
+        The agent must NOT generate SQL when nothing matches.
+        """
+        reqs = {
+            "requirements": [
+                {
+                    "id": "impossible",
+                    "fields": ["zzz_nonexistent_1", "zzz_nonexistent_2"],
+                }
+            ]
+        }
+        report = match_requirements(reqs, max_paper_catalog)
+        assert len(report["matches"]) == 0, (
+            "Zero-column-overlap requirement must NOT produce a match"
+        )
+        assert len(report["gaps"]) >= 1
+
+    @patch("paper2spec.llm.achat", new_callable=AsyncMock)
+    def test_max_paper_e2e_requirements_to_matches(
+        self, mock_achat, max_paper_spec_path, max_paper_catalog
+    ):
+        """Full pipeline: real spec → mocked LLM → match against real catalog.
+
+        This is the defining E2E test.  When this passes, the bridge works.
+        """
+        # LLM returns known-good requirements
+        mock_achat.return_value = json.dumps({
+            "paper_title": "MAX Factor: Stocks as Lotteries",
+            "requirements": [
+                {
+                    "id": "daily_returns",
+                    "description": "Daily stock returns from CRSP",
+                    "fields": ["date", "permno", "ret", "prc", "vol", "shrout"],
+                    "frequency": "daily",
+                    "date_range": ["1962-07-01", "2005-12-31"],
+                    "filters": ["share_code 10/11"],
+                },
+                {
+                    "id": "fundamentals",
+                    "description": "Annual Compustat fundamentals",
+                    "fields": ["gvkey", "fyear", "bkvlps", "at", "lt"],
+                    "frequency": "annual",
+                    "date_range": ["1961-01-01", "2005-12-31"],
+                    "filters": [],
+                },
+            ],
+        })
+
+        import tempfile, os
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = os.path.join(tmpdir, "data_requirements.json")
+            requirements = extract_data_requirements(
+                max_paper_spec_path, output_path=out
+            )
+
+        # Bridge: match against real catalog
+        report = match_requirements(requirements, max_paper_catalog)
+
+        # Contract assertions
+        assert len(report["matches"]) >= 2, (
+            f"Expected ≥2 matches from MAX paper spec, got {len(report['matches'])}"
+        )
+        for match in report["matches"]:
+            assert match["score"] >= 2, (
+                f"Match [{match['requirement']}] score={match['score']} too low"
+            )
+            assert "." in match["fq_name"], (
+                f"fq_name must be dotted: {match['fq_name']}"
+            )
+            assert len(match["matched_columns"]) >= 2
