@@ -313,6 +313,7 @@ Read on demand for implementation details:
 - [references/spec2code.md](references/spec2code.md) — Code generation workflow, Backtrader patterns
 - [references/skill-internals.md](references/skill-internals.md) — Script flags, output formats, .env examples, library management, project structure
 - [references/backtrader_patterns.md](references/backtrader_patterns.md) — Strategy class, data loading, position sizing
+- [references/clickhouse.md](references/clickhouse.md) — ClickHouse query patterns, schema discovery, data extraction rules
 - [references/indicator_cookbook.md](references/indicator_cookbook.md) — Built-in and custom indicators
 - [references/data_sources.md](references/data_sources.md) — yfinance, akshare, FRED API
 

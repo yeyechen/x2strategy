@@ -68,3 +68,15 @@ def get_init_status() -> dict[str, object]:
         "init_version": marker,
         "library_path": get_library_path() if library else "",
     }
+
+
+def get_clickhouse_config() -> dict[str, str]:
+    """Return ClickHouse connection parameters from environment."""
+    load_project_env()
+    return {
+        "host": os.getenv("CLICKHOUSE_HOST", "localhost"),
+        "port": os.getenv("CLICKHOUSE_PORT", "9000"),
+        "user": os.getenv("CLICKHOUSE_USER", "default"),
+        "password": os.getenv("CLICKHOUSE_PASSWORD", ""),
+        "database": os.getenv("CLICKHOUSE_DATABASE", "default"),
+    }
