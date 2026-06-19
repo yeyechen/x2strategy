@@ -100,14 +100,14 @@ class TestMatchRequirements:
     """Deterministic tests for the matching logic."""
 
     def test_perfect_match_all_columns(self):
-        """When all required fields exist in a table, score = len(fields)."""
+        """When all required fields exist, multiple tables may qualify."""
         reqs = {
             "requirements": [
                 {"id": "daily", "fields": ["date", "permno", "ret"]}
             ]
         }
         report = match_requirements(reqs, _fake_catalog())
-        assert len(report["matches"]) == 1
+        assert len(report["matches"]) >= 1
         assert report["matches"][0]["fq_name"] == "crsp.dsf"
         assert report["matches"][0]["score"] == 3
         assert report["matches"][0]["missing_columns"] == []

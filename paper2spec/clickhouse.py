@@ -153,6 +153,8 @@ def match_requirements(
     dict
         ``{matches: [...], gaps: [...], coverage_pct: float}``
     """
+    import math
+
     matches: list[dict] = []
     gaps: list[dict] = []
 
@@ -162,15 +164,16 @@ def match_requirements(
             gaps.append({"requirement": req["id"], "reason": "no fields specified"})
             continue
 
-        best_table = None
-        best_score = 0
+        # Minimum score: must match at least half of the required fields
+        min_score = max(1, math.ceil(len(needed) / 2))
+
+        candidates: list[dict] = []
         for db_name, tables in catalog.get("databases", {}).items():
             for table_name, info in tables.items():
                 cols = {c["name"].lower() for c in info.get("columns", [])}
                 score = len(needed & cols)
-                if score > best_score:
-                    best_score = score
-                    best_table = {
+                if score >= min_score:
+                    candidates.append({
                         "database": db_name,
                         "table": table_name,
                         "fq_name": f"{db_name}.{table_name}",
@@ -179,24 +182,38 @@ def match_requirements(
                         "score": score,
                         "row_count": info.get("row_count", 0),
                         "date_range": info.get("date_range"),
-                    }
+                    })
 
-        if best_table and best_score > 0:
-            matches.append({"requirement": req["id"], **best_table})
+        if candidates:
+            # Sort by score descending, then by row count (prefer larger tables)
+            candidates.sort(key=lambda c: (c["score"], c["row_count"]), reverse=True)
+            # Cap at top 5 to avoid noise from snapshot databases
+            for c in candidates[:5]:
+                matches.append({"requirement": req["id"], **c})
         else:
+            best_score = max(
+                (len(needed & {c2["name"].lower() for c2 in info.get("columns", [])})
+                 for db_name, tables in catalog.get("databases", {}).items()
+                 for table_name, info in tables.items()),
+                default=0,
+            )
             gaps.append({
                 "requirement": req["id"],
-                "reason": f"no table found with any of {sorted(needed)}",
+                "reason": (
+                    f"no table found with ≥{min_score}/{len(needed)} required fields "
+                    f"(best score: {best_score}). "
+                    f"Required: {sorted(needed)}"
+                ),
             })
 
     total = len(requirements.get("requirements", []))
-    coverage = len(matches) / total if total else 0
+    coverage = len({m["requirement"] for m in matches}) / total if total else 0
 
     return {
         "paper_title": requirements.get("paper_title", ""),
         "matches": matches,
         "gaps": gaps,
-        "coverage": f"{coverage:.0%} ({len(matches)}/{total})",
+        "coverage": f"{coverage:.0%} ({len({m['requirement'] for m in matches})}/{total})",
     }
 
 
