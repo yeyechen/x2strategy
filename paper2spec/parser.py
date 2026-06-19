@@ -40,7 +40,10 @@ def _ensure_mode_b_deps():
     try:
         from langchain_community.vectorstores import FAISS
         from langchain_text_splitters import RecursiveCharacterTextSplitter
-        from langchain_community.embeddings import HuggingFaceEmbeddings
+        try:
+            from langchain_huggingface import HuggingFaceEmbeddings
+        except ImportError:
+            from langchain_community.embeddings import HuggingFaceEmbeddings  # noqa: F811
 
         _faiss = FAISS
         _splitter_cls = RecursiveCharacterTextSplitter
