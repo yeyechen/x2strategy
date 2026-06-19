@@ -234,13 +234,15 @@ async def _parse_text(
 
     if mode == "agent":
         # Mode B: FAISS semantic retrieval → LLM
-        vectorstore = await _build_vectorstore(full_text)
-        # Pass extracted tables so they are appended to each LLM prompt
+        # Index full text + extracted tables together so semantic
+        # queries can retrieve table rows (e.g. "Low MAX | 1.01")
         table_context = _format_table_context(tables)
+        indexed_text = full_text + table_context
+        vectorstore = await _build_vectorstore(indexed_text)
         pc.methodology, pc.data_description, pc.signal_logic = await asyncio.gather(
-            _extract_section_semantic(vectorstore, METHODOLOGY_PROMPT, _methodology_queries(), model=model, table_context=table_context),
-            _extract_section_semantic(vectorstore, DATA_DESCRIPTION_PROMPT, _data_queries(), model=model, table_context=table_context),
-            _extract_section_semantic(vectorstore, SIGNAL_LOGIC_PROMPT, _signal_queries(), model=model, table_context=table_context),
+            _extract_section_semantic(vectorstore, METHODOLOGY_PROMPT, _methodology_queries(), model=model),
+            _extract_section_semantic(vectorstore, DATA_DESCRIPTION_PROMPT, _data_queries(), model=model),
+            _extract_section_semantic(vectorstore, SIGNAL_LOGIC_PROMPT, _signal_queries(), model=model),
         )
     else:
         # Mode A (builtin): send as much text as fits in LLM context.
@@ -327,11 +329,8 @@ def _retrieve_context(vectorstore, queries: list[str], k: int = 3) -> str:
 
 async def _extract_section_semantic(
     vectorstore, prompt_template: str, queries: list[str], *, model: Optional[str] = None,
-    table_context: str = "",
 ) -> str:
     ctx = _retrieve_context(vectorstore, queries)
-    if table_context:
-        ctx += table_context
     prompt = prompt_template.format(context=ctx)
     return await achat(prompt, system=SYSTEM_PROMPT, model=model)
 
