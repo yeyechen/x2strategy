@@ -77,11 +77,10 @@ def _clickhouse_query(query: str) -> bytes:
     port = os.getenv("CLICKHOUSE_PORT", "8123")
     user = os.getenv("CLICKHOUSE_USER", "default")
     pw = os.getenv("CLICKHOUSE_PASSWORD", "")
-    url = f"http://{host}:{port}/?user={user}&password={pw}"
     import urllib.request
-    return urllib.request.urlopen(
-        url, urllib.request.quote(query).encode(), timeout=60
-    ).read()
+    encoded = urllib.request.quote(query)
+    url = f"http://{host}:{port}/?user={user}&password={pw}&query={encoded}"
+    return urllib.request.urlopen(url, timeout=60).read()
 
 
 def fetch_data_cached(table: str, columns: list[str], start: str,
