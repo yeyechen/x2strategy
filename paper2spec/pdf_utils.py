@@ -22,7 +22,7 @@ MAX_BACK_PAGES = 10
 
 
 class PDFExtractor:
-    """Extract text from PDF, handling heavy-drawing pages gracefully."""
+    """Extract text and tables from PDF, handling heavy-drawing pages gracefully."""
 
     @staticmethod
     def extract_text(pdf_path: str) -> str:
@@ -30,6 +30,78 @@ class PDFExtractor:
         if not os.path.isfile(pdf_path):
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
         return PDFExtractor._extract_hybrid(pdf_path)
+
+    @staticmethod
+    def extract_tables(pdf_path: str) -> list[list[list[str]]]:
+        """Extract all tables from a PDF using PyMuPDF's table detection.
+
+        Uses ``strategy=\"text\"`` to handle LaTeX booktabs-style tables
+        (common in academic papers), then filters to keep only tables
+        containing numeric data (digits and decimal numbers).
+
+        Returns a list of tables.  Each table is a list of rows.
+        Each row is a list of cleaned cell strings.
+        """
+        import re
+
+        if not os.path.isfile(pdf_path):
+            raise FileNotFoundError(f"PDF not found: {pdf_path}")
+
+        doc = fitz.open(pdf_path)
+        all_tables: list[list[list[str]]] = []
+        for i in range(doc.page_count):
+            tf = doc[i].find_tables(strategy="text")
+            if not tf or not tf.tables:
+                continue
+            for table in tf.tables:
+                # Use to_markdown() for clean output AND for filter check
+                md = table.to_markdown()
+                if not PDFExtractor._is_data_table_md(md):
+                    continue
+                grid = PDFExtractor._markdown_to_grid(md)
+                if grid:
+                    all_tables.append(grid)
+
+        page_count = doc.page_count
+        doc.close()
+        logger.info(
+            "Extracted %d tables from %d pages", len(all_tables), page_count
+        )
+        return all_tables
+
+    @staticmethod
+    def _is_data_table_md(md: str) -> bool:
+        """Heuristic: real data tables have numeric cell content."""
+        import re
+        # Count lines with digits
+        lines = md.split("\n")
+        digit_lines = sum(1 for l in lines if re.search(r"\d", l))
+        # Must have clean decimal numbers (to_markdown() produces them)
+        has_decimal = bool(re.search(r"\d+\.\d+", md))
+        # At least 3 rows in a markdown table
+        row_count = sum(1 for l in lines if l.strip().startswith("|")
+                       and not all(c in "|-: " for c in l.strip()))
+        return digit_lines >= 3 and has_decimal and row_count >= 3
+
+    @staticmethod
+    def _markdown_to_grid(md: str) -> list[list[str]]:
+        """Parse a Markdown table string back into a list-of-lists grid."""
+        grid: list[list[str]] = []
+        for line in md.split("\n"):
+            line = line.strip()
+            if not line.startswith("|"):
+                continue
+            # Skip separator rows like |---|---|
+            if all(c in "|-: " for c in line):
+                continue
+            cells = [c.strip() for c in line.split("|")]
+            if cells and cells[0] == "":
+                cells = cells[1:]
+            if cells and cells[-1] == "":
+                cells = cells[:-1]
+            if cells:
+                grid.append(cells)
+        return grid
 
     @staticmethod
     def _extract_hybrid(pdf_path: str) -> str:

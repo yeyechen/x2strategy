@@ -547,12 +547,148 @@ class TestParsePDF:
     @pytest.mark.asyncio
     @patch("paper2spec.parser.achat", new_callable=AsyncMock)
     @patch("paper2spec.parser.PDFExtractor.extract_text")
-    async def test_aparse_pdf(self, mock_extract, mock_achat):
+    @patch("paper2spec.parser.PDFExtractor.extract_tables")
+    async def test_aparse_pdf(self, mock_tables, mock_extract, mock_achat):
         from paper2spec.parser import aparse_pdf
         mock_extract.return_value = "# PDF Title\n\n## Abstract\n\nExtracted text.\n\n## Intro"
+        mock_tables.return_value = []
         mock_achat.side_effect = _async_fake_achat
 
         pc = await aparse_pdf("/fake/path.pdf", mode="builtin")
         mock_extract.assert_called_once_with("/fake/path.pdf")
+        mock_tables.assert_called_once_with("/fake/path.pdf")
         assert pc.title == "PDF Title"
         assert pc.methodology == "MOCKED_METHODOLOGY"
+
+
+# ── Table extraction ────────────────────────────────────────────
+
+
+@pytest.fixture
+def real_paper_pdf():
+    """Path to a real quant paper PDF with known table content."""
+    import os
+    path = os.path.join(
+        os.path.dirname(__file__),
+        "..", "library", "ssrn_1262416", "ssrn-1262416.pdf",
+    )
+    if not os.path.isfile(path):
+        # Fallback: try the papers directory
+        path = os.path.join(
+            os.path.dirname(__file__),
+            "..", "..", "papers", "ssrn-1262416.pdf",
+        )
+    if not os.path.isfile(path):
+        pytest.skip("Real paper PDF not found")
+    return path
+
+
+class TestTableExtraction:
+    """Verify structured table extraction from real PDFs."""
+
+    def test_extract_tables_returns_non_empty_list(self, real_paper_pdf):
+        """A quant paper PDF must yield at least one extracted table."""
+        from paper2spec.pdf_utils import PDFExtractor
+
+        tables = PDFExtractor.extract_tables(real_paper_pdf)
+        assert isinstance(tables, list), "Must return a list"
+        assert len(tables) > 0, (
+            f"Expected at least 1 table from a 49-page quant paper, got {len(tables)}"
+        )
+
+    def test_extract_tables_each_is_list_of_rows(self, real_paper_pdf):
+        """Every extracted table must be a list of rows (each a list of cell strs)."""
+        from paper2spec.pdf_utils import PDFExtractor
+
+        tables = PDFExtractor.extract_tables(real_paper_pdf)
+        for i, table in enumerate(tables):
+            assert isinstance(table, list), f"Table {i} is not a list"
+            assert len(table) >= 2, (
+                f"Table {i} has {len(table)} rows, expected >= 2 (header + data)"
+            )
+            for j, row in enumerate(table):
+                assert isinstance(row, list), f"Table {i} row {j} is not a list"
+                for cell in row:
+                    assert cell is None or isinstance(cell, str), (
+                        f"Table {i} row {j} cell is not str/None: {type(cell)}"
+                    )
+
+    def test_extract_tables_contains_known_content(self, real_paper_pdf):
+        """At least one table must contain terms from the MAX factor paper."""
+        from paper2spec.pdf_utils import PDFExtractor
+
+        tables = PDFExtractor.extract_tables(real_paper_pdf)
+        # Flatten all cell text into one searchable string
+        all_text = " ".join(
+            cell or ""
+            for table in tables
+            for row in table
+            for cell in row
+        ).lower()
+
+        # The paper's core concept — must appear in table data
+        assert "max" in all_text, (
+            "Expected 'MAX' to appear in at least one table cell"
+        )
+
+    def test_find_tables_count_matches_expectation(self, real_paper_pdf):
+        """Sanity check: the 49-page MAX paper has at least 10 tables."""
+        from paper2spec.pdf_utils import PDFExtractor
+
+        tables = PDFExtractor.extract_tables(real_paper_pdf)
+        # We verified earlier: find_tables() finds 16 tables
+        # This just guards against catastrophic regression
+        assert len(tables) >= 10, (
+            f"Expected >= 10 tables for a 49-page quant paper, got {len(tables)}"
+        )
+
+    def test_missing_file_raises(self):
+        """extract_tables must raise FileNotFoundError for missing files."""
+        from paper2spec.pdf_utils import PDFExtractor
+        import pytest as pt
+
+        with pt.raises(FileNotFoundError):
+            PDFExtractor.extract_tables("/nonexistent/path.pdf")
+
+
+class TestTableContextIntegration:
+    """Verify extracted tables are passed into the LLM context."""
+
+    @pytest.mark.asyncio
+    @patch("paper2spec.parser.achat", new_callable=AsyncMock)
+    async def test_tables_injected_into_prompt(self, mock_achat, real_paper_pdf):
+        """When tables are extracted, their content must appear in LLM prompts."""
+        from paper2spec.parser import aparse_pdf
+
+        captured_prompts = []
+
+        async def capture_prompt(prompt, *, system="", model=None):
+            captured_prompts.append(prompt)
+            return _fake_achat(prompt, system=system, model=model)
+
+        mock_achat.side_effect = capture_prompt
+
+        pc = await aparse_pdf(real_paper_pdf, mode="builtin")
+
+        # All 3 prompts (methodology, data, signal) should contain table data
+        for prompt in captured_prompts:
+            assert "=== EXTRACTED TABLES ===" in prompt, (
+                "Table wrapper missing from LLM prompt"
+            )
+
+        # At least one prompt should contain real table content
+        table_content_found = any(
+            "MAX" in p and "BETA" in p
+            for p in captured_prompts
+        )
+        assert table_content_found, (
+            "No prompt contained expected table content (MAX, BETA)"
+        )
+
+        # PaperContent.tables must now be populated
+        assert len(pc.tables) > 0, (
+            f"Expected pc.tables to be populated, got {len(pc.tables)} tables"
+        )
+        assert all(
+            "rows" in t and "num_rows" in t for t in pc.tables
+        ), "Each table entry must have 'rows' and 'num_rows' keys"

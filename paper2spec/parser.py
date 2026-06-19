@@ -81,8 +81,16 @@ async def aparse_pdf(
     full_text = await asyncio.to_thread(PDFExtractor.extract_text, pdf_path)
     logger.info("Extracted %d chars from PDF", len(full_text))
 
-    # 2. Parse
-    return await _parse_text(full_text, source=pdf_path, mode=mode, model=model)
+    # 2. Extract tables
+    try:
+        tables = await asyncio.to_thread(PDFExtractor.extract_tables, pdf_path)
+        logger.info("Extracted %d tables from PDF", len(tables))
+    except Exception:
+        tables = []
+        logger.warning("Table extraction failed, continuing without tables", exc_info=True)
+
+    # 3. Parse
+    return await _parse_text(full_text, source=pdf_path, mode=mode, model=model, tables=tables)
 
 
 def parse_text(text: str, *, source: str = "text", mode: str = "builtin", model: Optional[str] = None) -> PaperContent:
@@ -166,17 +174,42 @@ async def aparse_document(
     return await handler(path, mode=mode, model=model)
 
 
+def _format_table_for_llm(table: list[list[str]]) -> str:
+    """Format an extracted table as markdown for LLM consumption."""
+    if not table:
+        return ""
+    lines = []
+    for row in table:
+        lines.append(" | ".join(cell if cell is not None else "" for cell in row))
+    return "\n".join(lines)
+
+
 async def _parse_text(
     full_text: str,
     *,
     source: str = "text",
     mode: str = "builtin",
     model: Optional[str] = None,
+    tables: list = None,
 ) -> PaperContent:
     """Core parsing logic: text → PaperContent."""
     pc = PaperContent(full_text=full_text)
     pc.title = _extract_title(source, full_text)
     pc.abstract = _extract_abstract(full_text)
+
+    # Build context: text + any extracted tables
+    ctx = full_text
+    if tables:
+        formatted = "\n\n".join(
+            f"TABLE {i+1}:\n{_format_table_for_llm(t)}"
+            for i, t in enumerate(tables)
+        )
+        ctx = full_text + "\n\n=== EXTRACTED TABLES ===\n\n" + formatted
+        # Persist tables to PaperContent for downstream use
+        pc.tables = [
+            {"index": i, "rows": t, "num_rows": len(t), "num_cols": len(t[0]) if t else 0}
+            for i, t in enumerate(tables)
+        ]
 
     if mode == "agent":
         # Mode B: FAISS semantic retrieval → LLM
@@ -193,11 +226,17 @@ async def _parse_text(
         # pymupdf4llm markdown averages ~3K chars/page, so 100K covers
         # ~33 pages — enough for most quant finance papers.
         # Papers exceeding this still keep head + tail for coverage.
-        if len(full_text) > 100_000:
-            ctx = full_text[:90_000] + "\n\n[...truncated...]\n\n" + full_text[-10_000:]
-        else:
-            ctx = full_text
-        # 3 section extractions are independent → run in parallel
+        # Extracted tables are always included (they're compact)
+        if len(ctx) > 100_000:
+            # Preserve tables by keeping them in full, truncate only main text
+            table_section = ""
+            main_text = ctx
+            if "=== EXTRACTED TABLES ===" in ctx:
+                split_idx = ctx.index("=== EXTRACTED TABLES ===")
+                main_text = ctx[:split_idx]
+                table_section = ctx[split_idx:]
+            main_trunc = main_text[:90_000] + "\n\n[...truncated...]\n\n" + main_text[-10_000:]
+            ctx = main_trunc + table_section
         pc.methodology, pc.data_description, pc.signal_logic = await asyncio.gather(
             _extract_section_direct(ctx, METHODOLOGY_PROMPT, model=model),
             _extract_section_direct(ctx, DATA_DESCRIPTION_PROMPT, model=model),
