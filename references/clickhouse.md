@@ -19,21 +19,17 @@ connection will work when the user runs ``strategy.py`` from their terminal.
 ## Connection
 
 Credentials are read from ``.env`` via ``paper2spec.config.get_clickhouse_config()``.
-Use the HTTP interface (port 8123) — no driver required:
+Use the native TCP driver (port 9000):
 
 ```python
-import urllib.request
-url = f"http://{host}:8123/?user={user}&password={pw}&database={db}&query=..."
+from clickhouse_driver import Client
+client = Client(host=host, port=9000, user=user, password=pw, database=db)
+rows = client.execute("SELECT 1")
 ```
 
-Always specify an output format.  Default (TabSeparated without headers) is
-unparseable.
-
-| Format | Tokens / 1K rows | Best for |
-|--------|-------------------|----------|
-| `JSON` | ~20K | Single queries — includes column types, row count |
-| `JSONEachRow` | ~15K | Streaming / piping |
-| `TabSeparatedWithNames` | ~4K | Minimal tokens, large results |
+The native driver returns proper Python ``None`` for NULL values — no ``\\N``
+workaround needed.  For HTTP fallback, use port 8123 with
+``urllib.request`` + ``FORMAT TabSeparatedWithNames``.
 
 ---
 

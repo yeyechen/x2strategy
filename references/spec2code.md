@@ -103,18 +103,18 @@ universe/SPY symbol). The local data cache, analyzer `_name` strings, headless
 `matplotlib.use('Agg')`, the three-commission sweep, and the `portfolio_vs_assets`
 chart with SPY + portfolio boldface are the output contract — keep them as-is.
 
-#### Data Source (ClickHouse HTTP)
+#### Data Source (ClickHouse Native Driver)
 
 All data comes from ClickHouse.  Read ``data_match_report.json`` to map
 each paper dataset to a concrete table.
 
 Connection details are in ``.env`` (``CLICKHOUSE_HOST``, ``CLICKHOUSE_PORT``,
 ``CLICKHOUSE_USER``, ``CLICKHOUSE_PASSWORD``, ``CLICKHOUSE_DATABASE``).
-Read them via ``paper2spec.config.get_clickhouse_config()`` or directly
-from ``os.getenv()``.
+Read them via ``os.getenv()``.
 
 ```python
-import os, json, urllib.request
+import os
+from clickhouse_driver import Client
 
 def fetch_cached(table: str, columns: list[str], start: str, end: str,
                  extra_where: str = "") -> pd.DataFrame:
@@ -124,23 +124,26 @@ def fetch_cached(table: str, columns: list[str], start: str, end: str,
         return pd.read_csv(cache_path, index_col=0, parse_dates=True)
 
     host = os.getenv(\"CLICKHOUSE_HOST\", \"localhost\")
-    port = os.getenv(\"CLICKHOUSE_PORT\", \"8123\")
+    port = int(os.getenv(\"CLICKHOUSE_PORT\", \"9000\"))
     user = os.getenv(\"CLICKHOUSE_USER\", \"default\")
     pw = os.getenv(\"CLICKHOUSE_PASSWORD\", \"\")
+    client = Client(host=host, port=port, user=user, password=pw)
+
     cols = \", \".join(columns)
     where = f\"date >= '{start}' AND date < '{end}'\"
     if extra_where:
         where += f\" AND {extra_where}\"
-    query = (
-        f\"SELECT {cols} FROM {table} WHERE {where} \"
-        f\"ORDER BY date, permno FORMAT TabSeparatedWithNames\"
+    rows = client.execute(
+        f\"SELECT {cols} FROM {table} WHERE {where} ORDER BY date, permno\"
     )
-    url = f\"http://{host}:{port}/?user={user}&password={pw}\"
-    data = urllib.request.urlopen(
-        url, urllib.request.quote(query).encode(), timeout=60
-    ).read()
-    # ... parse TabSeparatedWithNames into DataFrame, write CSV cache ...
+    df = pd.DataFrame(rows, columns=columns)
+    df[\"date\"] = pd.to_datetime(df[\"date\"]).set_index(\"date\")
+    df.to_csv(cache_path)
+    return df
 ```
+
+The native driver returns proper Python ``None`` for NULL values — no ``\\N``
+workaround needed.
 
 #### Mandatory Data Cache
 

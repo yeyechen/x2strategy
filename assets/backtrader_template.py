@@ -71,16 +71,15 @@ COMMISSION_RATES = (0.0, 0.0001, 0.0005)
 # Adapt the table name, columns, and WHERE clause to the paper's data needs
 # using data_match_report.json.
 
-def _clickhouse_query(query: str) -> bytes:
-    """Run a single ClickHouse query via HTTP and return raw response bytes."""
+def _clickhouse_query(query: str) -> list[tuple]:
+    """Run a single ClickHouse query via native driver and return rows."""
     host = os.getenv("CLICKHOUSE_HOST", "localhost")
-    port = os.getenv("CLICKHOUSE_PORT", "8123")
+    port = int(os.getenv("CLICKHOUSE_PORT", "9000"))
     user = os.getenv("CLICKHOUSE_USER", "default")
     pw = os.getenv("CLICKHOUSE_PASSWORD", "")
-    import urllib.request
-    encoded = urllib.request.quote(query)
-    url = f"http://{host}:{port}/?user={user}&password={pw}&query={encoded}"
-    return urllib.request.urlopen(url, timeout=60).read()
+    from clickhouse_driver import Client
+    client = Client(host=host, port=port, user=user, password=pw)
+    return client.execute(query)
 
 
 def fetch_data_cached(table: str, columns: list[str], start: str,
@@ -109,19 +108,16 @@ def fetch_data_cached(table: str, columns: list[str], start: str,
     query = (
         f"SELECT {cols_str} FROM {table} "
         f"WHERE {where} "
-        f"ORDER BY {date_col} "
-        f"FORMAT TabSeparatedWithNames"
+        f"ORDER BY {date_col}"
     )
-    raw = _clickhouse_query(query)
-    # Parse TabSeparatedWithNames into DataFrame
-    import io
-    df = pd.read_csv(
-        io.StringIO(raw.decode("utf-8")),
-        sep="\t", parse_dates=[date_col], index_col=date_col,
-        na_values=["\\N"],  # CRSP uses \N for NULL in text format
-    )
+    rows = _clickhouse_query(query)
+    df = pd.DataFrame(rows, columns=columns)
+    if extra_where:
+        pass  # filters applied in WHERE clause above
     if df is None or df.empty:
         raise ValueError(f"No data returned for {table} ({start}..{end})")
+    df[date_col] = pd.to_datetime(df[date_col])
+    df = df.set_index(date_col)
     df.to_csv(cache_path)
     return df
 
