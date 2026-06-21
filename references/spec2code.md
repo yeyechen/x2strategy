@@ -257,6 +257,7 @@ Shared rules:
 - **Hedge separation:** if the spec specifies a hedge (e.g. `SPY`), compute its weight in a separate path. The hedge never participates in universe ranking or top-K selection.
 - **Universe fallback:** if a market-cap/sector/liquidity filter leaves fewer than ~30–50 tickers, relax the filter and warn via `print(...)` — never run on a too-small universe.
 - **Near-zero denominator:** never clamp with `denom = max(denom, eps)` / `np.maximum(denom, eps)` — that silently flips a legitimately negative denominator to `+eps` and reverses the sign (a short becomes a long). Instead mask: `valid = np.abs(denom) > eps`, set invalid entries to `0.0`, leave valid signs intact.
+- **Pandas resample:** use `resample("ME")` (month-end), not the deprecated `resample("M")`. Pandas 2.2+ requires the new aliases: ``"ME"``, ``"QE"``, ``"YE"``, ``"h"``, ``"min"``, ``"s"``.
 
 #### Risk Management Contract (§6)
 

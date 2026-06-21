@@ -49,6 +49,22 @@ import numpy as np
 import pandas as pd
 import backtrader as bt
 
+# ── Load .env ────────────────────────────────────────────────────────────────
+# Ensure ClickHouse credentials and other config are available via os.getenv().
+# Search upward from the strategy file so it works at any library nesting depth.
+for _ancestor in [Path(__file__).resolve().parent, *Path(__file__).resolve().parents]:
+    _env_path = _ancestor / ".env"
+    if _env_path.is_file():
+        for _line in _env_path.read_text().splitlines():
+            _line = _line.strip()
+            if not _line or _line.startswith("#") or "=" not in _line:
+                continue
+            _k, _, _v = _line.partition("=")
+            _k, _v = _k.strip(), _v.strip().strip('"').strip("'")
+            if _k and _k not in os.environ:
+                os.environ[_k] = _v
+        break
+
 # RESULTS_DIR / DATA_DIR are resolved relative to the strategy file so the run
 # is portable across machines. Adapt only if the user confirmed a custom path.
 HERE = Path(__file__).resolve().parent
