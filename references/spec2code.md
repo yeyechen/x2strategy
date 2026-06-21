@@ -118,10 +118,10 @@ from clickhouse_driver import Client
 
 def fetch_cached(table: str, columns: list[str], start: str, end: str,
                  extra_where: str = "") -> pd.DataFrame:
-    \"\"\"Query ClickHouse and cache the result as CSV.\"\"\"
-    cache_path = DATA_DIR / f\"{table}_{start}_{end}.csv\"
+    \"\"\"Query ClickHouse and cache the result as Parquet.\"\"\"
+    cache_path = DATA_DIR / f\"{table}_{start}_{end}.parquet\"
     if cache_path.is_file():
-        return pd.read_csv(cache_path, index_col=0, parse_dates=True)
+        return pd.read_parquet(cache_path)
 
     host = os.getenv(\"CLICKHOUSE_HOST\", \"localhost\")
     port = int(os.getenv(\"CLICKHOUSE_PORT\", \"9000\"))
@@ -130,20 +130,26 @@ def fetch_cached(table: str, columns: list[str], start: str, end: str,
     client = Client(host=host, port=port, user=user, password=pw)
 
     cols = \", \".join(columns)
-    where = f\"date >= '{start}' AND date < '{end}'\"
+    where = f\"{date_col} >= '{start}' AND {date_col} < '{end}'\"
     if extra_where:
         where += f\" AND {extra_where}\"
     rows = client.execute(
-        f\"SELECT {cols} FROM {table} WHERE {where} ORDER BY date, permno\"
+        f\"SELECT {cols} FROM {table} WHERE {where} ORDER BY {date_col}\"
     )
     df = pd.DataFrame(rows, columns=columns)
-    df[\"date\"] = pd.to_datetime(df[\"date\"]).set_index(\"date\")
-    df.to_csv(cache_path)
+    df[date_col] = pd.to_datetime(df[date_col])
+    df = df.set_index(date_col)
+    df.to_parquet(cache_path)
     return df
 ```
 
 The native driver returns proper Python ``None`` for NULL values — no ``\\N``
 workaround needed.
+
+``_clickhouse_query`` and ``fetch_data_cached`` are **immutable**.
+Copy them verbatim from the template.  Do not rewrite the connection,
+do not change the driver, do not switch cache format.  Only adapt:
+table name, columns, WHERE clause, and date column name.
 
 #### Mandatory Data Cache
 

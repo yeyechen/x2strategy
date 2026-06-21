@@ -95,9 +95,9 @@ def fetch_data_cached(table: str, columns: list[str], start: str,
     cache_key = f"{table.replace('.', '_')}_{start}_{end}"
     if extra_where:
         cache_key += "_filtered"
-    cache_path = DATA_DIR / f"{cache_key}.csv"
+    cache_path = DATA_DIR / f"{cache_key}.parquet"
     if cache_path.is_file():
-        df = pd.read_csv(cache_path, index_col=0, parse_dates=True)
+        df = pd.read_parquet(cache_path)
         if not df.empty:
             return df
 
@@ -118,7 +118,7 @@ def fetch_data_cached(table: str, columns: list[str], start: str,
         raise ValueError(f"No data returned for {table} ({start}..{end})")
     df[date_col] = pd.to_datetime(df[date_col])
     df = df.set_index(date_col)
-    df.to_csv(cache_path)
+    df.to_parquet(cache_path)
     return df
 
 
