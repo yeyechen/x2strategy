@@ -118,6 +118,7 @@ def fetch_data_cached(table: str, columns: list[str], start: str,
     df = pd.read_csv(
         io.StringIO(raw.decode("utf-8")),
         sep="\t", parse_dates=[date_col], index_col=date_col,
+        na_values=["\\N"],  # CRSP uses \N for NULL in text format
     )
     if df is None or df.empty:
         raise ValueError(f"No data returned for {table} ({start}..{end})")
