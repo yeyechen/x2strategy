@@ -5,12 +5,14 @@ Usage (CLI):
     python scripts/parse.py paper.pdf                    # Mode A (builtin)
     python scripts/parse.py paper.pdf --mode agent       # Mode B (FAISS)
     python scripts/parse.py paper.pdf -o content.json    # custom output path
-    # default output if -o omitted: <PAPER2SPEC_LIBRARY_PATH>/<pdf_stem>/content.json
+    # default output if -o omitted:
+    # <PAPER2SPEC_LIBRARY_PATH>/<pdf_stem>/inputs/content.json
 
 Usage (agent):
     The agent reads SKILL.md, then runs this script on the user's PDF.
 
 Output: JSON file with PaperContent (title, abstract, methodology, data_description, signal_logic, …)
+written under <slug>/inputs/.
 """
 
 import argparse
@@ -23,7 +25,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from paper2spec.parser import parse_pdf
-from paper2spec.config import get_library_path
+from paper2spec.paths import paper_layout_from_pdf
 
 
 def main():
@@ -33,7 +35,7 @@ def main():
     parser.add_argument("pdf", help="Path to the PDF file")
     parser.add_argument(
         "-o", "--output",
-        help="Output JSON path (default: <PAPER2SPEC_LIBRARY_PATH>/<pdf_stem>/content.json)",
+        help="Output JSON path (default: <PAPER2SPEC_LIBRARY_PATH>/<pdf_stem>/inputs/content.json)",
     )
     parser.add_argument(
         "--mode",
@@ -64,14 +66,13 @@ def main():
     # Parse
     paper_content = parse_pdf(args.pdf, mode=args.mode, model=args.model)
 
-    # Output path
+    # Output path — defaults to the per-paper inputs/ directory
     if args.output:
         out_path = args.output
     else:
-        stem = os.path.splitext(os.path.basename(args.pdf))[0]
-        base_library = get_library_path()
-        paper_dir = os.path.join(base_library, stem)
-        out_path = os.path.join(paper_dir, "content.json")
+        layout = paper_layout_from_pdf(args.pdf)
+        layout.ensure()
+        out_path = str(layout.input_path("content.json"))
 
     out_parent = os.path.dirname(out_path)
     if out_parent:

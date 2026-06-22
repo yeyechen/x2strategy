@@ -211,28 +211,45 @@ Organize analyzed papers in `library/`, each paper in its own subdirectory:
 ```
 library/
 ├── tactical_asset_allocation/
-│   ├── faber_2007.pdf
-│   ├── content.json, content.md
-│   ├── spec.json, spec.md
-│   ├── strategy_1.py
-│   └── metadata.json
+│   ├── paper/
+│   │   └── faber_2007.pdf
+│   ├── inputs/
+│   │   ├── content.json, content.md
+│   │   ├── spec.json, spec.md
+│   │   └── metadata.json
+│   ├── diagnostics/
+│   ├── src/
+│   │   └── strategy.py
+│   ├── data/    # parquet caches (gitignored)
+│   ├── results/
+│   │   ├── metrics.json
+│   │   ├── diagnosis.md
+│   │   ├── portfolio_vs_assets.{csv,png}
+│   │   └── key_pred/
+│   └── config/
 ├── pairs_trading/
 │   └── ...  (3 strategies)
 └── value_momentum/
     └── ...  (2 strategies)
 ```
 
+See `SKILL.md §Output Paths` for the full layout. Every script and
+generated strategy uses `paper_layout(slug)` from `paper2spec/paths.py`
+to resolve these paths — never construct them by hand.
+
 **Agent guidelines:**
-- Before analyzing, check `library/` for existing entries (scan `metadata.json`).
+- Before analyzing, check `library/` for existing entries (scan
+  `inputs/metadata.json`).
 - Use descriptive slugs (`momentum_crashes` not `paper1`).
-- Cross-paper comparison: read relevant `spec.json` files and synthesize.
-- Re-analysis: the PDF is already in the directory.
+- Cross-paper comparison: read relevant `inputs/spec.json` files and
+  synthesize.
+- Re-analysis: the source PDF is already in `paper/original.pdf`.
 
 ### Handing Off to Spec2Code
 
 ```python
 import json
-result = json.load(open("library/pairs_trading/spec.json"))
+result = json.load(open("library/pairs_trading/inputs/spec.json"))
 strategy = result["strategies"][0]  # Pick by index
 # Agent reads this spec dict and generates Backtrader code
 ```
@@ -248,7 +265,7 @@ consider creating a dedicated venv in the library subdirectory:
 cd library/<paper>/
 uv venv
 uv pip install backtrader yfinance akshare
-uv run python strategy_1.py
+uv run python src/strategy.py
 ```
 
 This isolates strategy deps from the skill's own environment.

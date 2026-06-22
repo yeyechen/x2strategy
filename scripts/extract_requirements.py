@@ -2,12 +2,16 @@
 """extract_requirements.py — Extract data requirements from a spec and match against ClickHouse.
 
 Usage (CLI):
-    python scripts/extract_requirements.py library/ssrn_1262416/spec.json
+    python scripts/extract_requirements.py <slug>/inputs/spec.json
     python scripts/extract_requirements.py spec.json -o output_dir/
 
 Usage (agent):
     The agent runs this after extraction to produce data_requirements.json
     and a match report, then uses the report during code generation.
+
+By default, both artifacts are written under ``<slug>/diagnostics/`` when
+the spec path looks like ``<slug>/inputs/spec.json``. Pass ``-o`` to
+override the destination.
 """
 
 import argparse
@@ -15,6 +19,7 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -23,6 +28,19 @@ from paper2spec.clickhouse import (
     load_catalog,
     match_requirements,
 )
+from paper2spec.paths import paper_layout
+
+
+def _infer_layout_from_spec(spec_path: str):
+    """Best-effort: infer per-paper layout from spec path.
+
+    Returns a :class:`PaperLayout` if ``spec_path`` is at
+    ``<slug>/inputs/spec.json``, else ``None``.
+    """
+    p = Path(spec_path).resolve()
+    if p.parent.name == "inputs" and p.parent.parent.name:
+        return paper_layout(slug=p.parent.parent.name)
+    return None
 
 
 def main():
@@ -32,7 +50,7 @@ def main():
     parser.add_argument("spec_json", help="Path to spec.json")
     parser.add_argument(
         "-o", "--output-dir",
-        help="Output directory (default: same dir as spec.json)",
+        help="Output directory (default: <slug>/diagnostics/, inferred from spec path)",
     )
     parser.add_argument(
         "--model", help="Override LLM model",
@@ -50,13 +68,29 @@ def main():
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    out_dir = args.output_dir or os.path.dirname(args.spec_json) or "."
+    # Resolve output directory
+    if args.output_dir:
+        out_dir = Path(args.output_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        layout = _infer_layout_from_spec(args.spec_json)
+        if layout is not None:
+            layout.ensure()
+            out_dir = layout.diagnostics_dir
+        else:
+            out_dir = Path(os.path.dirname(args.spec_json) or ".")
+            print(
+                f"⚠️  Could not infer per-paper layout from {args.spec_json}; "
+                f"writing diagnostics to {out_dir}",
+                file=sys.stderr,
+            )
+            out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Extract requirements (LLM call)
     print("🔍 Extracting data requirements from spec...")
-    req_path = os.path.join(out_dir, "data_requirements.json")
+    req_path = out_dir / "data_requirements.json"
     requirements = extract_data_requirements(
-        args.spec_json, model=args.model, output_path=req_path
+        args.spec_json, model=args.model, output_path=str(req_path)
     )
     reqs = requirements.get("requirements", [])
     print(f"   Found {len(reqs)} data requirement(s)")
@@ -93,10 +127,11 @@ def main():
             print(f"     [{g['requirement']}] — {g['reason']}")
 
     # 3. Write report
-    report_path = os.path.join(out_dir, "data_match_report.json")
+    report_path = out_dir / "data_match_report.json"
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
-    print(f"\n📄 Report: {report_path}")
+    print(f"\n📄 Requirements: {req_path}")
+    print(f"📄 Report:       {report_path}")
 
 
 if __name__ == "__main__":

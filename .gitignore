@@ -17,3 +17,9 @@ htmlcov/
 .claude/
 .codex/
 .agent/
+
+# Agent outputs: paper replications live here at runtime (see CLAUDE.md
+# "Experiments" section). Spec / data / results / generated strategy_*.py
+# are all reproducible from the upstream paper + ClickHouse, so they
+# don't belong in version control.
+library/

@@ -426,13 +426,20 @@ class TestQueryJson:
 
 @pytest.fixture
 def max_paper_spec_path():
-    """Path to the real MAX factor paper spec.json."""
+    """Path to the real MAX factor paper spec.json (under inputs/)."""
     import os
     p = os.path.join(
         os.path.dirname(__file__),
-        "..", "library", "ssrn_1262416", "spec.json",
+        "..", "library", "ssrn_1262416_e2e", "inputs", "spec.json",
     )
     if not os.path.isfile(p):
+        # Legacy fallback (pre-nested-layout runs)
+        legacy = os.path.join(
+            os.path.dirname(__file__),
+            "..", "library", "ssrn_1262416", "spec.json",
+        )
+        if os.path.isfile(legacy):
+            return legacy
         pytest.skip("MAX paper spec.json not found")
     return p
 

@@ -5,14 +5,15 @@ Supports multi-strategy papers: when a paper contains multiple independent
 strategies, each is extracted separately into its own StrategySpec.
 
 Usage (CLI):
-    python scripts/extract.py content.json                  # default output
-    python scripts/extract.py content.json -o spec.json     # custom output
+    python scripts/extract.py <slug>/inputs/content.json     # default output
+    python scripts/extract.py <slug>/inputs/content.json -o spec.json   # custom
 
 Usage (agent):
-    Run after parse.py; reads the _content.json artifact.
+    Run after parse.py; reads the inputs/content.json artifact.
 
 Input:  PaperContent JSON (from parse.py)
-Output: ExtractionResult JSON (array of StrategySpec objects)
+Output: ExtractionResult JSON (array of StrategySpec objects) — by default
+        written under <slug>/inputs/spec.json.
 """
 
 import argparse
@@ -26,6 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from paper2spec.extractor import extract_spec
 from paper2spec.models import PaperContent
+from paper2spec.paths import paper_layout_from_pdf
 
 
 def _load_instruction_context(paths: list[str], instructions_dir: str | None) -> str:
@@ -55,6 +57,18 @@ def _load_instruction_context(paths: list[str], instructions_dir: str | None) ->
     return "".join(chunks)
 
 
+def _infer_slug_from_content_path(content_path: str) -> str | None:
+    """Best-effort slug inference: walk up from inputs/content.json.
+
+    If the content JSON lives at ``<root>/<slug>/inputs/content.json``, this
+    returns ``<slug>``. Otherwise returns ``None``.
+    """
+    p = Path(content_path).resolve()
+    if p.parent.name == "inputs" and p.parent.parent.name:
+        return p.parent.parent.name
+    return None
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Extract StrategySpec(s) from PaperContent JSON."
@@ -62,7 +76,7 @@ def main():
     parser.add_argument("content_json", help="Path to PaperContent JSON (from parse.py)")
     parser.add_argument(
         "-o", "--output",
-        help="Output JSON path (default: <stem>_spec.json)",
+        help="Output JSON path (default: <slug>/inputs/spec.json)",
     )
     parser.add_argument(
         "--model",
@@ -113,9 +127,22 @@ def main():
     if args.output:
         out_path = args.output
     else:
-        stem = os.path.splitext(os.path.basename(args.content_json))[0]
-        stem = stem.replace("_content", "")
-        out_path = f"{stem}_spec.json"
+        slug = _infer_slug_from_content_path(args.content_json)
+        if slug:
+            from paper2spec.paths import paper_layout
+            layout = paper_layout(slug)
+            layout.ensure()
+            out_path = str(layout.input_path("spec.json"))
+        else:
+            # Fallback: legacy <stem>_spec.json next to the input
+            stem = os.path.splitext(os.path.basename(args.content_json))[0]
+            stem = stem.replace("_content", "")
+            out_path = f"{stem}_spec.json"
+            print(
+                f"⚠️  Could not infer per-paper layout from {args.content_json}; "
+                f"writing to legacy location {out_path}",
+                file=sys.stderr,
+            )
 
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(result.to_json())

@@ -5,21 +5,23 @@ Runs the full paper2spec pipeline:
   1. Parse document (PDF/MD/DOCX/TXT) → PaperContent JSON + Markdown
   2. Extract PaperContent → ExtractionResult JSON + Markdown
 
-All outputs are written to the specified output directory.
+All outputs are written into the per-paper nested layout (see SKILL.md
+§Output Paths). Inputs land in ``<slug>/inputs/``; the source PDF is
+copied to ``<slug>/paper/original.pdf`` so each replication is
+self-contained.
 
 Usage:
-    python scripts/analyze.py paper.pdf                     # PDF input
-    python scripts/analyze.py strategy.md                   # Markdown input
-    python scripts/analyze.py report.docx                   # DOCX input
-    python scripts/analyze.py paper.pdf -o library/paper/    # custom output dir
-    python scripts/analyze.py paper.pdf --parser-mode agent  # Mode B (FAISS)
+    python scripts/analyze.py paper.pdf                       # PDF input
+    python scripts/analyze.py strategy.md                     # Markdown input
+    python scripts/analyze.py report.docx                     # DOCX input
+    python scripts/analyze.py paper.pdf -o library/my_paper/  # custom slug
+    python scripts/analyze.py paper.pdf --parser-mode agent   # Mode B (FAISS)
 """
 
 import argparse
 import json
 import logging
 import os
-import re
 import shutil
 import sys
 from pathlib import Path
@@ -27,9 +29,9 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from paper2spec.extractor import extract_spec
-from paper2spec.config import get_library_path
 from paper2spec.models import PaperContent
 from paper2spec.parser import parse_document
+from paper2spec.paths import paper_layout
 from paper2spec.render import content_to_markdown, spec_to_markdown
 
 
@@ -60,14 +62,6 @@ def _load_instruction_context(paths: list[str], instructions_dir: str | None) ->
     return "".join(chunks)
 
 
-def _slugify(text: str) -> str:
-    """Convert a title to a filesystem-safe slug."""
-    text = text.lower().strip()
-    text = re.sub(r"[^\w\s-]", "", text)
-    text = re.sub(r"[-\s]+", "_", text)
-    return text[:80].rstrip("_") or "paper"
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Full pipeline: Document (PDF/MD/DOCX/TXT) → PaperContent + StrategySpec (JSON + Markdown)."
@@ -76,6 +70,10 @@ def main():
     parser.add_argument(
         "-o", "--output-dir",
         help="Output directory (default: <PAPER2SPEC_LIBRARY_PATH>/<slugified_title>/)",
+    )
+    parser.add_argument(
+        "--slug",
+        help="Override the auto-derived paper slug (filesystem-safe identifier)",
     )
     parser.add_argument(
         "--parser-mode",
@@ -117,22 +115,26 @@ def main():
     pc = parse_document(args.input, mode=args.parser_mode, model=args.model)
     print(f"   Title: {pc.title}")
 
-    # Determine output directory
+    # Determine the per-paper layout
     if args.output_dir:
-        out_dir = args.output_dir
+        # Honor an explicit override by treating it as the slug's root.
+        layout_root = Path(args.output_dir).expanduser().resolve()
+        from paper2spec.paths import paper_layout as _pl
+        # Build a layout whose root is exactly args.output_dir (still nested).
+        # If the user passed a path with /inputs/ or /paper/ already, we keep it.
+        layout = _pl(slug=args.slug or layout_root.name, library_root=layout_root.parent)
+        layout.ensure()
     else:
-        base_library = get_library_path()
-        slug = _slugify(pc.title or os.path.splitext(os.path.basename(args.input))[0])
-        out_dir = os.path.join(base_library, slug)
-    os.makedirs(out_dir, exist_ok=True)
+        slug = args.slug or pc.title or os.path.splitext(os.path.basename(args.input))[0]
+        layout = paper_layout(slug)
+        layout.ensure()
 
-    # Write PaperContent JSON
-    content_json_path = os.path.join(out_dir, "content.json")
+    # Write PaperContent JSON + Markdown to inputs/
+    content_json_path = layout.input_path("content.json")
     with open(content_json_path, "w", encoding="utf-8") as f:
         f.write(pc.to_json())
 
-    # Write PaperContent Markdown
-    content_md_path = os.path.join(out_dir, "content.md")
+    content_md_path = layout.input_path("content.md")
     with open(content_md_path, "w", encoding="utf-8") as f:
         f.write(content_to_markdown(pc))
 
@@ -146,32 +148,30 @@ def main():
         print(f"   Loaded instruction/clarification context ({len(instruction_context):,} chars)")
     result = extract_spec(pc, model=args.model, mode=args.extractor_mode, instruction_context=instruction_context)
 
-    # Write ExtractionResult JSON
-    spec_json_path = os.path.join(out_dir, "spec.json")
+    # Write ExtractionResult JSON + Markdown to inputs/
+    spec_json_path = layout.input_path("spec.json")
     with open(spec_json_path, "w", encoding="utf-8") as f:
         f.write(result.to_json())
 
-    # Write ExtractionResult Markdown
-    spec_md_path = os.path.join(out_dir, "spec.md")
+    spec_md_path = layout.input_path("spec.md")
     with open(spec_md_path, "w", encoding="utf-8") as f:
         f.write(spec_to_markdown(result))
 
     print(f"   → {spec_json_path} ({os.path.getsize(spec_json_path):,} bytes)")
     print(f"   → {spec_md_path}")
 
-    # Copy original source file into output directory for self-contained library
+    # Copy original source file into paper/ for self-contained library
     src_basename = os.path.basename(args.input)
-    src_dest = os.path.join(out_dir, src_basename)
+    src_dest = layout.paper_pdf_path(name=src_basename)
     if os.path.abspath(args.input) != os.path.abspath(src_dest):
         shutil.copy2(args.input, src_dest)
         print(f"   → {src_dest} (original source)")
 
-    # Write metadata
+    # Write metadata to inputs/
     metadata = {
         "source_file": os.path.abspath(args.input),
         "source_filename": src_basename,
         "source_format": os.path.splitext(src_basename)[1].lower(),
-        "paper_title": pc.title,
         "paper_title": pc.title,
         "parser_mode": args.parser_mode,
         "extractor_mode": args.extractor_mode,
@@ -181,26 +181,27 @@ def main():
         "model": args.model or os.environ.get("PAPER2SPEC_MODEL", ""),
         "num_strategies": result.num_detected,
         "strategies": [s.strategy_name for s in result.strategies],
-        "version": "0.3.0",
+        "version": "0.4.0",
+        "layout_version": "nested",
     }
-    meta_path = os.path.join(out_dir, "metadata.json")
+    meta_path = layout.input_path("metadata.json")
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
     # ── Summary ──
-    print(f"\n✅ Analysis complete → {out_dir}/")
+    print(f"\n✅ Analysis complete → {layout.root}/")
     print(f"   Strategies: {result.num_detected}")
     for i, spec in enumerate(result.strategies):
         print(f"   [{i+1}] {spec.strategy_name} ({spec.strategy_type})")
         print(f"       {len(spec.indicators)} indicators, {len(spec.logic_pipeline)} logic steps")
 
     print(f"\n   Files:")
-    print(f"     {src_basename:<16s} — Original document")
-    print(f"     content.json   — PaperContent (machine-readable)")
-    print(f"     content.md     — PaperContent (human-readable)")
-    print(f"     spec.json      — StrategySpec (machine-readable)")
-    print(f"     spec.md        — StrategySpec (human-readable)")
-    print(f"     metadata.json  — Analysis metadata")
+    print(f"     paper/{src_basename:<24s} — Original document")
+    print(f"     inputs/content.json          — PaperContent (machine-readable)")
+    print(f"     inputs/content.md            — PaperContent (human-readable)")
+    print(f"     inputs/spec.json             — StrategySpec (machine-readable)")
+    print(f"     inputs/spec.md               — StrategySpec (human-readable)")
+    print(f"     inputs/metadata.json         — Analysis metadata")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@
 """validate.py — Validate a generated strategy file without executing it.
 
 Usage:
-    python scripts/validate.py library/pairs_trading/strategy_1.py
+    python scripts/validate.py library/<slug>/src/strategy.py
 """
 
 import argparse

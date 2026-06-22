@@ -101,8 +101,8 @@ Rules:
 Example:
 
 ```
-[PROGRESS] paper2spec/extract — extracting strategy specs from content.json
-[ARTIFACT] library/upsa/spec.json — 1 strategy, 4 indicators, 3 logic steps
+[PROGRESS] paper2spec/extract — extracting strategy specs from inputs/content.json
+[ARTIFACT] library/upsa/inputs/spec.json — 1 strategy, 4 indicators, 3 logic steps
 [PROGRESS] HITL review — 1 open needs_human_review item, asking for resolution
 ```
 
@@ -214,18 +214,94 @@ When previous Copilot, VS Code, or agent logs are mentioned, verify that the ref
 
 Default generated artifacts go under `PAPER2SPEC_LIBRARY_PATH/<slug>/`, where `<slug>` is the paper or task slug confirmed with the user. If a custom output path is requested, confirm it before writing files.
 
-Expected artifact paths:
+### Directory layout (the per-paper contract)
 
-- `content.json` and `content.md` from paper2spec parsing
-- `spec.json` and `spec.md` from extraction and repair
-- `operator_pitfall_context.md` when pitfall retrieval is used
-- `strategy.py`, `strategy_1.py`, or the user-confirmed implementation filename from spec2code
-- `data/` for any data used by generated strategy code
-- `results/backtest_output.txt`, `results/metrics.json`, and `results/diagnosis_report.md` from validation/backtest/diagnosis
-- `results/portfolio_vs_assets.csv` and `results/portfolio_vs_assets.png` comparing the strategy portfolio value against same-capital buy-and-hold curves for every used equity/ETF/asset in one image; asset curves must use distinguishable colors and symbol labels/legend entries, and SPY and portfolio must be boldface (comparing same-parameter portfolio curves at 0%, 0.01%, and 0.05% commission in one image)
-- `results/key_pred/` with one CSV and one PNG per key observerable factors used by the strategy
+Every paper replication has the same nested structure. **All scripts and
+LLM-generated code MUST use `paper_layout(slug)` from
+`paper2spec/paths.py`** rather than constructing paths by hand — that's
+the single source of truth for this layout.
 
-Every status update after file generation should name the concrete workspace-relative path that was written.
+```
+<slug>/
+├── README.md                  # what this paper replicates, expected vs actual metrics, how to re-run
+├── paper/                     # source PDF (large; usually gitignored per-paper)
+│   └── original.pdf
+├── inputs/                    # paper2spec artifacts (parse + extract + metadata)
+│   ├── content.json
+│   ├── content.md
+│   ├── spec.json
+│   ├── spec.md
+│   └── metadata.json
+├── diagnostics/               # mid-pipeline debug artifacts
+│   ├── data_requirements.json
+│   └── data_match_report.json
+├── src/                       # generated strategy code
+│   ├── __init__.py
+│   └── strategy.py
+├── data/                      # parquet caches (gitignored per-paper)
+│   └── *.parquet
+├── results/                   # spec2code outputs
+│   ├── metrics.json
+│   ├── backtest_output.txt
+│   ├── diagnosis.md
+│   ├── portfolio_vs_assets.csv
+│   ├── portfolio_vs_assets.png
+│   ├── decile_spread.csv
+│   ├── decile_spread.png
+│   └── key_pred/              # one CSV + PNG per key observable factor
+│       ├── <factor>.csv
+│       └── <factor>.png
+└── config/                    # optional run config (run_config.yaml, etc.)
+```
+
+### File responsibilities
+
+| Path | Owner | Notes |
+|------|-------|-------|
+| `inputs/content.{json,md}` | `scripts/parse.py`, `scripts/analyze.py` | `PaperContent` — the parsed paper |
+| `inputs/spec.{json,md}` | `scripts/extract.py`, `scripts/analyze.py` | `ExtractionResult` (one or more `StrategySpec`) |
+| `inputs/metadata.json` | `scripts/analyze.py` | Pipeline run metadata (model, parser mode, instruction files) |
+| `diagnostics/data_requirements.json` | `scripts/extract_requirements.py` | What data the spec needs |
+| `diagnostics/data_match_report.json` | `scripts/extract_requirements.py` | What ClickHouse actually has |
+| `src/strategy.py` | spec2code LLM | Generated code. One file per paper — no `_1` suffix |
+| `data/*.parquet` | spec2code runtime | Local cache, see `assets/backtrader_template.py` |
+| `results/metrics.json` | spec2code runtime | Sharpe, max DD, total return, final value (per commission rate) |
+| `results/backtest_output.txt` | spec2code runtime | Human-readable backtest summary |
+| `results/diagnosis.md` | spec2code runtime | Strategy output vs paper-claimed metrics |
+| `results/portfolio_vs_assets.{csv,png}` | spec2code runtime | Strategy equity curve vs SPY (or `CRSP_VW` pre-1993) + asset buy-and-hold; 0% / 0.01% / 0.05% commission sweep |
+| `results/key_pred/<factor>.{csv,png}` | spec2code runtime | One per key observable factor |
+| `paper/original.pdf` | `scripts/analyze.py` | Copy of the source PDF for self-contained library |
+| `operator_pitfall_context.md` (legacy) | `scripts/operator_pitfalls.py` | Still emitted at the per-paper root for backward compatibility — move to `diagnostics/` if regenerating |
+
+### Why this layout (vs the previous flat layout)
+
+The previous flat layout put `content.json`, `spec.json`, `strategy_1.py`,
+`data_match_report.json`, and `ssrn-1262416.pdf` all siblings at the
+per-paper root. That was hard to navigate, made standalone-repo
+publication awkward, and gave no visual distinction between inputs,
+diagnostics, and outputs. The nested layout fixes all three, and
+`paper_layout(slug)` makes it enforceable.
+
+### Constructor reference
+
+```python
+from paper2spec.paths import paper_layout
+
+layout = paper_layout("ssrn_1262416")
+layout.ensure()                              # mkdir -p every subdir
+
+layout.input_path("spec.json")               # <root>/inputs/spec.json
+layout.diagnostic_path("data_match_report.json")
+layout.src_path("strategy.py")               # <root>/src/strategy.py
+layout.data_path("crsp_202601_dsf.parquet")
+layout.result_path("metrics.json")           # <root>/results/metrics.json
+layout.key_pred_path("max_daily_return.png")
+layout.config_path("run_config.yaml")
+layout.paper_pdf_path()                      # <root>/paper/original.pdf
+```
+
+Every status update after file generation should name the concrete
+workspace-relative path that was written.
 
 ## Spec2Code Metrics
 
@@ -270,16 +346,16 @@ uv run python scripts/parse.py <file> -o content.json
 uv run python scripts/extract.py content.json -o spec.json
 
 # Matched operator-pitfall context for repair/review
-uv run python scripts/operator_pitfalls.py spec.json -o operator_pitfall_context.md
+uv run python scripts/operator_pitfalls.py inputs/spec.json -o operator_pitfall_context.md
 
 # Extract data requirements and match against ClickHouse catalog
-uv run python scripts/extract_requirements.py library/<slug>/spec.json -o library/<slug>/
+uv run python scripts/extract_requirements.py library/<slug>/inputs/spec.json
 
 # Validate generated code
-uv run python scripts/validate_strategy.py library/<slug>/strategy_1.py
+uv run python scripts/validate_strategy.py library/<slug>/src/strategy.py
 
 # Run backtest
-uv run python library/<slug>/strategy_1.py
+uv run python library/<slug>/src/strategy.py
 
 # Search papers
 uv run python scripts/search.py "<query>" -n 5

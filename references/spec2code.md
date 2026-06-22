@@ -21,7 +21,9 @@ provides only tools the agent cannot do itself:
 
 ### Phase 1: Read the Spec
 
-Load `spec.json` from the paper's library directory. Each strategy has:
+Load `inputs/spec.json` from the paper's library directory (the
+`<slug>/` folder created by `scripts/analyze.py` — see
+`SKILL.md §Output Paths`). Each strategy has:
 
 ```json
 {
@@ -76,19 +78,22 @@ sizing → `self.broker.getvalue()` calculations.
 
 ### Phase 2: Generate Code
 
-Generate a **single self-contained Python file** (`strategy.py`) that includes:
+Generate a **single self-contained Python file** at `src/strategy.py`
+(not `strategy_1.py` — one paper, one strategy). The file must include:
 
 1. **Imports** — `backtrader as bt`, `json`, `datetime`, `urllib.request`, `os`
 2. **Data loading from ClickHouse** — Before writing any code, read
-   `data_match_report.json` to learn which tables provide each dataset.
-   Fetch ALL data via ClickHouse HTTP queries (see §Data Source below).
-   Cache results locally as CSV and reuse on subsequent runs.
-   **Never use yfinance, akshare, or hardcoded ticker lists.**
+   `diagnostics/data_match_report.json` to learn which tables provide
+   each dataset. Fetch ALL data via ClickHouse queries (see §Data
+   Source below). Cache results locally as Parquet and reuse on
+   subsequent runs. **Never use yfinance, akshare, or hardcoded
+   ticker lists.**
 3. **Strategy class** — `class MyStrategy(bt.Strategy)` with `__init__` and `next`
 4. **Cerebro setup** — Broker config, analyzers, initial cash
 5. **Metrics output** — Print key metrics as JSON to stdout
 6. **Visualization output** — Save equity curve, drawdown, traded-asset prices,
-   and every used indicator chart to `results/`
+   and every used indicator chart to `results/` (and per-factor charts
+   to `results/key_pred/`)
 7. **Commission comparison output** — For trading strategies, save a single equity-curve comparison chart for 0%, 0.01%, and 0.05% commission rates.
 8. **`if __name__ == "__main__"` guard**
 
@@ -96,12 +101,43 @@ Read [backtrader_patterns.md](backtrader_patterns.md) for canonical patterns.
 Read [indicator_cookbook.md](indicator_cookbook.md) for indicator implementations.
 Read [data_sources.md](data_sources.md) for ClickHouse connection details.
 
+#### Output paths — use `paper_layout()`, never hardcode
+
+Every generated strategy **MUST** resolve its paths via
+`paper2spec.paths.paper_layout(slug)` rather than constructing
+`os.path.join("library", slug, ...)` by hand. The layout helper is the
+single source of truth for the per-paper directory structure (see
+`SKILL.md §Output Paths`).
+
+```python
+from paper2spec.paths import paper_layout
+
+# The slug is the same one that produced this paper's inputs/.
+# Pass it via a small CLI arg or hardcode — but resolve paths via:
+layout = paper_layout("<slug>")
+layout.ensure()                          # idempotent mkdir -p
+
+DATA_DIR    = layout.data_dir            # <slug>/data/
+RESULTS_DIR = layout.results_dir         # <slug>/results/
+KEY_PRED_DIR = layout.key_pred_dir       # <slug>/results/key_pred/
+INPUT_SPEC  = layout.input_path("spec.json")
+DIAG_REPORT = layout.diagnostic_path("data_match_report.json")
+```
+
+Why this matters: the previous flat layout (`strategy_1.py` at root,
+diagnostic JSONs sibling with inputs) was hard to navigate, made
+standalone-repo publication awkward, and gave no visual distinction
+between pipeline stages. The nested layout fixes all three, but only
+if every script and every generated file uses it.
+
 **Start from the bundled runner template** [assets/backtrader_template.py](../assets/backtrader_template.py).
 Copy its structural parts verbatim and adapt only the marked spots
 (`fetch_data_cached` source — see §Data Source below, `MyStrategy.__init__/next`,
 universe/SPY symbol). The local data cache, analyzer `_name` strings, headless
 `matplotlib.use('Agg')`, the three-commission sweep, and the `portfolio_vs_assets`
 chart with SPY + portfolio boldface are the output contract — keep them as-is.
+The template's `DATA_DIR` / `RESULTS_DIR` resolution is now derived from
+`paper_layout(slug)` rather than from the script's `__file__` location.
 
 #### Data Source (ClickHouse Native Driver)
 
@@ -287,7 +323,7 @@ positions explicitly when needed.
 Before running, validate the code:
 
 ```bash
-uv run python scripts/validate_strategy.py library/<paper>/strategy_1.py
+uv run python scripts/validate_strategy.py library/<paper>/src/strategy.py
 ```
 
 This checks:
@@ -324,7 +360,7 @@ Run the strategy file directly in the terminal:
 
 ```bash
 cd library/<paper>/
-uv run python strategy_1.py
+uv run python src/strategy.py
 ```
 
 Read stdout for metrics JSON. Read stderr for errors.
@@ -338,7 +374,7 @@ create a dedicated venv in the library subdirectory:
 ```bash
 cd library/<paper>/
 uv venv && uv pip install backtrader
-uv run python strategy_1.py
+uv run python src/strategy.py
 ```
 
 ### Phase 5: Diagnose
@@ -427,10 +463,10 @@ After a successful backtest, present results in this format:
 - For deviations, explain likely causes (data source, time period, costs)
 
 **3. Generated files** (list paths):
-- `strategy_1.py` — self-contained strategy code
-- `spec.json` — strategy specification
+- `src/strategy.py` — self-contained strategy code
+- `inputs/spec.json` — strategy specification
 - `results/portfolio_vs_assets.csv` and `results/portfolio_vs_assets.png` comparing the strategy portfolio value against same-capital buy-and-hold curves for every used equity/ETF/asset in one image; asset curves must use distinguishable colors and symbol labels/legend entries, and SPY and portfolio must be boldface (comparing same-parameter portfolio curves at 0%, 0.01%, and 0.05% commission in one image)
-- `results/key_pred/` with one CSV and one PNG per key observerable factors used by the strategy
+- `results/key_pred/` with one CSV and one PNG per key observable factors used by the strategy
 - `data/` local cached data paths used by the run
 
 **4. Optional — if user requests:**
@@ -444,16 +480,38 @@ After a successful backtest, present results in this format:
 
 ```
 library/<paper>/
-├── spec.json              # From paper2spec
-├── strategy_1.py          # Generated code │   ├── data/
+├── README.md
+├── paper/                       # source PDF (paper/original.pdf)
+├── inputs/                      # paper2spec artifacts
+│   ├── content.json
+│   ├── content.md
+│   ├── spec.json
+│   ├── spec.md
+│   └── metadata.json
+├── diagnostics/                 # mid-pipeline debug artifacts
+│   ├── data_requirements.json
+│   └── data_match_report.json
+├── src/
+│   ├── __init__.py
+│   └── strategy.py              # one paper, one strategy
+├── data/                        # parquet caches (gitignored)
 ├── results/
 │   ├── metrics.json
 │   ├── backtest_output.txt
-│   ├── diagnosis_report.md
-│   ├── portfolio_vs_assets_commission_comparison.csv
-│   └── portfolio_vs_assets_commission_comparison.png
-└── metadata.json
+│   ├── diagnosis.md
+│   ├── portfolio_vs_assets.csv
+│   ├── portfolio_vs_assets.png
+│   ├── decile_spread.csv        # when applicable
+│   ├── decile_spread.png
+│   └── key_pred/                # one CSV + PNG per key factor
+│       ├── <factor>.csv
+│       └── <factor>.png
+└── config/                      # optional
 ```
+
+See `SKILL.md §Output Paths` for the full contract. Use
+`paper_layout(slug)` from `paper2spec/paths.py` everywhere — never
+construct paths by hand.
 
 ## Validation Tool
 

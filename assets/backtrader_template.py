@@ -33,6 +33,13 @@ Required charts under results/ (see SKILL.md "Output Paths"):
   - results/portfolio_vs_assets.png / .csv  (3 commission curves + every asset
     buy-and-hold; SPY and portfolio boldface; distinguishable colors + legend)
   - results/key_pred/<factor>.png / .csv    (one per key observable factor)
+
+The DATA_DIR / RESULTS_DIR / KEY_PRED_DIR constants below are resolved
+via `paper_layout(slug)` from `paper2spec/paths.py`, which expects this
+file to be copied to `<slug>/src/strategy.py`. The slug is inferred
+from `Path(__file__).parent.parent.name`. Adapt only if the user
+confirmed a custom path (e.g. running the strategy from outside the
+nested layout).
 """
 
 # ── Imports ──────────────────────────────────────────────────────────────────
@@ -65,14 +72,52 @@ for _ancestor in [Path(__file__).resolve().parent, *Path(__file__).resolve().par
                 os.environ[_k] = _v
         break
 
-# RESULTS_DIR / DATA_DIR are resolved relative to the strategy file so the run
-# is portable across machines. Adapt only if the user confirmed a custom path.
-HERE = Path(__file__).resolve().parent
-DATA_DIR = HERE / "data"
-RESULTS_DIR = HERE / "results"
-KEY_PRED_DIR = RESULTS_DIR / "key_pred"
-for _d in (DATA_DIR, RESULTS_DIR, KEY_PRED_DIR):
-    _d.mkdir(parents=True, exist_ok=True)
+# RESULTS_DIR / DATA_DIR are resolved via `paper_layout(slug)` so the run
+# always lands in the per-paper nested layout (paper/, inputs/,
+# diagnostics/, src/, data/, results/, results/key_pred/, config/).
+# The slug is inferred from the strategy file's path: this template
+# expects to be copied to `<slug>/src/strategy.py`, so `<slug>` is the
+# parent's parent's name. Adapt only if the user confirmed a custom path.
+import sys as _sys
+_HERE = Path(__file__).resolve().parent
+# Allow `x2strategy` itself to be importable when this file is run
+# directly (it is the template — we do not assume `paper2spec` is on
+# PYTHONPATH at template-time). Repo-root detection: walk up until we
+# find a `pyproject.toml`.
+for _anc in [_HERE, *_HERE.parents]:
+    if (_anc / "pyproject.toml").is_file() and (_anc / "paper2spec").is_dir():
+        if str(_anc) not in _sys.path:
+            _sys.path.insert(0, str(_anc))
+        break
+
+try:
+    from paper2spec.paths import paper_layout as _paper_layout
+    # File lives at <slug>/src/strategy.py → slug is the parent's parent name.
+    # If this template is being imported directly (e.g. tests, smoke
+    # import) without having been copied into a paper layout yet, the
+    # inferred "slug" will be "assets" — treat that as the template
+    # itself, not a paper, and fall through to the flat-layout fallback.
+    _slug = _HERE.parent.name
+    if _slug in ("src", "assets", ""):
+        raise ImportError("template run from non-paper location")
+    _layout = _paper_layout(_slug)
+    _layout.ensure()
+    DATA_DIR = _layout.data_dir
+    RESULTS_DIR = _layout.results_dir
+    KEY_PRED_DIR = _layout.key_pred_dir
+    INPUT_SPEC = _layout.input_path("spec.json")
+    DIAG_REPORT = _layout.diagnostic_path("data_match_report.json")
+    PAPER_PDF = _layout.paper_pdf_path()
+except ImportError:
+    # Fallback when paper2spec is unavailable OR this template is run
+    # directly from its assets/ location without being copied into a
+    # paper. New runs (copied to <slug>/src/strategy.py) should land in
+    # the per-paper layout above.
+    DATA_DIR = _HERE / "data"
+    RESULTS_DIR = _HERE / "results"
+    KEY_PRED_DIR = RESULTS_DIR / "key_pred"
+    for _d in (DATA_DIR, RESULTS_DIR, KEY_PRED_DIR):
+        _d.mkdir(parents=True, exist_ok=True)
 
 # Set from the spec. SPY is the mandatory US-equity baseline (boldface in plots).
 SPY_SYMBOL = "SPY"
