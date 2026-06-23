@@ -81,7 +81,10 @@ sizing → `self.broker.getvalue()` calculations.
 Generate a **single self-contained Python file** at `src/strategy.py`
 (not `strategy_1.py` — one paper, one strategy). The file must include:
 
-1. **Imports** — `backtrader as bt`, `json`, `datetime`, `urllib.request`, `os`
+1. **Imports** — `backtrader as bt` (single-asset strategies) or pure
+   pandas/numpy (cross-sectional / long-short strategies — preferred for
+   academic paper replication). Always import from `utils` for the
+   deterministic primitives (see §Deterministic Primitives below).
 2. **Data loading from ClickHouse** — Before writing any code, read
    `diagnostics/data_match_report.json` to learn which tables provide
    each dataset. Fetch ALL data via ClickHouse queries (see §Data
@@ -89,7 +92,9 @@ Generate a **single self-contained Python file** at `src/strategy.py`
    subsequent runs. **Never use yfinance, akshare, or hardcoded
    ticker lists.**
 3. **Strategy class** — `class MyStrategy(bt.Strategy)` with `__init__` and `next`
-4. **Cerebro setup** — Broker config, analyzers, initial cash
+   (backtrader strategies only). For cross-sectional strategies, use a
+   vectorized pandas loop — see the MAX paper example.
+4. **Cerebro setup** — Broker config, analyzers, initial cash (backtrader)
 5. **Metrics output** — Print key metrics as JSON to stdout
 6. **Visualization output** — Save equity curve, drawdown, traded-asset prices,
    and every used indicator chart to `results/` (and per-factor charts
@@ -100,6 +105,67 @@ Generate a **single self-contained Python file** at `src/strategy.py`
 Read [backtrader_patterns.md](backtrader_patterns.md) for canonical patterns.
 Read [indicator_cookbook.md](indicator_cookbook.md) for indicator implementations.
 Read [data_sources.md](data_sources.md) for ClickHouse connection details.
+
+#### Deterministic Primitives (`x2strategy/utils/`)
+
+**The agent must NOT reimplement** the following operations — they live in
+`x2strategy/utils/` as deterministic primitives. Same input → same output,
+every time. This is the contract that makes backtest outputs reproducible
+across agent runs.
+
+```python
+from utils import (
+    assign_quantiles,           # within-date quantile binning
+    bin_returns,                # EW + VW per-bin returns
+    long_short,                 # long-short portfolio from bins
+    performance_metrics,        # Sharpe, CAGR, max DD, annual return/vol
+    format_metrics,             # pretty-print metrics dict
+    plot_cumulative_returns,    # P&L curve
+    plot_drawdown,              # drawdown over time
+    plot_decile_spread,         # per-bin EW + VW bar charts
+    plot_performance_comparison,# multiple portfolios side by side
+    fama_macbeth,               # monthly cross-section OLS + Newey-West
+    summarize_fama_macbeth,     # formatted table output
+)
+```
+
+**The agent writes only the signal** (paper-specific: which column to
+bin, what to weight by). Primitives handle binning, portfolio
+construction, metrics, plots, and Fama-MacBeth regressions.
+
+Example pipeline (the MAX paper, simplified):
+
+```python
+# 1. Agent computes the signal (paper-specific)
+monthly["max_daily_return"] = compute_monthly_max_daily_ret(daily)
+
+# 2. Primitives do the rest:
+monthly["decile"] = assign_quantiles(monthly, "month", "max_daily_return", n_bins=10)
+bin_rets = bin_returns(monthly, "month", "decile", "ret", "mcap_lag1")
+ls = long_short(bin_rets, "month", "VW", long_bin=10, short_bin=1)
+
+metrics = performance_metrics(ls["ret"], freq="M")
+# → {'total_return': ..., 'sharpe_ratio': ..., 'max_drawdown': ..., ...}
+
+plot_cumulative_returns(ls, "month", "ret",
+                        save_to=layout.result_path("pnl_curve.png"))
+plot_drawdown(ls, "month", "ret",
+              save_to=layout.result_path("drawdown.png"))
+plot_decile_spread(bin_rets, save_to=layout.result_path("decile_spread.png"))
+
+# Cross-sectional regression with size / momentum / etc controls
+fm = fama_macbeth(panel, "ret",
+                  ["max_daily_return", "log_mcap", "ret_11_2", "ret_1"],
+                  time_col="month")
+print(summarize_fama_macbeth(fm))
+```
+
+**What backtrader is for:** single-asset, event-driven strategies
+(SMA crossovers, RSI thresholds, etc.). For cross-sectional /
+portfolio strategies — the bulk of academic finance — **skip backtrader
+entirely** and use the primitives above with a vectorized pandas loop.
+See `replications/ssrn_1262416_e2e/strategy_1.py` for the canonical
+pre-primitives layout (it inlines most of what `utils` now provides).
 
 #### Output paths — use `paper_layout()`, never hardcode
 
