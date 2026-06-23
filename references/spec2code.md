@@ -21,7 +21,7 @@ provides only tools the agent cannot do itself:
 
 ### Phase 1: Read the Spec
 
-Load `inputs/spec.json` from the paper's library directory (the
+Load `inputs/spec.json` from the paper's replication directory (the
 `<slug>/` folder created by `scripts/analyze.py` — see
 `SKILL.md §Output Paths`). Each strategy has:
 
@@ -105,7 +105,7 @@ Read [data_sources.md](data_sources.md) for ClickHouse connection details.
 
 Every generated strategy **MUST** resolve its paths via
 `paper2spec.paths.paper_layout(slug)` rather than constructing
-`os.path.join("library", slug, ...)` by hand. The layout helper is the
+`os.path.join("replications", slug, ...)` by hand. The layout helper is the
 single source of truth for the per-paper directory structure (see
 `SKILL.md §Output Paths`).
 
@@ -323,7 +323,7 @@ positions explicitly when needed.
 Before running, validate the code:
 
 ```bash
-uv run python scripts/validate_strategy.py library/<paper>/src/strategy.py
+uv run python scripts/validate_strategy.py replications/<paper>/src/strategy.py
 ```
 
 This checks:
@@ -359,7 +359,7 @@ Fix the errors and re-validate. Do not proceed to Phase 4 with errors.
 Run the strategy file directly in the terminal:
 
 ```bash
-cd library/<paper>/
+cd replications/<paper>/
 uv run python src/strategy.py
 ```
 
@@ -369,10 +369,10 @@ Read stdout for metrics JSON. Read stderr for errors.
 own data, runs the backtest, and prints results. No external executor needed.
 
 If the strategy requires backtrader that isn't in the skill's main venv,
-create a dedicated venv in the library subdirectory:
+create a dedicated venv in the per-paper directory:
 
 ```bash
-cd library/<paper>/
+cd replications/<paper>/
 uv venv && uv pip install backtrader
 uv run python src/strategy.py
 ```
@@ -479,7 +479,7 @@ After a successful backtest, present results in this format:
 ## Output Structure
 
 ```
-library/<paper>/
+replications/<paper>/
 ├── README.md
 ├── paper/                       # source PDF (paper/original.pdf)
 ├── inputs/                      # paper2spec artifacts
@@ -549,7 +549,7 @@ All models have `to_dict()`, `from_dict()`, `to_json()` for serialization.
 | Env Variable | Default | Description |
 |-------------|---------|-------------|
 | `SPEC2CODE_BACKTEST_TIMEOUT` | `300` | Timeout guidance for agent (not enforced by code) |
-| `SPEC2CODE_DATA_CACHE` | `<library>/data_cache` | Suggested cache dir for downloaded data |
+| `SPEC2CODE_DATA_CACHE` | `<replications>/data_cache` | Suggested cache dir for downloaded data |
 
 These supplement the shared paper2spec config (LLM model, API keys, etc.).
 

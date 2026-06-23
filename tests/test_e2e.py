@@ -1107,7 +1107,7 @@ class TestFullPipelineE2E:
 
 
 # ═══════════════════════════════════════════════════════════════
-# 7. LIBRARY GOLDEN TESTS (example output quality)
+# 7. EXAMPLE GOLDEN TESTS (output quality of pre-generated replications)
 # ═══════════════════════════════════════════════════════════════
 
 

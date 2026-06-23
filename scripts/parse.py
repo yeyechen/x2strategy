@@ -6,7 +6,7 @@ Usage (CLI):
     python scripts/parse.py paper.pdf --mode agent       # Mode B (FAISS)
     python scripts/parse.py paper.pdf -o content.json    # custom output path
     # default output if -o omitted:
-    # <PAPER2SPEC_LIBRARY_PATH>/<pdf_stem>/inputs/content.json
+    # <PAPER2SPEC_REPLICATIONS_PATH>/<pdf_stem>/inputs/content.json
 
 Usage (agent):
     The agent reads SKILL.md, then runs this script on the user's PDF.
@@ -35,7 +35,7 @@ def main():
     parser.add_argument("pdf", help="Path to the PDF file")
     parser.add_argument(
         "-o", "--output",
-        help="Output JSON path (default: <PAPER2SPEC_LIBRARY_PATH>/<pdf_stem>/inputs/content.json)",
+        help="Output JSON path (default: <PAPER2SPEC_REPLICATIONS_PATH>/<pdf_stem>/inputs/content.json)",
     )
     parser.add_argument(
         "--mode",

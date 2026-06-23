@@ -159,7 +159,7 @@ After extraction and strategy/plan selection, it must read [references/extractio
 It should also use the same interactive flow when you pick search results, add repair-time pitfall notes or clarifications, approve inferred defaults, or resolve any `needs_human_review` items surfaced by compare/repair.
 After code generation and diagnosis, it should present an interactive next-action menu instead of assuming the workflow is finished.
 
-Generated files should be written under `PAPER2SPEC_LIBRARY_PATH/<slug>/` by default, for example `content.json`, `spec.json`, the generated implementation file, and `results/metrics.json`. If a referenced Copilot/VS Code log path is empty or incomplete, regenerate the artifacts from the original paper, instructions, and data instead of relying on the log summary.
+Generated files should be written under `PAPER2SPEC_REPLICATIONS_PATH/<slug>/` by default, for example `content.json`, `spec.json`, the generated implementation file, and `results/metrics.json`. If a referenced Copilot/VS Code log path is empty or incomplete, regenerate the artifacts from the original paper, instructions, and data instead of relying on the log summary.
 
 Spec2Code outputs should include Sharpe ratio, maximum drawdown, total return, and return value/final portfolio value whenever those metrics are meaningful for the confirmed implementation target.
 
@@ -230,7 +230,7 @@ examples/upsa/
 x2strategy/
 ├── paper2spec/                 # Phase 1: Document → Structured Spec
 │   ├── __init__.py
-│   ├── config.py               #   Environment and library path configuration
+│   ├── config.py               #   Environment and replications-path configuration
 │   ├── parser.py               #   Multi-format parser (PDF / MD / DOCX / TXT)
 │   ├── pdf_utils.py            #   PDF extraction helpers
 │   ├── extractor.py            #   PaperContent → ExtractionResult (L0-L4)
@@ -316,7 +316,7 @@ ambiguous allocation logic, or the user wants to customize extraction requiremen
 
 | Variable | Default | Description |
 |:---------|:--------|:------------|
-| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Output root directory |
+| `PAPER2SPEC_REPLICATIONS_PATH` | `./replications` | Output root directory |
 | `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | LLM model ([LiteLLM format](https://docs.litellm.ai/docs/providers)) |
 | `SPEC2CODE_BACKTEST_TIMEOUT` | `300` | Backtest timeout in seconds |
 | `DEEPSEEK_API_KEY` | — | DeepSeek (recommended: best cost/quality) |

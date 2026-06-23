@@ -12,10 +12,10 @@ self-contained.
 
 Usage:
     python scripts/analyze.py paper.pdf                       # PDF input
-    python scripts/analyze.py strategy.md                     # Markdown input
-    python scripts/analyze.py report.docx                     # DOCX input
-    python scripts/analyze.py paper.pdf -o library/my_paper/  # custom slug
-    python scripts/analyze.py paper.pdf --parser-mode agent   # Mode B (FAISS)
+    python scripts/analyze.py strategy.md                          # Markdown input
+    python scripts/analyze.py report.docx                          # DOCX input
+    python scripts/analyze.py paper.pdf -o replications/my_paper/  # custom slug
+    python scripts/analyze.py paper.pdf --parser-mode agent        # Mode B (FAISS)
 """
 
 import argparse
@@ -69,7 +69,7 @@ def main():
     parser.add_argument("input", help="Path to document file (PDF, .md, .docx, or .txt)")
     parser.add_argument(
         "-o", "--output-dir",
-        help="Output directory (default: <PAPER2SPEC_LIBRARY_PATH>/<slugified_title>/)",
+        help="Output directory (default: <PAPER2SPEC_REPLICATIONS_PATH>/<slugified_title>/)",
     )
     parser.add_argument(
         "--slug",
@@ -122,7 +122,7 @@ def main():
         from paper2spec.paths import paper_layout as _pl
         # Build a layout whose root is exactly args.output_dir (still nested).
         # If the user passed a path with /inputs/ or /paper/ already, we keep it.
-        layout = _pl(slug=args.slug or layout_root.name, library_root=layout_root.parent)
+        layout = _pl(slug=args.slug or layout_root.name, replications_root=layout_root.parent)
         layout.ensure()
     else:
         slug = args.slug or pc.title or os.path.splitext(os.path.basename(args.input))[0]

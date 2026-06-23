@@ -570,7 +570,7 @@ def real_paper_pdf():
     import os
     path = os.path.join(
         os.path.dirname(__file__),
-        "..", "library", "ssrn_1262416", "ssrn-1262416.pdf",
+        "..", "replications", "ssrn_1262416", "paper", "ssrn-1262416.pdf",
     )
     if not os.path.isfile(path):
         # Fallback: try the papers directory

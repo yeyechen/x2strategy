@@ -7,7 +7,7 @@
 
 ### DeepSeek (recommended)
 ```
-PAPER2SPEC_LIBRARY_PATH=/absolute/path/to/library
+PAPER2SPEC_REPLICATIONS_PATH=/absolute/path/to/replications
 PAPER2SPEC_MODEL=deepseek/deepseek-chat
 DEEPSEEK_API_KEY=sk-actualKeyFromUser
 PAPER2SPEC_INIT_VERSION=1
@@ -15,7 +15,7 @@ PAPER2SPEC_INIT_VERSION=1
 
 ### OpenRouter (multi-model gateway)
 ```
-PAPER2SPEC_LIBRARY_PATH=/absolute/path/to/library
+PAPER2SPEC_REPLICATIONS_PATH=/absolute/path/to/replications
 PAPER2SPEC_MODEL=openrouter/deepseek/deepseek-chat-v3-0324
 OPENROUTER_API_KEY=sk-or-actualKeyFromUser
 PAPER2SPEC_INIT_VERSION=1
@@ -23,7 +23,7 @@ PAPER2SPEC_INIT_VERSION=1
 
 ### OpenAI (direct)
 ```
-PAPER2SPEC_LIBRARY_PATH=/absolute/path/to/library
+PAPER2SPEC_REPLICATIONS_PATH=/absolute/path/to/replications
 PAPER2SPEC_MODEL=openai/gpt-4o-mini
 OPENAI_API_KEY=sk-actualKeyFromUser
 PAPER2SPEC_INIT_VERSION=1
@@ -41,7 +41,7 @@ uv run python -c "from paper2spec.llm import chat; print(chat('Say OK'))" 2>&1 |
 
 Initialization completion policy:
 - `PAPER2SPEC_INIT_VERSION` is a quick marker (recommended value: `1`).
-- Do not trust marker alone. Always verify runtime: `PAPER2SPEC_LIBRARY_PATH`,
+- Do not trust marker alone. Always verify runtime: `PAPER2SPEC_REPLICATIONS_PATH`,
   `PAPER2SPEC_MODEL`, and at least one provider API key must all be set.
 
 ---
@@ -58,7 +58,7 @@ Accepts: `.pdf`, `.md`, `.markdown`, `.docx`, `.txt` (auto-detects from extensio
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-o, --output-dir` | `<PAPER2SPEC_LIBRARY_PATH>/<slug>/` | Output directory |
+| `-o, --output-dir` | `<PAPER2SPEC_REPLICATIONS_PATH>/<slug>/` | Output directory |
 | `--parser-mode` | `builtin` | `builtin` (fast, <40 pages) or `agent` (FAISS semantic retrieval) |
 | `--extractor-mode` | `multilayer` | `multilayer` (recommended) or `single` (legacy) |
 | `--instruction` | — | Extra instruction/clarification Markdown file to ground extraction; can be repeated |
@@ -81,7 +81,7 @@ Accepts: `.pdf`, `.md`, `.markdown`, `.docx`, `.txt` (auto-detects from extensio
 uv run python scripts/parse.py <file> [--mode builtin|agent] [--model MODEL] [-o FILE]
 ```
 
-Default output: `<PAPER2SPEC_LIBRARY_PATH>/<file_stem>/content.json`
+Default output: `<PAPER2SPEC_REPLICATIONS_PATH>/<file_stem>/inputs/content.json`
 
 ### `scripts/extract.py` — PaperContent → ExtractionResult
 
@@ -151,14 +151,22 @@ cerebro runner, `__main__` guard.
 ### Output Directory Structure
 
 ```
-library/<slug>/
-├── <original_file>   # Original document (auto-copied)
-├── content.json      # PaperContent (machine-readable)
-├── content.md        # PaperContent (human-readable)
-├── spec.json         # ExtractionResult with all strategies
-├── spec.md           # Strategy summary (human-readable)
-└── metadata.json     # Analysis metadata
+replications/<slug>/
+├── paper/<original_file>   # Original document (auto-copied)
+├── inputs/
+│   ├── content.json      # PaperContent (machine-readable)
+│   ├── content.md        # PaperContent (human-readable)
+│   ├── spec.json         # ExtractionResult with all strategies
+│   ├── spec.md           # Strategy summary (human-readable)
+│   └── metadata.json     # Analysis metadata
+├── diagnostics/
+├── src/                  # generated strategy code (strategy.py)
+├── data/                 # parquet caches
+├── results/              # metrics, plots, key_pred/
+└── config/
 ```
+
+See `SKILL.md §Output Paths` for the full contract.
 
 ---
 
@@ -206,10 +214,10 @@ The extractor automatically detects multiple independent strategies:
 
 ## Library Pattern Management
 
-Organize analyzed papers in `library/`, each paper in its own subdirectory:
+Organize analyzed papers in `replications/`, each paper in its own subdirectory:
 
 ```
-library/
+replications/
 ├── tactical_asset_allocation/
 │   ├── paper/
 │   │   └── faber_2007.pdf
@@ -238,7 +246,7 @@ generated strategy uses `paper_layout(slug)` from `paper2spec/paths.py`
 to resolve these paths — never construct them by hand.
 
 **Agent guidelines:**
-- Before analyzing, check `library/` for existing entries (scan
+- Before analyzing, check `replications/` for existing entries (scan
   `inputs/metadata.json`).
 - Use descriptive slugs (`momentum_crashes` not `paper1`).
 - Cross-paper comparison: read relevant `inputs/spec.json` files and
@@ -249,7 +257,7 @@ to resolve these paths — never construct them by hand.
 
 ```python
 import json
-result = json.load(open("library/pairs_trading/inputs/spec.json"))
+result = json.load(open("replications/pairs_trading/inputs/spec.json"))
 strategy = result["strategies"][0]  # Pick by index
 # Agent reads this spec dict and generates Backtrader code
 ```
@@ -259,10 +267,10 @@ strategy = result["strategies"][0]  # Pick by index
 ## Strategy Virtual Environments
 
 Generated strategies may need their own dependencies. When generating code,
-consider creating a dedicated venv in the library subdirectory:
+consider creating a dedicated venv in the per-paper directory:
 
 ```bash
-cd library/<paper>/
+cd replications/<paper>/
 uv venv
 uv pip install backtrader yfinance akshare
 uv run python src/strategy.py

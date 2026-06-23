@@ -25,15 +25,15 @@ def load_project_env() -> None:
         pass
 
 
-def get_library_path(default: str = "./library") -> str:
-    """Return library path from env, with a deterministic fallback.
+def get_replications_path(default: str = "./replications") -> str:
+    """Return replications root path from env, with a deterministic fallback.
 
     Priority:
-      1) PAPER2SPEC_LIBRARY_PATH
+      1) PAPER2SPEC_REPLICATIONS_PATH
       2) provided default
     """
     load_project_env()
-    raw = os.getenv("PAPER2SPEC_LIBRARY_PATH", default).strip()
+    raw = os.getenv("PAPER2SPEC_REPLICATIONS_PATH", default).strip()
     path = Path(raw).expanduser()
     if not path.is_absolute():
         path = (Path.cwd() / path).resolve()
@@ -46,7 +46,7 @@ def get_init_status() -> dict[str, object]:
 
     marker = os.getenv("PAPER2SPEC_INIT_VERSION", "").strip()
     model = os.getenv("PAPER2SPEC_MODEL", "").strip()
-    library = os.getenv("PAPER2SPEC_LIBRARY_PATH", "").strip()
+    replications_path = os.getenv("PAPER2SPEC_REPLICATIONS_PATH", "").strip()
     has_any_api_key = any(
         bool(os.getenv(k, "").strip())
         for k in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY")
@@ -57,8 +57,8 @@ def get_init_status() -> dict[str, object]:
         missing.append("PAPER2SPEC_INIT_VERSION")
     if not model:
         missing.append("PAPER2SPEC_MODEL")
-    if not library:
-        missing.append("PAPER2SPEC_LIBRARY_PATH")
+    if not replications_path:
+        missing.append("PAPER2SPEC_REPLICATIONS_PATH")
     if not has_any_api_key:
         missing.append("{DEEPSEEK_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY}")
 
@@ -66,7 +66,7 @@ def get_init_status() -> dict[str, object]:
         "initialized": len(missing) == 0,
         "missing": missing,
         "init_version": marker,
-        "library_path": get_library_path() if library else "",
+        "replications_path": get_replications_path() if replications_path else "",
     }
 
 

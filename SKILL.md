@@ -102,7 +102,7 @@ Example:
 
 ```
 [PROGRESS] paper2spec/extract — extracting strategy specs from inputs/content.json
-[ARTIFACT] library/upsa/inputs/spec.json — 1 strategy, 4 indicators, 3 logic steps
+[ARTIFACT] replications/upsa/inputs/spec.json — 1 strategy, 4 indicators, 3 logic steps
 [PROGRESS] HITL review — 1 open needs_human_review item, asking for resolution
 ```
 
@@ -136,11 +136,11 @@ On first use, walk through three steps. If a step is already configured, report 
 ### Step 1 — Workspace Location
 
 Present choice via interactive tool:
-- `./library/` (default, recommended)
+- `./replications/` (default, recommended)
 - Custom path
 
-Write `PAPER2SPEC_LIBRARY_PATH=/absolute/path` to `.env`.
-Scan the directory for existing `metadata.json` to detect prior analyses.
+Write `PAPER2SPEC_REPLICATIONS_PATH=/absolute/path` to `.env`.
+Scan the directory for existing `inputs/metadata.json` to detect prior analyses.
 
 ### Step 2 — LLM API Key
 
@@ -196,7 +196,7 @@ Just tell me what you want to do, and I will handle the rest.
 
 Use one workflow for all tasks. Do not choose between competing routers.
 
-1. **Setup** — verify `.env`, library path, API key if needed, Python environment, and user-selected scope.
+1. **Setup** — verify `.env`, replications path, API key if needed, Python environment, and user-selected scope.
 2. **Input confirmation** — identify the paper/spec/data/instruction files or search results; ask whether to add clarification, constraints, selected-plan preferences, known pitfalls, or reference files.
 3. **paper2spec: PDF/text to content** — parse the selected document into grounded content artifacts.
 4. **paper2spec: extract** — extract candidate strategy specs/plans from the content plus user instructions.
@@ -212,7 +212,7 @@ When previous Copilot, VS Code, or agent logs are mentioned, verify that the ref
 
 ## Output Paths
 
-Default generated artifacts go under `PAPER2SPEC_LIBRARY_PATH/<slug>/`, where `<slug>` is the paper or task slug confirmed with the user. If a custom output path is requested, confirm it before writing files.
+Default generated artifacts go under `PAPER2SPEC_REPLICATIONS_PATH/<slug>/`, where `<slug>` is the paper or task slug confirmed with the user. If a custom output path is requested, confirm it before writing files.
 
 ### Directory layout (the per-paper contract)
 
@@ -270,7 +270,7 @@ the single source of truth for this layout.
 | `results/diagnosis.md` | spec2code runtime | Strategy output vs paper-claimed metrics |
 | `results/portfolio_vs_assets.{csv,png}` | spec2code runtime | Strategy equity curve vs SPY (or `CRSP_VW` pre-1993) + asset buy-and-hold; 0% / 0.01% / 0.05% commission sweep |
 | `results/key_pred/<factor>.{csv,png}` | spec2code runtime | One per key observable factor |
-| `paper/original.pdf` | `scripts/analyze.py` | Copy of the source PDF for self-contained library |
+| `paper/original.pdf` | `scripts/analyze.py` | Copy of the source PDF for self-contained replication |
 | `operator_pitfall_context.md` (legacy) | `scripts/operator_pitfalls.py` | Still emitted at the per-paper root for backward compatibility — move to `diagnostics/` if regenerating |
 
 ### Why this layout (vs the previous flat layout)
@@ -317,7 +317,7 @@ For US equity strategies, SPY must be included and highlighted as the market bas
 ## Agent Pipeline Flow
 
 ```
-1. Setup: confirm environment, library path, keys if needed, and task scope
+1. Setup: confirm environment, replications path, keys if needed, and task scope
 2. Confirm inputs: paper/spec/data/instructions/search result + clarifications
 3. paper2spec: parse PDF/text/doc to content artifacts
 4. paper2spec: extract candidate specs/plans
@@ -339,7 +339,7 @@ Agent-only. Run silently; present results in natural language.
 
 ```bash
 # Document → spec
-uv run python scripts/analyze.py <file> -o library/<slug>/
+uv run python scripts/analyze.py <file> -o replications/<slug>/
 
 # Step-by-step paper2spec
 uv run python scripts/parse.py <file> -o content.json
@@ -349,13 +349,13 @@ uv run python scripts/extract.py content.json -o spec.json
 uv run python scripts/operator_pitfalls.py inputs/spec.json -o operator_pitfall_context.md
 
 # Extract data requirements and match against ClickHouse catalog
-uv run python scripts/extract_requirements.py library/<slug>/inputs/spec.json
+uv run python scripts/extract_requirements.py replications/<slug>/inputs/spec.json
 
 # Validate generated code
-uv run python scripts/validate_strategy.py library/<slug>/src/strategy.py
+uv run python scripts/validate_strategy.py replications/<slug>/src/strategy.py
 
 # Run backtest
-uv run python library/<slug>/src/strategy.py
+uv run python replications/<slug>/src/strategy.py
 
 # Search papers
 uv run python scripts/search.py "<query>" -n 5
@@ -370,7 +370,7 @@ For full flags, output formats, and library management:
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `PAPER2SPEC_LIBRARY_PATH` | `./library` | Output root |
+| `PAPER2SPEC_REPLICATIONS_PATH` | `./replications` | Output root |
 | `PAPER2SPEC_MODEL` | `openai/gpt-4o-mini` | Default LLM ([litellm-supported](https://docs.litellm.ai/docs/providers)) |
 | `DEEPSEEK_API_KEY` | — | DeepSeek (recommended) |
 | `OPENROUTER_API_KEY` | — | OpenRouter (multi-model) |
@@ -392,7 +392,7 @@ Read on demand for implementation details:
 - [references/extraction_quality.md](references/extraction_quality.md) — Mandatory review/repair and `needs_human_review` rules
 - [paper2spec/resources/operator_pitfall_index.md](paper2spec/resources/operator_pitfall_index.md) — Retrieval corpus for high-risk formula pitfalls
 - [references/spec2code.md](references/spec2code.md) — Code generation workflow, Backtrader patterns
-- [references/skill-internals.md](references/skill-internals.md) — Script flags, output formats, .env examples, library management, project structure
+- [references/skill-internals.md](references/skill-internals.md) — Script flags, output formats, .env examples, replication management, project structure
 - [references/backtrader_patterns.md](references/backtrader_patterns.md) — Strategy class, data loading, position sizing
 - [references/clickhouse.md](references/clickhouse.md) — ClickHouse query patterns, schema discovery, data extraction rules
 - [references/indicator_cookbook.md](references/indicator_cookbook.md) — Built-in and custom indicators

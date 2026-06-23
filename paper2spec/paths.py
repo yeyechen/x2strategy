@@ -1,7 +1,7 @@
 """Per-paper directory layout — single source of truth.
 
-Every paper replication lives under ``PAPER2SPEC_LIBRARY_PATH/<slug>/`` and
-has the same nested structure:
+Every paper replication lives under ``PAPER2SPEC_REPLICATIONS_PATH/<slug>/``
+and has the same nested structure:
 
     <slug>/
     ├── README.md
@@ -22,7 +22,7 @@ Usage::
 
     from paper2spec.paths import paper_layout
 
-    layout = paper_layout("ssrn_1262416")        # default library path
+    layout = paper_layout("ssrn_1262416")        # default replications path
     layout.ensure()                               # mkdir -p all dirs
     layout.input_path("spec.json")                # → <root>/inputs/spec.json
     layout.src_path("strategy.py")                # → <root>/src/strategy.py
@@ -42,7 +42,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from paper2spec.config import get_library_path
+from paper2spec.config import get_replications_path
 
 
 # Subdirectory names — kept as module constants so they're searchable
@@ -74,8 +74,8 @@ def _slugify(text: str) -> str:
 class PaperLayout:
     """Resolved paths for one paper replication.
 
-    Construct via :func:`paper_layout` (handles library-root resolution and
-    slug normalization). Direct construction is allowed but unusual.
+    Construct via :func:`paper_layout` (handles replications-root resolution
+    and slug normalization). Direct construction is allowed but unusual.
     """
 
     slug: str
@@ -147,7 +147,7 @@ class PaperLayout:
 def paper_layout(
     slug: str | None = None,
     *,
-    library_root: str | os.PathLike[str] | None = None,
+    replications_root: str | os.PathLike[str] | None = None,
 ) -> PaperLayout:
     """Resolve a :class:`PaperLayout` for one paper.
 
@@ -155,16 +155,17 @@ def paper_layout(
         slug: paper slug (filesystem-safe identifier). If ``None``, defaults
             to ``"default"`` — usually wrong, callers should pass an explicit
             slug.
-        library_root: override ``PAPER2SPEC_LIBRARY_PATH`` for this call.
-            Useful in tests. If relative, resolved against ``cwd``.
+        replications_root: override ``PAPER2SPEC_REPLICATIONS_PATH`` for
+            this call. Useful in tests. If relative, resolved against
+            ``cwd``.
 
     Returns:
-        A :class:`PaperLayout` rooted at ``<library_root>/<slug>/``.
+        A :class:`PaperLayout` rooted at ``<replications_root>/<slug>/``.
     """
-    if library_root is None:
-        root_base = Path(get_library_path())
+    if replications_root is None:
+        root_base = Path(get_replications_path())
     else:
-        root_base = Path(os.path.expanduser(os.fspath(library_root)))
+        root_base = Path(os.path.expanduser(os.fspath(replications_root)))
         if not root_base.is_absolute():
             root_base = (Path.cwd() / root_base).resolve()
 

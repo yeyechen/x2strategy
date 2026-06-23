@@ -430,7 +430,7 @@ def max_paper_spec_path():
     import os
     p = os.path.join(
         os.path.dirname(__file__),
-        "..", "library", "ssrn_1262416_e2e", "inputs", "spec.json",
+        "..", "replications", "ssrn_1262416_e2e", "inputs", "spec.json",
     )
     if not os.path.isfile(p):
         # Legacy fallback (pre-nested-layout runs)

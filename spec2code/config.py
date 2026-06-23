@@ -1,6 +1,6 @@
 """Shared configuration for spec2code.
 
-Reuses the same .env / library path as paper2spec so both halves of
+Reuses the same .env / replications path as paper2spec so both halves of
 the pipeline share a single configuration surface.
 """
 
@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 # Import shared config from paper2spec
-from paper2spec.config import load_project_env, get_library_path, PROJECT_ROOT
+from paper2spec.config import load_project_env, get_replications_path, PROJECT_ROOT
 
 
 def get_backtest_timeout() -> int:

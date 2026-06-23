@@ -21,10 +21,10 @@ Given a **PDF** of a quantitative finance paper, paper2spec:
 ### One-Shot Analysis (recommended)
 
 ```bash
-uv run python scripts/analyze.py paper.pdf -o library/my_paper/
+uv run python scripts/analyze.py paper.pdf -o replications/my_paper/
 
 # Optional: use repair notes / clarifications as authoritative fallback
-uv run python scripts/analyze.py paper.pdf -o library/my_paper/ --instructions-dir uploads/
+uv run python scripts/analyze.py paper.pdf -o replications/my_paper/ --instructions-dir uploads/
 ```
 
 This command parses and extracts in one shot, but it does not automatically run
@@ -33,13 +33,19 @@ required review/repair pass against [extraction_quality.md](extraction_quality.m
 
 Produces:
 ```
-library/my_paper/
-├── paper.pdf       # Original PDF (auto-copied)
-├── content.json    # PaperContent (machine-readable)
-├── content.md      # PaperContent (human-readable)
-├── spec.json       # Extracted spec; review/repair before code generation
-├── spec.md         # Human-readable extracted spec summary
-└── metadata.json   # Analysis metadata
+replications/my_paper/
+├── paper/paper.pdf       # Original PDF (auto-copied)
+├── inputs/
+│   ├── content.json    # PaperContent (machine-readable)
+│   ├── content.md      # PaperContent (human-readable)
+│   ├── spec.json       # Extracted spec; review/repair before code generation
+│   ├── spec.md         # Human-readable extracted spec summary
+│   └── metadata.json   # Analysis metadata
+├── diagnostics/
+├── src/                 # generated strategy code (strategy.py)
+├── data/                # parquet caches
+├── results/             # metrics, plots, key_pred/
+└── config/
 ```
 
 ### Step-by-Step Pipeline
@@ -66,7 +72,7 @@ uv run python scripts/analyze.py <pdf> [-o DIR] [--parser-mode builtin|agent] [-
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-o, --output-dir` | `<PAPER2SPEC_LIBRARY_PATH>/<slug>/` | Output directory |
+| `-o, --output-dir` | `<PAPER2SPEC_REPLICATIONS_PATH>/<slug>/` | Output directory |
 | `--parser-mode` | `builtin` | `builtin` (fast, <40 pages) or `agent` (FAISS semantic retrieval) |
 | `--extractor-mode` | `multilayer` | `multilayer` (recommended) or `single` (legacy) |
 | `--instruction` | — | Extra instruction/clarification Markdown file; can be repeated |
