@@ -303,6 +303,91 @@ layout.paper_pdf_path()                      # <root>/paper/original.pdf
 Every status update after file generation should name the concrete
 workspace-relative path that was written.
 
+## Deterministic Primitives (the `x2strategy/utils/` contract)
+
+**The agent MUST NOT reimplement** the following operations. They live in
+`x2strategy/utils/` as deterministic primitives — same input → same
+output, every time. The agent writes only the **paper-specific signal**.
+Primitives handle everything downstream.
+
+```python
+from utils import (
+    assign_quantiles,             # within-date quantile binning
+    bin_returns,                  # EW + VW per-bin returns
+    long_short,                   # long-short portfolio from bins
+    performance_metrics,          # Sharpe / CAGR / max DD / annual vol
+    format_metrics,               # pretty-print metrics dict
+    plot_cumulative_returns,      # P&L curve (the "every strategy needs this" plot)
+    plot_drawdown,                # drawdown over time
+    plot_decile_spread,           # per-bin EW + VW bar charts
+    plot_performance_comparison,  # multiple portfolios side-by-side
+    fama_macbeth,                 # monthly cross-section OLS + Newey-West HAC
+    summarize_fama_macbeth,       # formatted table output
+)
+```
+
+**Use primitives, don't reimplement.** If you find yourself writing
+`groupby().apply(pd.qcut)` or `(1 + r).cumprod()` or
+`np.sqrt(252) * mean / std`, **stop** and call the primitive instead.
+The primitive is unit-tested, deterministic, and used by every other
+replication. Reinventing it adds variance to the output across runs.
+
+### Canonical pipeline (cross-sectional / portfolio papers)
+
+For the bulk of academic finance papers (MAX effect, momentum, value,
+B/M, etc.) — cross-sectional signals over many stocks, monthly
+rebalancing, long-short by bin — the pipeline is always the same:
+
+```python
+# 1. Load data from ClickHouse (paper-specific)
+df = load_paper_data(...)
+
+# 2. Compute the signal (paper-specific — agent writes this)
+df["my_signal"] = compute_signal(df)
+
+# 3. Primitives do the rest:
+df["bin"]      = assign_quantiles(df, "month", "my_signal", n_bins=10)
+bin_rets      = bin_returns(df, "month", "bin", "ret", "mcap_lag1")
+ls            = long_short(bin_rets, "month", "VW", long_bin=10, short_bin=1)
+metrics       = performance_metrics(ls["ret"], freq="M")
+plot_cumulative_returns(ls, "month", "ret", save_to=layout.result_path("pnl_curve.png"))
+plot_drawdown(ls, "month", "ret", save_to=layout.result_path("drawdown.png"))
+plot_decile_spread(bin_rets, save_to=layout.result_path("decile_spread.png"))
+fm = fama_macbeth(panel, "ret", ["my_signal", "log_mcap", "ret_11_2"], time_col="month")
+```
+
+**Skip backtrader entirely** for cross-sectional papers. Backtrader is
+only useful for single-asset, event-driven strategies (SMA crossovers,
+RSI thresholds). If the spec's `strategy_type` is `equity_long_short`
+or similar, do not import `backtrader`.
+
+### When you need Fama-French factors
+
+**Fama-French factors are NOT currently in ClickHouse** (verified by
+full catalog scan). If a paper's spec calls for FF factors (Mkt-RF,
+SMB, HML, MOM, RMW, CMA) in a Fama-MacBeth regression or 4-factor
+alpha:
+
+1. **First**, query `crsp_202601.dsi` for the market return and
+   `ea_oneoff.rf` for the risk-free rate. You can compute `Mkt-RF` from
+   these.
+2. **Then**, attempt to query `ff.factors_monthly` for SMB / HML /
+   MOM. If it doesn't exist (`UNKNOWN_TABLE`), **do not fail the run**:
+   - Continue with the partial regression (signal + size + momentum,
+     no FF controls)
+   - Emit a `[WARNING]` noting that FF factors were unavailable
+   - Write the limitation into `results/diagnosis.md`
+3. The full FF-factor gap is tracked as TODO #3 in `TODOs.md`. A paper
+   that needs FF factors but can't get them is a known-partial
+   replication, not a bug.
+
+### Headless plotting — required
+
+Generated code MUST run on a headless server (no GUI). Set
+`matplotlib.use("Agg")` as the **first** matplotlib import in any
+generated file. All plot calls must use `save_to=Path(...)` — never
+`plt.show()`. The primitives in `utils/plot.py` already follow this.
+
 ## Spec2Code Metrics
 
 For every runnable strategy, spec2code should compute and report at least: Sharpe ratio, maximum drawdown, total return, and return value/final portfolio value. If a strategy is not runnable as a broker-connected strategy, report why and still compute the metrics that are meaningful for the confirmed research/backtest contract.
