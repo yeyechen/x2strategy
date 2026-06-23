@@ -1,10 +1,10 @@
-"""Tests for utils.portfolio — bin_returns + long_short."""
+"""Tests for utils.portfolio — bin_returns + long_short + forward_returns."""
 
 import numpy as np
 import pandas as pd
 import pytest
 
-from utils.portfolio import bin_returns, long_short, PortfolioError
+from utils.portfolio import bin_returns, long_short, forward_returns, PortfolioError
 
 
 # ── Fixtures ──────────────────────────────────────────────────
@@ -128,3 +128,76 @@ class TestLongShort:
         df = pd.DataFrame({"month": [1], "bin": [1], "x": [0.01]})
         with pytest.raises(PortfolioError, match="missing columns"):
             long_short(df, "month", "EW")
+
+
+# ── forward_returns ──────────────────────────────────────────
+
+
+class TestForwardReturns:
+    def test_shifts_return_forward_by_n_lags(self):
+        # 1 stock, 4 months — after 1-lag shift, return at month t is
+        # the value that was at month t+1 originally. Last row drops.
+        df = pd.DataFrame({
+            "permno": [1, 1, 1, 1],
+            "month": pd.to_datetime(["2020-01-31", "2020-02-29", "2020-03-31", "2020-04-30"]),
+            "max_signal": [0.05, 0.04, 0.06, 0.03],
+            "ret":        [0.01, 0.02, 0.03, 0.04],
+        })
+        out = forward_returns(df, signal_col="max_signal", date_col="month", ret_col="ret", n_lags=1)
+        # After shift: row 0's ret should be 0.02 (originally at month t+1)
+        assert out["ret"].iloc[0] == pytest.approx(0.02)
+        assert out["ret"].iloc[1] == pytest.approx(0.03)
+        assert out["ret"].iloc[2] == pytest.approx(0.04)
+        # Last row (no t+1) drops out
+        assert len(out) == 3
+
+    def test_per_stock_grouping(self):
+        # Two stocks — shift must happen within each stock, not across.
+        df = pd.DataFrame({
+            "permno":  [1, 1, 1, 2, 2, 2],
+            "month":   pd.to_datetime(["2020-01-31", "2020-02-29", "2020-03-31"] * 2),
+            "max_signal": [0.05, 0.04, 0.06, 0.07, 0.05, 0.04],
+            "ret":     [0.01, 0.02, 0.03, 0.10, 0.20, 0.30],
+        })
+        out = forward_returns(df, signal_col="max_signal", date_col="month", ret_col="ret", n_lags=1)
+        # Stock 1: shifted [0.02, 0.03] (last drops)
+        stock1 = out[out["permno"] == 1].sort_values("month")
+        assert list(stock1["ret"]) == pytest.approx([0.02, 0.03])
+        # Stock 2: shifted [0.20, 0.30]
+        stock2 = out[out["permno"] == 2].sort_values("month")
+        assert list(stock2["ret"]) == pytest.approx([0.20, 0.30])
+
+    def test_missing_col_raises(self):
+        df = pd.DataFrame({"permno": [1], "month": [pd.Timestamp("2020-01-31")]})
+        with pytest.raises(PortfolioError, match="missing columns"):
+            forward_returns(df, signal_col="missing_signal", date_col="month")
+
+    def test_no_per_stock_col_raises(self):
+        df = pd.DataFrame({
+            "month": [pd.Timestamp("2020-01-31")],
+            "max_signal": [0.05],
+            "ret": [0.01],
+        })
+        with pytest.raises(PortfolioError, match="per-stock grouping"):
+            forward_returns(df, signal_col="max_signal", date_col="month")
+
+    def test_n_lags_2(self):
+        df = pd.DataFrame({
+            "permno": [1] * 5,
+            "month": pd.date_range("2020-01-31", periods=5, freq="ME"),
+            "max_signal": [0.05] * 5,
+            "ret": [0.01, 0.02, 0.03, 0.04, 0.05],
+        })
+        out = forward_returns(df, signal_col="max_signal", date_col="month", ret_col="ret", n_lags=2)
+        # After 2-lag shift: returns should be [0.03, 0.04, 0.05], last 2 drop
+        assert list(out["ret"]) == pytest.approx([0.03, 0.04, 0.05])
+
+    def test_invalid_n_lags_raises(self):
+        df = pd.DataFrame({
+            "permno": [1],
+            "month": [pd.Timestamp("2020-01-31")],
+            "max_signal": [0.05],
+            "ret": [0.01],
+        })
+        with pytest.raises(PortfolioError, match="n_lags"):
+            forward_returns(df, signal_col="max_signal", date_col="month", n_lags=0)

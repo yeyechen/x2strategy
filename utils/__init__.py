@@ -56,6 +56,7 @@ from .quantile import (
 from .portfolio import (
     bin_returns,
     long_short,
+    forward_returns,
     PortfolioError,
 )
 
@@ -91,6 +92,7 @@ __all__ = [
     # portfolio
     "bin_returns",
     "long_short",
+    "forward_returns",
     "PortfolioError",
     # metrics
     "performance_metrics",

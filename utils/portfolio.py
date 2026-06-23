@@ -151,4 +151,98 @@ def long_short(
     return merged[[date_col, "ret"]].reset_index(drop=True)
 
 
-__all__ = ["bin_returns", "long_short", "PortfolioError"]
+def forward_returns(
+    panel: pd.DataFrame,
+    signal_col: str,
+    date_col: str,
+    ret_col: str = "ret",
+    n_lags: int = 1,
+) -> pd.DataFrame:
+    """Shift the return column forward by `n_lags` periods per stock.
+
+    **Use this to avoid look-ahead bias in cross-sectional strategies.**
+
+    The convention for monthly-rebalanced long-short strategies:
+      - Signal is computed at the *end* of month t (e.g. MAX of daily
+        returns in month t).
+      - Portfolio is *formed* at end of month t.
+      - Portfolio is *held* during month t+1.
+      - Return we measure is therefore month t+1's return, not t's.
+
+    If you bin stocks at end of month t and then group by (month, bin)
+    using month t's return, you're implicitly assuming the signal can
+    be observed before the month's close — look-ahead bias. The fix is
+    to shift the return forward by one period within each stock's
+    history before binning.
+
+    Example::
+
+        # WRONG — bins at end of month t, return is also month t (look-ahead):
+        df["bin"] = assign_quantiles(df, "month", "max_signal", n_bins=10)
+        # ... uses month t's return to evaluate month t's bin
+
+        # RIGHT — shift the return forward first:
+        df = forward_returns(df, signal_col="max_signal", date_col="month", n_lags=1)
+        # Now df["ret"] is month t+1's return, paired with month t's bin
+        df["bin"] = assign_quantiles(df, "month", "max_signal", n_bins=10)
+        # ... bin formed at month t, return is month t+1
+
+    Args:
+        panel: per-(stock, date) DataFrame. Must contain ``signal_col``
+            (the column whose values are observed at the END of ``date_col``)
+            and ``ret_col`` (the column whose values accrue DURING
+            ``date_col``).
+        signal_col: name of the signal column (e.g. ``"max_signal"``).
+            Used only as a sanity check — its values are not shifted.
+        date_col: name of the date column.
+        ret_col: name of the return column to shift forward. Default ``"ret"``.
+        n_lags: how many periods to shift. Default 1 (matches the
+            end-of-month formation → next-month holding convention).
+
+    Returns:
+        A new DataFrame with ``ret_col`` shifted forward by ``n_lags``
+        periods per stock. Rows where the shift produces NaN (i.e. the
+        last ``n_lags`` periods of each stock's history) are dropped.
+
+    Raises:
+        PortfolioError: if ``date_col``, ``signal_col``, or ``ret_col``
+            are missing, or if a stock-id column is missing (needed to
+            group the shift per-stock).
+    """
+    required = [date_col, signal_col, ret_col]
+    missing = [c for c in required if c not in panel.columns]
+    if missing:
+        raise PortfolioError(f"forward_returns: missing columns {missing}")
+    if n_lags < 1:
+        raise PortfolioError(f"forward_returns: n_lags must be >= 1, got {n_lags}")
+
+    # We need a per-stock grouping key. Convention: prefer `permno`, fall back
+    # to `ticker`, otherwise ask the caller to specify. Most CRSP-based
+    # strategies will have `permno`.
+    stock_col = None
+    for candidate in ("permno", "ticker", "stock_id", "id"):
+        if candidate in panel.columns:
+            stock_col = candidate
+            break
+    if stock_col is None:
+        raise PortfolioError(
+            "forward_returns: no per-stock grouping column found. "
+            "Need one of: permno, ticker, stock_id, id. "
+            "Or pre-group via groupby + transform."
+        )
+
+    if n_lags < 1:
+        raise PortfolioError(f"forward_returns: n_lags must be >= 1, got {n_lags}")
+
+    df = panel.sort_values([stock_col, date_col]).copy()
+    df[ret_col] = df.groupby(stock_col)[ret_col].shift(-n_lags)
+    before = len(df)
+    df = df.dropna(subset=[ret_col])
+    after = len(df)
+    if before != after:
+        # Last `n_lags` periods per stock drop out. Expected.
+        pass
+    return df.reset_index(drop=True)
+
+
+__all__ = ["bin_returns", "long_short", "forward_returns", "PortfolioError"]
