@@ -23,3 +23,7 @@ htmlcov/
 # are all reproducible from the upstream paper + ClickHouse, so they
 # don't belong in version control.
 replications/
+
+# Local iteration-loop tooling — orchestration, not part of the skill.
+# Keeps the upstream public surface clean of operator scripts.
+scripts/run_iteration_agent.sh

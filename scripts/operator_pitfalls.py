@@ -73,14 +73,34 @@ def main() -> None:
 
     spec = _load_strategy_spec(spec_path, args.strategy_index)
     corpus_path = Path(args.corpus).expanduser().resolve() if args.corpus else None
-    matches = retrieve_operator_pitfalls(spec, threshold=args.threshold, top_k=args.top_k, corpus_path=corpus_path)
+    matches: list = []
+    error_msg: str | None = None
+    try:
+        matches = retrieve_operator_pitfalls(
+            spec, threshold=args.threshold, top_k=args.top_k, corpus_path=corpus_path
+        )
+    except RuntimeError as exc:
+        # Semantic retrieval needs optional agent deps that may not be
+        # installed. Don't crash the whole pipeline — write a placeholder
+        # explaining what happened so downstream readers know.
+        error_msg = str(exc)
+        print(f"⚠️  {exc}", file=sys.stderr)
     rendered = render_operator_pitfall_matches(matches)
+    if error_msg and not rendered.strip():
+        # Override the empty placeholder so the failure is documented.
+        rendered = (
+            "<!-- operator_pitfall_context: retrieval failed -->\n"
+            f"<!-- error: {error_msg} -->\n"
+        )
 
     if args.output:
         out = Path(args.output)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(rendered, encoding="utf-8")
-        print(f"✅ Wrote {out} ({len(matches)} matched operator entries)")
+        if error_msg:
+            print(f"⚠️  Wrote {out} (retrieval failed; placeholder written)")
+        else:
+            print(f"✅ Wrote {out} ({len(matches)} matched operator entries)")
     else:
         print(rendered or "(no operator-pitfall matches above threshold)")
 

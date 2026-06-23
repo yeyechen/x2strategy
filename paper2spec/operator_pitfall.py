@@ -152,6 +152,11 @@ def retrieve_operator_pitfalls(
             metadatas=[{"operator_id": entry["operator_id"], "entry_index": idx} for idx, entry in enumerate(entries)],
         )
     except Exception as exc:
+        # Don't crash the run — the script-level caller writes a
+        # placeholder to disk when render_operator_pitfall_matches([])
+        # is invoked. We re-raise so the script's CLI shows the
+        # install hint, but a wrapper (e.g. the agent's loop) can
+        # catch and continue.
         raise RuntimeError(
             "Operator-pitfall semantic retrieval requires optional agent dependencies. "
             "Install with `uv sync --extra agent` or `pip install -e .[agent]`."
@@ -181,9 +186,23 @@ def retrieve_operator_pitfalls(
 
 
 def render_operator_pitfall_matches(matches: List[Dict[str, Any]]) -> str:
-    """Render retrieval matches in the same style as QSA repair prompt context."""
+    """Render retrieval matches in the same style as QSA repair prompt context.
+
+    Returns a Markdown string. **Always non-empty** — even when zero matches
+    were found above threshold, we render a header explaining what we looked
+    for and what we didn't find. This way the output file is never 0 bytes
+    and downstream readers (agents, humans) can tell the retrieval ran.
+    """
     if not matches:
-        return ""
+        return (
+            "<!-- operator_pitfall_context: no entries above threshold -->\n"
+            "<!--\n"
+            "  The semantic retrieval completed without error, but no\n"
+            "  operator-pitfall corpus entries scored above the configured\n"
+            "  threshold. To lower the bar, set\n"
+            "  X2STRATEGY_OPERATOR_PITFALL_THRESHOLD (default 0.65).\n"
+            "-->\n"
+        )
     chunks = []
     for item in matches:
         chunks.append(

@@ -122,8 +122,9 @@ from utils import (
     format_metrics,             # pretty-print metrics dict
     plot_cumulative_returns,    # P&L curve
     plot_drawdown,              # drawdown over time
-    plot_decile_spread,         # per-bin EW + VW bar charts
+    plot_decile_spread,         # per-bin EW + VW bar charts (auto-aggregates per-date shape)
     plot_performance_comparison,# multiple portfolios side by side
+    plot_portfolio_vs_assets,   # standard replication plot: portfolios + B&H assets
     fama_macbeth,               # monthly cross-section OLS + Newey-West
     summarize_fama_macbeth,     # formatted table output
 )
@@ -152,6 +153,23 @@ plot_cumulative_returns(ls, "month", "ret",
 plot_drawdown(ls, "month", "ret",
               save_to=layout.result_path("drawdown.png"))
 plot_decile_spread(bin_rets, save_to=layout.result_path("decile_spread.png"))
+
+# Standard replication plot — strategy portfolios vs same-capital buy-and-hold.
+# Use plot_portfolio_vs_assets, NOT custom matplotlib code, so the colors match
+# utils.plot_config (blue=portfolio, red=asset).
+plot_portfolio_vs_assets(
+    portfolios={
+        "Portfolio @ 0.000% comm": ls_at_0pct,
+        "Portfolio @ 0.010% comm": ls_at_1bp,
+        "Portfolio @ 0.050% comm": ls_at_5bp,
+    },
+    asset_curves={
+        "CRSP_VW (B&H)": crsp_vw_buy_and_hold,
+    },
+    date_col="month",
+    ret_col="ret",
+    save_to=layout.result_path("portfolio_vs_assets.png"),
+)
 
 # Cross-sectional regression with size / momentum / etc controls
 fm = fama_macbeth(panel, "ret",
