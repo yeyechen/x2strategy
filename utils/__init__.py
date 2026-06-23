@@ -76,6 +76,8 @@ from .plot import (
 
 from .plot_config import plot_config
 
+from .config import load_run_config, render_run_config, RunConfigError
+
 from .regressions import (
     run_ols,
     fama_macbeth,
@@ -106,6 +108,10 @@ __all__ = [
     "PlotError",
     # plot config
     "plot_config",
+    # run config
+    "load_run_config",
+    "render_run_config",
+    "RunConfigError",
     # regressions
     "run_ols",
     "fama_macbeth",

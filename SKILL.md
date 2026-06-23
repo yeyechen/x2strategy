@@ -395,6 +395,41 @@ Generated code MUST run on a headless server (no GUI). Set
 generated file. All plot calls must use `save_to=Path(...)` — never
 `plt.show()`. The primitives in `utils/plot.py` already follow this.
 
+### Per-paper run config — `replications/<slug>/config/run_config.yaml`
+
+Paper-specific settings (date range, universe filter, binning
+parameters, commission rates, FF control table) live in
+`config/run_config.yaml`. The pipeline generates this from
+`inputs/spec.json` via `scripts/render_run_config.py`:
+
+```bash
+python scripts/render_run_config.py replications/<slug>/inputs/spec.json --force
+```
+
+The generated `strategy.py` MUST load the config instead of hard-coding
+paper-specific constants:
+
+```python
+from paper2spec.paths import paper_layout
+from utils import load_run_config, paper_layout
+
+layout = paper_layout("<slug>")
+cfg = load_run_config("<slug>")            # reads config/run_config.yaml
+
+start = cfg["start_date"]                  # "1962-01-01"
+end   = cfg["end_date"]                    # "2005-12-31"
+n_bins = cfg["n_bins"]                      # 10
+weighting = cfg["weighting"]                # "VW"
+forward_lag = cfg["forward_returns_lag"]    # 1
+commission = cfg["commission_rates"]         # [0, 0.0001, 0.0005]
+table = cfg["data_sources"]["daily_returns"] # "crsp_202601.dsf"
+where = cfg["universe"]["where_clause"]     # "exchcd IN (1,2,3) AND shrcd IN (10,11)"
+```
+
+If the config is missing, re-run `scripts/render_run_config.py`.
+If the paper is non-standard and needs settings not in the spec, edit
+the YAML directly — it's a single source of truth per replication.
+
 ## Spec2Code Metrics
 
 For every runnable strategy, spec2code should compute and report at least: Sharpe ratio, maximum drawdown, total return, and return value/final portfolio value. If a strategy is not runnable as a broker-connected strategy, report why and still compute the metrics that are meaningful for the confirmed research/backtest contract.

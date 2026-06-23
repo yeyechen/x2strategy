@@ -195,6 +195,7 @@ single source of truth for the per-paper directory structure (see
 
 ```python
 from paper2spec.paths import paper_layout
+from utils import load_run_config
 
 # The slug is the same one that produced this paper's inputs/.
 # Pass it via a small CLI arg or hardcode — but resolve paths via:
@@ -207,6 +208,29 @@ KEY_PRED_DIR = layout.key_pred_dir       # <slug>/results/key_pred/
 INPUT_SPEC  = layout.input_path("spec.json")
 DIAG_REPORT = layout.diagnostic_path("data_match_report.json")
 ```
+
+#### Per-paper run config — load from `config/run_config.yaml`
+
+Paper-specific settings (date range, universe filter, binning params,
+commission rates, FF control table) live in `config/run_config.yaml`,
+auto-generated from the spec by `scripts/render_run_config.py`.
+**Do NOT hard-code these values in `strategy.py`.** Load via:
+
+```python
+cfg = load_run_config("<slug>")
+start       = cfg["start_date"]                          # "1962-01-01"
+end         = cfg["end_date"]                            # "2005-12-31"
+n_bins      = cfg["n_bins"]                              # 10
+weighting   = cfg["weighting"]                          # "VW"
+forward_lag = cfg["forward_returns_lag"]                # 1
+commission  = cfg["commission_rates"]                   # [0, 1e-4, 5e-4]
+where       = cfg["universe"]["where_clause"]           # "exchcd IN (1,2,3) AND shrcd IN (10,11)"
+ff_table    = cfg.get("ff_controls", {}).get("table")  # "ff.four_factor_monthly" or None
+```
+
+This is the contract that makes different papers automatically get
+different settings. If you need a one-off change, edit the YAML
+directly — it's the single source of truth.
 
 Why this matters: the previous flat layout (`strategy_1.py` at root,
 diagnostic JSONs sibling with inputs) was hard to navigate, made
