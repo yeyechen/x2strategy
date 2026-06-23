@@ -201,7 +201,14 @@ Use one workflow for all tasks. Do not choose between competing routers.
 3. **paper2spec: PDF/text to content** — parse the selected document into grounded content artifacts.
 4. **paper2spec: extract** — extract candidate strategy specs/plans from the content plus user instructions.
 5. **paper2spec: repair/review** — read `references/extraction_quality.md`, retrieve relevant operator pitfalls when high-risk formulas are present, and repair only the selected plan/spec with grounded evidence.
-6. **HITL review** — after repair, always inspect `needs_human_review`. If any item exists, present it through the interactive dialog and do not continue until answered or explicitly accepted. If none exists, still report that review found no open items and ask for implementation approval.
+6. **HITL review** — after repair, always inspect `needs_human_review`. If any item exists, **try** to present it through the interactive dialog (`AskUserQuestion`).
+   - **If the user is reachable** (interactive session, terminal is in front of them): wait for explicit answers before continuing. Standard behavior.
+   - **If the user is NOT reachable** (background / batched / async run — e.g., `claude -p` in a tmux session fired by an orchestrator): the `AskUserQuestion` call will fail or block forever. **Do NOT call `AskUserQuestion` in this mode.** Instead:
+     1. Pick the most common academic-finance default for each item (VW weighting, NYSE breakpoints, month-end close → next-month open, etc.)
+     2. Emit a `[HITL-AUTO-RESOLVED]` log line listing what was auto-decided and why
+     3. Continue with code generation
+     4. Document the auto-decisions in `results/diagnosis.md` so the user can see them after the run
+   - If none exists, still report that review found no open items and ask for implementation approval (only when interactive).
 7. **Data bridge** — run `scripts/extract_requirements.py` to extract structured data needs from the spec and match against the ClickHouse catalog. Read `data_match_report.json` to learn which tables provide each dataset, which columns are available, and what date ranges are covered. This report is the single source of truth for code generation — never fall back to yfinance or hardcoded ticker lists. **Do not attempt to connect to ClickHouse during code generation** — the host is on a private network. Use the match report and catalog for schema info; the generated code connects at runtime via ``os.getenv()``.
 8. **spec2code** — after the data bridge, read `data_match_report.json` and generate code that queries ClickHouse via HTTP for all data. See `references/spec2code.md` §Data Source for the required pattern. Do not use yfinance or any other external API for data.
 9. **Validation/backtest/diagnosis** — validate generated code, run available checks/backtests, compare against expected or reference outputs, summarize mismatches, then ask what to do next.
