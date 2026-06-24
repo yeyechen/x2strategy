@@ -183,3 +183,78 @@ def format_metrics(metrics: Dict[str, float]) -> Dict[str, str]:
 
 
 __all__ = ["performance_metrics", "format_metrics", "MetricsError", "FreqLiteral"]
+
+def tstat_newey_west(
+    returns: Union[pd.Series, pd.DataFrame],
+    n_lags: int = 5,
+    date_col: str = "date",
+    ret_col: str = "ret",
+) -> Dict[str, float]:
+    """Compute Newey-West (1987) HAC t-stat for the mean of a return series.
+
+    For overlapping cohorts (Jegadeesh-Titman, H-month holding), the
+    monthly portfolio returns are autocorrelated; the iid t-stat
+    overstates significance. Newey-West with n_lags = H - 1 corrects
+    this.
+
+    The regression is::
+
+        r_t = alpha + epsilon_t
+
+    where alpha is the mean return. The t-stat on alpha is what papers
+    report. Under H-month overlapping cohorts, set n_lags = H - 1.
+
+    Args:
+        returns: a pandas Series indexed by date, or a DataFrame with
+            ``date_col`` and ``ret_col``.
+        n_lags: number of HAC lags. Default 5. For H-month overlapping
+            cohorts, use H - 1.
+        date_col: name of the date column when ``returns`` is a DataFrame.
+        ret_col: name of the return column when ``returns`` is a DataFrame.
+
+    Returns:
+        Dict with keys:
+          - ``mean_return``: average return (per-period)
+          - ``t_stat``: Newey-West HAC t-stat on the mean
+          - ``n_obs``: number of observations
+
+    Example::
+
+        # FIP 6-month overlapping cohorts:
+        nw = tstat_newey_west(fip_spread, n_lags=5)
+        # Paper reports t=5.03; iid t=21.01; NW-corrected should be ~5.
+
+        # MAX 1-month holding (no overlap):
+        nw = tstat_newey_west(ls_spread, n_lags=0)
+    """
+    from statsmodels.regression.linear_model import OLS
+    from statsmodels.tools import add_constant
+
+    if isinstance(returns, pd.DataFrame):
+        if ret_col not in returns.columns:
+            raise MetricsError(f"DataFrame missing ret_col '{ret_col}'")
+        if date_col in returns.columns:
+            returns = returns.set_index(date_col)[ret_col]
+        else:
+            returns = returns[ret_col]
+    elif not isinstance(returns, pd.Series):
+        raise MetricsError(f"returns must be Series or DataFrame, got {type(returns)}")
+
+    r = returns.dropna().sort_index()
+    if r.empty:
+        raise MetricsError("Cannot compute t-stat on empty return series")
+    if n_lags < 0:
+        raise MetricsError(f"n_lags must be >= 0, got {n_lags}")
+
+    y = r.values
+    X = add_constant(np.ones_like(y))  # only an intercept
+    res = OLS(y, X).fit(cov_type="HAC", cov_kwds={"maxlags": n_lags})
+    # First coef (const) is the mean; t-stat of const is what we report.
+    return {
+        "mean_return": float(res.params[0]),
+        "t_stat": float(res.tvalues[0]),
+        "n_obs": int(res.nobs),
+    }
+
+
+__all__ = ["performance_metrics", "format_metrics", "tstat_newey_west", "MetricsError", "FreqLiteral"]
