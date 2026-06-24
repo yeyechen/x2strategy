@@ -543,3 +543,77 @@ def test_tstat_newey_west_auto_detect_custom_column() -> None:
     out = tstat_newey_west(df, n_lags=0)  # auto-detect "fip_spread"
     assert "t_stat" in out
     assert np.isfinite(out["t_stat"])
+
+
+# ── forward_returns_h parity + perf (iter 11) ───────────────────────────────
+
+
+def test_forward_returns_h_matches_naive_implementation() -> None:
+    """Parity: vectorized forward_returns_h matches the iter-9
+    groupby().transform(rolling) implementation within float tolerance.
+
+    We inline the iter-9 implementation as the reference rather than
+    re-deriving it from first principles (the latter is error-prone —
+    this test was wrong once already when the hand-rolled "naive"
+    reference had an off-by-one in the fwd index range).
+    """
+    np.random.seed(7)
+    n_stocks, n_months = 5, 60
+    permno = np.repeat(np.arange(1, n_stocks + 1), n_months)
+    month = np.tile(pd.date_range("2018-01-31", periods=n_months, freq="ME"), n_stocks)
+    ret = np.random.normal(0.01, 0.04, n_stocks * n_months)
+    df = pd.DataFrame({"permno": permno, "month": month, "ret": ret, "signal": ret})
+
+    out = forward_returns_h(df, signal_col="signal", date_col="month",
+                            ret_col="ret", n_lags=6)
+
+    # Reference: the iter-9 implementation, inlined here. If this
+    # implementation is wrong, both the reference and the vectorized
+    # version will agree with each other (and the canonical-usage
+    # test + FIP backtest will catch the real bug).
+    ref = df.sort_values(["permno", "month"]).copy()
+    log_ret = np.log1p(ref["ret"])
+    rolling_log = (
+        ref.assign(_log=log_ret)
+          .groupby("permno")["_log"]
+          .transform(lambda s: s.rolling(6, min_periods=6).sum())
+    )
+    fwd_log_sum = rolling_log.groupby(ref["permno"]).shift(-6)
+    ref["ref_ret_fwd6"] = np.expm1(fwd_log_sum / 6.0)
+    ref = ref.dropna(subset=["ref_ret_fwd6"])
+
+    # Merge on (permno, month) and compare.
+    merged = out.merge(ref, on=["permno", "month"], how="inner")
+    assert len(merged) > 0, "no overlap between vectorized and iter-9 reference"
+    np.testing.assert_allclose(
+        merged["ret_fwd6"].values,
+        merged["ref_ret_fwd6"].values,
+        rtol=1e-10,
+        atol=1e-12,
+        err_msg="vectorized forward_returns_h disagrees with iter-9 reference",
+    )
+
+
+def test_forward_returns_h_fast_on_large_panel() -> None:
+    """Perf gate: 50k rows of 12 monthly periods must complete in <2s.
+
+    Sanity check that the vectorized implementation is actually fast.
+    Pre-iter-11 this would have been ~30s.
+    """
+    import time
+    np.random.seed(1)
+    n_stocks, n_months = 5000, 12
+    permno = np.repeat(np.arange(1, n_stocks + 1), n_months)
+    month = np.tile(pd.date_range("2020-01-31", periods=n_months, freq="ME"), n_stocks)
+    ret = np.random.normal(0.005, 0.03, n_stocks * n_months)
+    df = pd.DataFrame({
+        "permno": permno, "month": month, "ret": ret,
+        "signal": np.random.normal(0, 1, n_stocks * n_months),
+    })
+    t0 = time.time()
+    out = forward_returns_h(df, signal_col="signal", date_col="month",
+                            ret_col="ret", n_lags=6)
+    elapsed = time.time() - t0
+    # Pre-iter-11 this was ~30s for 60k rows; vectorized should be <2s.
+    assert elapsed < 2.0, f"forward_returns_h too slow: {elapsed:.2f}s on 60k rows"
+    assert len(out) > 0

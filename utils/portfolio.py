@@ -373,14 +373,68 @@ def forward_returns_h(
         out_col = f"{ret_col}_fwd{n_lags}"
 
     df = panel.sort_values([stock_col, date_col]).copy()
-    log_ret = np.log1p(df[ret_col])
-    rolling_log = (
-        df.assign(_log=log_ret)
-          .groupby(stock_col)["_log"]
-          .transform(lambda s: s.rolling(n_lags, min_periods=n_lags).sum())
-    )
-    # shift(-H) aligns rolling-H sum at t to t (sum over [t+1, t+H]).
-    fwd_log_sum = rolling_log.groupby(df[stock_col]).shift(-n_lags)
+    # Vectorized rolling-sum per stock via NumPy strided views.
+    # The previous implementation used groupby().transform(lambda s: s.rolling(...))
+    # which is O(n_stocks) Python-level apply calls — the bottleneck on
+    # large panels (30M+ rows). This version does the same math with
+    # one cumulative-sum pass and one strided window view, fully in C.
+    #
+    # Algorithm:
+    #   1. log_ret = log1p(ret) (per row)
+    #   2. group-starts: find index where each stock begins (after sort).
+    #   3. cumsum of log_ret, but reset to 0 at each group boundary so
+    #      cumsum within a group is independent.
+    #   4. rolling-H sum at position i = cumsum[i] - cumsum[i-H] (if i>=H else NaN)
+    #      -- this gives sum over [i-H+1, i].
+    #   5. shift the result by -H within each group to get sum over [i+1, i+H]
+    #      (the forward window the caller wants).
+    #   6. exp(sum/H) - 1 = per-month equivalent.
+    log_ret = np.log1p(df[ret_col].to_numpy())
+    n = len(df)
+    # Group boundaries: positions where stock_col changes.
+    stock_vals = df[stock_col].to_numpy()
+    is_group_start = np.empty(n, dtype=bool)
+    is_group_start[0] = True
+    is_group_start[1:] = stock_vals[1:] != stock_vals[:-1]
+    group_ids = np.cumsum(is_group_start)  # 1..n_groups
+    n_groups = int(group_ids[-1])
+
+    # Reset cumulative sum at each group boundary.
+    raw_cumsum = np.cumsum(log_ret)
+    group_start_cumsum = np.zeros(n_groups + 1)
+    # At each group's first index, subtract the running cumsum so the
+    # group-local cumsum starts at 0.
+    group_start_indices = np.where(is_group_start)[0]
+    # The "offset" at group g is raw_cumsum at the LAST index before the
+    # group's first row (i.e. raw_cumsum[group_start_indices[g] - 1] or 0).
+    offsets = np.empty(n_groups)
+    offsets[0] = 0.0
+    offsets[1:] = raw_cumsum[group_start_indices[1:] - 1]
+    # Local cumsum = raw_cumsum - offsets[group_id - 1]
+    local_cumsum = raw_cumsum - offsets[group_ids - 1]
+
+    # Rolling H sum at position i: sum over [i-H+1, i] within the group.
+    # local_cumsum[i] - local_cumsum[i-H] (for i >= H AND group_ids[i] == group_ids[i-H]).
+    # NaN where i < H or the group boundary falls within the window.
+    rolling_log = np.full(n, np.nan)
+    if n >= n_lags:
+        rolling_log[n_lags:] = local_cumsum[n_lags:] - local_cumsum[:-n_lags]
+        # Mask windows that cross a group boundary.
+        same_group = group_ids[n_lags:] == group_ids[:-n_lags]
+        # (Within a group, positions [i-H+1, i] are guaranteed contiguous
+        # because the data was sorted by (stock_col, date_col). So this
+        # check is sufficient.)
+        rolling_log[n_lags:] = np.where(same_group, rolling_log[n_lags:], np.nan)
+
+    # Forward-shift by H within each group: rolling_log[i] becomes the
+    # sum over [i+1, i+H]. Build a per-group offset array.
+    fwd_log_sum = np.full(n, np.nan)
+    if n > n_lags:
+        # For each i, fwd_log_sum[i] = rolling_log[i+n_lags] IF they're in
+        # the same group; NaN otherwise (or if i+n_lags >= n).
+        same_group = group_ids[: n - n_lags] == group_ids[n_lags:]
+        fwd_log_sum[: n - n_lags] = np.where(same_group, rolling_log[n_lags:], np.nan)
+
     df[out_col] = np.expm1(fwd_log_sum / n_lags)
     df = df.dropna(subset=[out_col])
     df = df[np.isfinite(df[out_col])]
