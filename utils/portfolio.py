@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+import numpy as np
 import pandas as pd
 
 
@@ -309,4 +310,87 @@ def forward_returns(
     return df.reset_index(drop=True)
 
 
-__all__ = ["bin_returns", "long_short", "forward_returns", "PortfolioError"]
+def forward_returns_h(
+    panel: pd.DataFrame,
+    signal_col: str,
+    date_col: str,
+    ret_col: str = "ret",
+    n_lags: int = 6,
+    out_col=None,
+) -> pd.DataFrame:
+    """Add a geometric-mean H-month forward return column.
+
+    Overlapping-cohort (Jegadeesh-Titman) convention: for each (stock, t),
+    the output column is the per-month equivalent of the compounded return
+    realized over months t+1 ... t+H.
+
+    For H=1, equivalent to forward_returns (single-period shift). For H>1,
+    standard momentum-overlapping-cohort return.
+
+    The output column is ADDED (ret_col is preserved). Different from
+    forward_returns which REPLACES the column.
+
+    Per-stock grouping auto-detected from {permno, ticker, stock_id, id}.
+
+    Args:
+        panel: per-(stock, date) DataFrame.
+        signal_col: signal column (sanity check only).
+        date_col: date column.
+        ret_col: per-period return column. Default "ret".
+        n_lags: how many periods to forward-aggregate. Default 6.
+        out_col: output column name. Default f"{ret_col}_fwd{n_lags}".
+
+    Returns:
+        New DataFrame with out_col added. Last n_lags periods per stock
+        dropped.
+
+    Example::
+
+        monthly = forward_returns_h(
+            monthly, signal_col="pret", date_col="month",
+            ret_col="ret", n_lags=6,
+        )
+    """
+    required = [date_col, signal_col, ret_col]
+    missing = [c for c in required if c not in panel.columns]
+    if missing:
+        raise PortfolioError(f"forward_returns_h: missing columns {missing}")
+    if n_lags < 1:
+        raise PortfolioError(f"forward_returns_h: n_lags must be >= 1, got {n_lags}")
+
+    stock_col = None
+    for candidate in ("permno", "ticker", "stock_id", "id"):
+        if candidate in panel.columns:
+            stock_col = candidate
+            break
+    if stock_col is None:
+        raise PortfolioError(
+            "forward_returns_h: no per-stock grouping column found. "
+            "Need one of: permno, ticker, stock_id, id."
+        )
+
+    if out_col is None:
+        out_col = f"{ret_col}_fwd{n_lags}"
+
+    df = panel.sort_values([stock_col, date_col]).copy()
+    log_ret = np.log1p(df[ret_col])
+    rolling_log = (
+        df.assign(_log=log_ret)
+          .groupby(stock_col)["_log"]
+          .transform(lambda s: s.rolling(n_lags, min_periods=n_lags).sum())
+    )
+    # shift(-H) aligns rolling-H sum at t to t (sum over [t+1, t+H]).
+    fwd_log_sum = rolling_log.groupby(df[stock_col]).shift(-n_lags)
+    df[out_col] = np.expm1(fwd_log_sum / n_lags)
+    df = df.dropna(subset=[out_col])
+    df = df[np.isfinite(df[out_col])]
+    return df.reset_index(drop=True)
+
+
+__all__ = [
+    "bin_returns",
+    "long_short",
+    "forward_returns",
+    "forward_returns_h",
+    "PortfolioError",
+]
