@@ -97,19 +97,19 @@ def run_ols(
         min_obs: minimum number of observations to fit (default 5).
 
     Returns:
-        Dict with the following keys (mirror of statsmodels' OLS
-        results — keys are LITERALLY these names, not e.g. "coef"
-        or "coefficients"):
+        Dict with the following keys (keys are LITERALLY these names,
+        not e.g. "coef" or "coefficients"):
 
             - ``"params"``   (pd.Series, indexed by variable name including
               ``"const"``) — the OLS coefficients
-            - ``"bse"``      (pd.Series) — standard errors of the coefficients
-            - ``"pvalues"``  (pd.Series) — p-values for the coefficients
             - ``"rsquared"`` (float) — R² of the fit
             - ``"nobs"``     (int) — number of observations used
 
         To access a coefficient: ``result["params"]["const"]`` or
         ``result["params"]["MAX"]`` (NOT ``result["coef"]``).
+
+        If you need bse / pvalues / tvalues, run :func:`statsmodels.api.OLS`
+        directly — :func:`run_ols` returns only what most agents need.
 
     Raises:
         RegressionError: if fit fails or insufficient observations.

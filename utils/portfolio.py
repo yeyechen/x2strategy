@@ -256,14 +256,22 @@ def forward_returns(
             end-of-month formation → next-month holding convention).
 
     Returns:
-        A new DataFrame with ``ret_col`` shifted forward by ``n_lags``
-        periods per stock. Rows where the shift produces NaN (i.e. the
+        A new DataFrame with ``ret_col`` replaced by the forward-shifted
+        values per stock. Rows where the shift produces NaN (i.e. the
         last ``n_lags`` periods of each stock's history) are dropped.
+
+        **The shifted return is written back into the SAME column
+        (``ret_col``) — NOT into a new column named e.g.
+        ``ret_fwd1``.** After calling this, ``df["ret"]`` is the
+        next-period return paired with the current-period signal.
+
+        The per-stock grouping key is auto-detected in this priority
+        order: ``permno``, ``ticker``, ``stock_id``, ``id``. If none of
+        those columns exist, raises :class:`PortfolioError`.
 
     Raises:
         PortfolioError: if ``date_col``, ``signal_col``, or ``ret_col``
-            are missing, or if a stock-id column is missing (needed to
-            group the shift per-stock).
+            are missing, or if no recognized stock-id column is found.
     """
     required = [date_col, signal_col, ret_col]
     missing = [c for c in required if c not in panel.columns]
