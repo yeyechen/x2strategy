@@ -60,6 +60,8 @@ class TestRenderRunConfig:
         assert "ff_controls:" in yaml_text
         assert "ff.four_factor_monthly" in yaml_text
         assert "mom" in yaml_text
+        # Commissions are NOT modelled (academic papers don't model them)
+        assert "commission_rates" not in yaml_text
 
     def test_renders_minimal_spec_with_defaults(self):
         """A spec with no time_period / no indicators should still render."""
@@ -76,7 +78,8 @@ class TestRenderRunConfig:
         # Defaults applied
         assert "start_date" in yaml_text
         assert "n_bins: 10" in yaml_text
-        assert "commission_rates:" in yaml_text
+        # Commissions are NOT modelled (academic papers don't model them)
+        assert "commission_rates" not in yaml_text
 
     def test_unwraps_extraction_result(self):
         """If spec_dict has 'strategies' list, render the first strategy."""
