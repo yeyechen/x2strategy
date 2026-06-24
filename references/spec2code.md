@@ -141,12 +141,13 @@ monthly["max_daily_return"] = compute_monthly_max_daily_ret(daily)
 # 2. Primitives do the rest:
 monthly["decile"] = assign_quantiles(monthly, "month", "max_daily_return", n_bins=10)
 bin_rets = bin_returns(monthly, "month", "decile", "ret", "mcap_lag1")
-ls = long_short(bin_rets, "month", "VW", long_bin=10, short_bin=1)
+ls = long_short(bin_rets, date_col="month", weighting="VW",
+                long_bin=10, short_bin=1)
 
 metrics = performance_metrics(ls["ret"], freq="M")
 # → {'total_return': ..., 'sharpe_ratio': ..., 'max_drawdown': ..., ...}
 
-plot_cumulative_returns(ls, "month", "ret",
+plot_cumulative_returns(ls, index_col_name="month", ret_col_lst=["ret"],
                         save_to=layout.result_path("pnl_curve.png"))
 plot_drawdown(ls, "month", "ret",
               save_to=layout.result_path("drawdown.png"))
