@@ -227,8 +227,6 @@ def render_run_config(
 
     # ── Outputs ──────────────────────────────────────────────
     outputs = [
-        "results/portfolio_vs_assets.png",
-        "results/portfolio_vs_assets.csv",
         "results/decile_spread.png",
         "results/decile_spread.csv",
         "results/metrics.json",
