@@ -49,13 +49,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from utils.quantile import assign_quantiles, assign_ranks
+from utils.quantile import assign_quantiles, assign_ranks, double_sort
 from utils.portfolio import (
     bin_returns,
     long_short,
     forward_returns,
+    forward_returns_h,
 )
-from utils.metrics import performance_metrics, format_metrics
+from utils.metrics import performance_metrics, format_metrics, tstat_newey_west
 from utils.plot import (
     plot_cumulative_returns,
     plot_drawdown,
@@ -387,3 +388,63 @@ def test_canonical_pipeline_end_to_end(tiny_panel: pd.DataFrame, tmp_path) -> No
         independent_vars=["signal"], time_col="date",
     )
     assert fm.summary["n_periods"] >= 1
+
+# ── forward_returns_h (Jegadeesh-Titman overlapping cohorts) ─────────────────
+
+
+def test_canonical_forward_returns_h(tiny_panel: pd.DataFrame) -> None:
+    """Canonical: geometric-mean H-month forward return.
+
+    Different from forward_returns: this ADDS a new column (default
+    'ret_fwd{H}'), preserves the original 'ret' column, and computes
+    the per-month equivalent of the compounded H-month return.
+    """
+    # Need enough obs per stock for n_lags=2. tiny_panel has 3 dates
+    # per stock — exactly enough (last 2 rows per stock dropped).
+    out = forward_returns_h(
+        tiny_panel, signal_col="signal", date_col="date",
+        ret_col="ret", n_lags=2,
+    )
+    # Output has both the original 'ret' and the new 'ret_fwd2' column.
+    assert "ret" in out.columns
+    assert "ret_fwd2" in out.columns
+    # Last 2 dates per stock are dropped.
+    assert len(out) == 2  # 1 obs per stock (the earliest date).
+
+
+# ── double_sort (conditional outer x inner sort) ───────────────────────────
+
+
+def test_canonical_double_sort(tiny_panel: pd.DataFrame) -> None:
+    """Canonical: bin by outer signal, then within each outer-bin bin
+    by inner signal. Returns frame with outer_q + inner_q columns.
+    """
+    # tiny_panel has 2 stocks x 3 dates. With n_bins=2, each date has
+    # outer_q in {1,2} and within each outer_q, inner_q in {1,2}.
+    out = double_sort(
+        tiny_panel, date_col="date", outer_col="signal",
+        inner_col="ret", n_bins=2,
+    )
+    assert "signal_q" in out.columns
+    assert "ret_q" in out.columns
+    assert set(out["signal_q"].unique()) <= {1, 2}
+
+
+# ── tstat_newey_west (HAC t-stat for autocorrelated returns) ───────────────
+
+
+def test_canonical_tstat_newey_west() -> None:
+    """Canonical: HAC t-stat on a return series. For H-month overlapping
+    cohorts, use n_lags = H - 1. For independent monthly returns,
+    n_lags=0 (no correction) should match the iid t-stat closely.
+    """
+    np.random.seed(42)
+    # White-noise returns — iid t and NW(0) should agree.
+    r = pd.Series(np.random.normal(0.005, 0.04, 60))
+    out = tstat_newey_west(r, n_lags=0)
+    assert "t_stat" in out
+    assert "mean_return" in out
+    # For iid returns, NW(0) t-stat should be finite and close to
+    # the iid t-stat (mean / (std / sqrt(n))).
+    iid_t = r.mean() / (r.std(ddof=1) / np.sqrt(len(r)))
+    assert abs(out["t_stat"] - iid_t) < 0.01
