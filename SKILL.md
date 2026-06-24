@@ -251,8 +251,6 @@ the single source of truth for this layout.
 │   ├── metrics.json
 │   ├── backtest_output.txt
 │   ├── diagnosis.md
-│   ├── portfolio_vs_assets.csv
-│   ├── portfolio_vs_assets.png
 │   ├── decile_spread.csv
 │   ├── decile_spread.png
 │   └── key_pred/              # one CSV + PNG per key observable factor
@@ -272,10 +270,9 @@ the single source of truth for this layout.
 | `diagnostics/data_match_report.json` | `scripts/extract_requirements.py` | What ClickHouse actually has |
 | `src/strategy.py` | spec2code LLM | Generated code. One file per paper — no `_1` suffix |
 | `data/*.parquet` | spec2code runtime | Local cache, see `assets/backtrader_template.py` |
-| `results/metrics.json` | spec2code runtime | Sharpe, max DD, total return, final value (per commission rate) |
+| `results/metrics.json` | spec2code runtime | Sharpe, max DD, total return, final value |
 | `results/backtest_output.txt` | spec2code runtime | Human-readable backtest summary |
 | `results/diagnosis.md` | spec2code runtime | Strategy output vs paper-claimed metrics |
-| `results/portfolio_vs_assets.{csv,png}` | spec2code runtime | Strategy equity curve vs SPY (or `CRSP_VW` pre-1993) + asset buy-and-hold; 0% / 0.01% / 0.05% commission sweep |
 | `results/key_pred/<factor>.{csv,png}` | spec2code runtime | One per key observable factor |
 | `paper/original.pdf` | `scripts/analyze.py` | Copy of the source PDF for self-contained replication |
 | `operator_pitfall_context.md` (legacy) | `scripts/operator_pitfalls.py` | Still emitted at the per-paper root for backward compatibility — move to `diagnostics/` if regenerating |
@@ -398,7 +395,7 @@ generated file. All plot calls must use `save_to=Path(...)` — never
 ### Per-paper run config — `replications/<slug>/config/run_config.yaml`
 
 Paper-specific settings (date range, universe filter, binning
-parameters, commission rates, FF control table) live in
+parameters, FF control table) live in
 `config/run_config.yaml`. The pipeline generates this from
 `inputs/spec.json` via `scripts/render_run_config.py`:
 
@@ -421,7 +418,6 @@ end   = cfg["end_date"]                    # "2005-12-31"
 n_bins = cfg["n_bins"]                      # 10
 weighting = cfg["weighting"]                # "VW"
 forward_lag = cfg["forward_returns_lag"]    # 1
-commission = cfg["commission_rates"]         # [0, 0.0001, 0.0005]
 table = cfg["data_sources"]["daily_returns"] # "crsp_202601.dsf"
 where = cfg["universe"]["where_clause"]     # "exchcd IN (1,2,3) AND shrcd IN (10,11)"
 ```
@@ -434,10 +430,9 @@ the YAML directly — it's a single source of truth per replication.
 
 For every runnable strategy, spec2code should compute and report at least: Sharpe ratio, maximum drawdown, total return, and return value/final portfolio value. If a strategy is not runnable as a broker-connected strategy, report why and still compute the metrics that are meaningful for the confirmed research/backtest contract.
 
-Spec2Code-generated code must cache all network data locally, save headless-safe visual diagnostics, plot all used asset prices together, compare the strategy account value against same-capital buy-and-hold curves for all used assets, include a 0% / 0.01% / 0.05% commission equity-curve comparison for trading strategies, and include a combined portfolio-vs-assets chart where all three commission portfolio curves are plotted with all asset buy-and-hold
-curves. 
+Spec2Code-generated code must cache all network data locally, save headless-safe visual diagnostics, and plot the strategy's own P&L curve plus one CSV + PNG per key observable factor (under `results/key_pred/`).
 
-For US equity strategies, SPY must be included and highlighted as the market baseline in asset and portfolio-vs-assets plots. See [references/spec2code.md](references/spec2code.md) and [references/data_sources.md](references/data_sources.md) for the required data cache and visualization contract.
+For US equity strategies, SPY must be included as the market baseline in any asset overlay. See [references/spec2code.md](references/spec2code.md) and [references/data_sources.md](references/data_sources.md) for the required data cache and visualization contract.
 
 ---
 
