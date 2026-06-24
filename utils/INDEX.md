@@ -22,10 +22,13 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 |---|---|---|
 | Bin stocks cross-sectionally by a signal | `assign_quantiles(panel, date_col, signal_col, n_bins=10)` | `pd.Series` of bin labels (1..n_bins) |
 | Rank stocks cross-sectionally | `assign_ranks(panel, date_col, signal_col, ascending=False)` | `pd.Series` of ranks |
+| Conditional (outer × inner) double sort | `double_sort(panel, date_col, outer_col, inner_col, n_bins=5)` | DataFrame with `outer_q` + `inner_q` columns |
 | Compute per-decile EW + VW returns | `bin_returns(panel, date_col, bin_col, ret_col, mcap_col)` | DataFrame with columns `[date_col, bin_col, "EW", "VW"]` |
 | Form a long-short portfolio | `long_short(bin_rets, date_col, weighting="VW", long_bin, short_bin)` | DataFrame `[date_col, "ret"]` |
 | Shift the return forward to avoid look-ahead | `forward_returns(panel, signal_col, date_col, ret_col, n_lags=1)` | DataFrame with `ret_col` REPLACED (not new column) |
+| Geometric-mean H-month forward return (overlapping cohorts) | `forward_returns_h(panel, signal_col, date_col, ret_col, n_lags=6)` | DataFrame with `ret_fwd{H}` ADDED (preserves `ret_col`) |
 | Compute Sharpe / CAGR / max DD / vol | `performance_metrics(returns, freq="M")` | dict |
+| HAC t-stat for autocorrelated returns (use n_lags=H-1 for overlapping cohorts) | `tstat_newey_west(returns, n_lags=5)` | dict `{mean_return, t_stat, n_obs}` |
 | Plot cumulative P&L | `plot_cumulative_returns(df, index_col_name, ret_col_lst, save_to=...)` | PNG at `save_to` |
 | Plot drawdown | `plot_drawdown(df, date_col, ret_col, save_to=...)` | PNG at `save_to` |
 | Plot per-bin EW + VW bar chart | `plot_decile_spread(bin_rets, bin_col="bin", save_to=...)` | PNG at `save_to` |
@@ -41,6 +44,16 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 - **`forward_returns` REPLACES** the `ret_col` column with the
   forward-shifted values. The output is the same shape as the input,
   minus the last `n_lags` rows per stock.
+- **`forward_returns_h` ADDS a new column** (default `ret_fwd{H}`)
+  instead of replacing `ret_col`. Use this for overlapping-cohort
+  (Jegadeesh-Titman) momentum patterns where you need both the
+  original `ret` AND the per-month-equivalent H-month forward return.
+  Different from `forward_returns` by intent — don't mix them up.
+- **`tstat_newey_west` is for autocorrelated returns.** For independent
+  monthly returns (MAX paper), `n_lags=0` ≈ iid t-stat. For
+  H-month overlapping cohorts (FIP / momentum), set `n_lags=H-1`
+  to correct for autocorrelation; otherwise the t-stat is inflated
+  ~2-4×.
 - **`forward_returns` auto-detects the stock-id** from
   `{permno, ticker, stock_id, id}`. There's no `per_stock_col=` kwarg.
 - **`plot_cumulative_returns` uses different kwarg names** than the
@@ -68,7 +81,7 @@ and 3) was a missing `forward_returns` step.
 
 ---
 
-## 3. Three worked patterns
+## 3. Four worked patterns
 
 ### Pattern A: cross-sectional long-short (MAX, momentum, value, B/M)
 
@@ -204,3 +217,50 @@ vs. the canonical-usage test pattern:
 
 If a paper genuinely needs behavior the primitives don't provide,
 **add the primitive to `utils/` first**, then use it.
+
+### Pattern D: overlapping-cohort momentum (FIP, Jegadeesh-Titman)
+
+Use when the paper holds cohorts for H months and forms a new cohort
+every month. Monthly portfolio return = average across H active cohorts.
+
+```python
+from utils import (
+    double_sort, forward_returns_h,
+    performance_metrics, tstat_newey_west,
+    plot_cumulative_returns,
+)
+
+# 1. Geometric-mean H-month forward return (preserves original 'ret').
+monthly = forward_returns_h(
+    monthly, signal_col="pret", date_col="month",
+    ret_col="ret", n_lags=6,
+)
+# monthly now has 'ret_fwd6': per-month equivalent of the compounded
+# 6-month return. The original 'ret' is preserved.
+
+# 2. Conditional double sort on PRET (outer) x ID (inner).
+monthly = double_sort(
+    monthly, date_col="month", outer_col="pret",
+    inner_col="id", n_bins=5,
+)
+
+# 3. Pick the L/S cells: PRET Q5 x ID Q1 (long) vs PRET Q1 x ID Q1 (short).
+long = monthly[(monthly["pret_q"] == 5) & (monthly["id_q"] == 1)]
+short = monthly[(monthly["pret_q"] == 1) & (monthly["id_q"] == 1)]
+
+# 4. Build EW portfolios (per-cell equal-weighted average of ret_fwd6).
+ls = (
+    long.groupby("month")["ret_fwd6"].mean()
+    - short.groupby("month")["ret_fwd6"].mean()
+).rename("ret").reset_index()
+
+# 5. NW-corrected t-stat (use n_lags=H-1=5 for H=6 overlapping cohorts).
+nw = tstat_newey_west(ls, n_lags=5)
+print(f"FIP spread: {ls['ret'].mean():.4f}/mo, t_NW = {nw['t_stat']:.2f}")
+
+# 6. P&L plot.
+plot_cumulative_returns(
+    ls, index_col_name="month", ret_col_lst=["ret"],
+    save_to="results/fip_pnl.png",
+)
+```
