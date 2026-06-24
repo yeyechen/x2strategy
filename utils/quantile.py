@@ -132,3 +132,76 @@ def assign_ranks(
 
 
 __all__ = ["assign_quantiles", "assign_ranks", "QuantileError"]
+
+def double_sort(
+    df: pd.DataFrame,
+    date_col: str,
+    outer_col: str,
+    inner_col: str,
+    n_bins: int = 5,
+    outer_col_out: str = None,
+    inner_col_out: str = None,
+) -> pd.DataFrame:
+    """Conditional double sort: outer quintile within date, then inner quintile within (date, outer).
+
+    Da-Gurun-Warachka (2012) "Frog in the Pan" sorts on PRET (12-mo
+    cumulative return), then within each PRET quintile sorts on ID
+    (information discreteness). The result is a 5x5 grid; the L/S
+    portfolio picks specific cells (e.g. PRET Q5 x ID Q1 within Q5).
+
+    Args:
+        df: input DataFrame with date_col, outer_col, inner_col.
+        date_col: column to group by (e.g. "month").
+        outer_col: column for the outer sort (e.g. "pret"). Binned
+            cross-sectionally within each date.
+        inner_col: column for the inner sort (e.g. "id"). Binned
+            within each (date, outer_q) group.
+        n_bins: number of quantile bins per dimension. Default 5.
+        outer_col_out: name of the outer-bin column in the output.
+            Default f"{outer_col}_q".
+        inner_col_out: name of the inner-bin column in the output.
+            Default f"{inner_col}_q".
+
+    Returns:
+        New DataFrame with two added columns (outer_q and inner_q), both
+        int in [1, n_bins]. Rows where either bin is undefined are dropped.
+
+    Example::
+
+        df = double_sort(df, "month", "pret", "id", n_bins=5)
+        # df now has columns "pret_q" and "id_q"
+        cell_mask = (df["pret_q"] == 5) & (df["id_q"] == 1)  # PRET Q5 x ID Q1
+    """
+    if outer_col_out is None:
+        outer_col_out = f"{outer_col}_q"
+    if inner_col_out is None:
+        inner_col_out = f"{inner_col}_q"
+
+    out = df.copy()
+    out[outer_col_out] = assign_quantiles(
+        out, date_col=date_col, signal_col=outer_col,
+        n_bins=n_bins, warn_fallback=False,
+    )
+
+    def _inner_q(g):
+        # groupby[Series].apply passes a Series to the function.
+        try:
+            return pd.qcut(g, q=n_bins, labels=False, duplicates="drop") + 1
+        except ValueError:
+            # Too few distinct values -> rank-based fallback.
+            ranks = g.rank(method="first")
+            n_valid = int(ranks.notna().sum())
+            return np.ceil(ranks / max(n_valid, 1) * n_bins).astype("Int64")
+
+    out[inner_col_out] = (
+        out.groupby([date_col, outer_col_out], group_keys=False)[inner_col]
+        .apply(_inner_q)
+        .astype("Int64")
+    )
+    out = out.dropna(subset=[outer_col_out, inner_col_out])
+    out[outer_col_out] = out[outer_col_out].astype(int)
+    out[inner_col_out] = out[inner_col_out].astype(int)
+    return out.reset_index(drop=True)
+
+
+__all__ = ["assign_quantiles", "assign_ranks", "double_sort", "QuantileError"]
