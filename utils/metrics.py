@@ -37,6 +37,49 @@ _ANN_FACTORS: Dict[str, int] = {
 
 FreqLiteral = Literal["D", "W", "M"]
 
+# Common date-column names recognized by the auto-detect.
+_DATE_COL_CANDIDATES = ("date", "month", "day", "year", "week")
+
+
+def _resolve_ret_col(df: pd.DataFrame, ret_col: str, date_col: str) -> str:
+    """Resolve the actual return column from a DataFrame.
+
+    The agent often passes a DataFrame whose return column has a
+    paper-specific name ("fip_spread", "max_signal", "mom", etc.)
+    and forgets to pass ret_col=. This helper makes the common
+    cases work without an explicit kwarg.
+
+    Resolution order:
+
+    1. If ret_col is in df.columns -> use it (explicit wins).
+    2. If df has exactly one column -> use that one.
+    3. If df has two columns and one matches a known date-column
+       name -> use the other one.
+    4. Otherwise -> raise MetricsError listing the columns.
+
+    Args:
+        df: the input DataFrame.
+        ret_col: the requested return column name.
+        date_col: the requested date column name (used for auto-detect).
+
+    Returns:
+        The actual column name to use as the return column.
+
+    Raises:
+        MetricsError: if no unambiguous return column can be found.
+    """
+    if ret_col in df.columns:
+        return ret_col
+    if len(df.columns) == 1:
+        return df.columns[0]
+    non_date = [c for c in df.columns if c not in _DATE_COL_CANDIDATES]
+    if len(non_date) == 1:
+        return non_date[0]
+    raise MetricsError(
+        f"Could not auto-detect return column. Pass ret_col= explicitly. "
+        f"Columns present: {list(df.columns)}"
+    )
+
 
 class MetricsError(Exception):
     """Raised when performance metrics cannot be computed."""
@@ -92,12 +135,14 @@ def performance_metrics(
 
     # Normalize input
     if isinstance(returns, pd.DataFrame):
-        if ret_col not in returns.columns:
-            raise MetricsError(f"DataFrame missing ret_col '{ret_col}'")
-        if date_col in returns.columns:
-            returns = returns.set_index(date_col)[ret_col]
+        # Auto-detect the return column when ret_col isn't found.
+        # Order of attempts: explicit ret_col > single-column DataFrame >
+        # 2-column DataFrame with one named date/month.
+        actual_ret_col = _resolve_ret_col(returns, ret_col, date_col)
+        if date_col in returns.columns and actual_ret_col != date_col:
+            returns = returns.set_index(date_col)[actual_ret_col]
         else:
-            returns = returns[ret_col]
+            returns = returns[actual_ret_col]
     elif not isinstance(returns, pd.Series):
         raise MetricsError(f"returns must be Series or DataFrame, got {type(returns)}")
 
@@ -249,12 +294,11 @@ def tstat_newey_west(
     from statsmodels.tools import add_constant
 
     if isinstance(returns, pd.DataFrame):
-        if ret_col not in returns.columns:
-            raise MetricsError(f"DataFrame missing ret_col '{ret_col}'")
-        if date_col in returns.columns:
-            returns = returns.set_index(date_col)[ret_col]
+        actual_ret_col = _resolve_ret_col(returns, ret_col, date_col)
+        if date_col in returns.columns and actual_ret_col != date_col:
+            returns = returns.set_index(date_col)[actual_ret_col]
         else:
-            returns = returns[ret_col]
+            returns = returns[actual_ret_col]
     elif not isinstance(returns, pd.Series):
         raise MetricsError(f"returns must be Series or DataFrame, got {type(returns)}")
 

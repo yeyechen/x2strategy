@@ -483,3 +483,63 @@ def test_utils_package_re_exports_all_primitives() -> None:
         if isinstance(obj, type) or name in ("plot_config",):
             continue
         assert callable(obj), f"utils.{name} is not callable"
+
+
+# ── _resolve_ret_col auto-detect (TODO #16) ─────────────────────────────────
+
+
+def test_resolve_ret_col_explicit_wins() -> None:
+    """When ret_col is in the DataFrame, use it (don't auto-detect)."""
+    from utils.metrics import _resolve_ret_col
+    df = pd.DataFrame({"month": [1, 2], "fip_spread": [0.01, 0.02], "extra": [0, 0]})
+    assert _resolve_ret_col(df, "fip_spread", "month") == "fip_spread"
+
+
+def test_resolve_ret_col_single_column() -> None:
+    """Single-column DataFrame: use that column."""
+    from utils.metrics import _resolve_ret_col
+    df = pd.DataFrame({"fip_spread": [0.01, 0.02]})
+    assert _resolve_ret_col(df, "ret", "month") == "fip_spread"
+
+
+def test_resolve_ret_col_two_columns_with_date() -> None:
+    """Two-column DataFrame: pick the non-date column."""
+    from utils.metrics import _resolve_ret_col
+    df = pd.DataFrame({"month": [1, 2], "fip_spread": [0.01, 0.02]})
+    assert _resolve_ret_col(df, "ret", "month") == "fip_spread"
+
+
+def test_resolve_ret_col_ambiguous_raises() -> None:
+    """Two non-date columns: raise with a helpful message."""
+    import pytest as _pytest
+    from utils.metrics import _resolve_ret_col, MetricsError
+    df = pd.DataFrame({"mom": [0.01], "value": [0.02]})
+    with _pytest.raises(MetricsError, match="Could not auto-detect"):
+        _resolve_ret_col(df, "ret", "month")
+
+
+def test_performance_metrics_auto_detect_custom_column() -> None:
+    """End-to-end: pass a DataFrame with ret_col='fip_spread' and a
+    single-return column; performance_metrics figures it out."""
+    np.random.seed(0)
+    df = pd.DataFrame({
+        "month": pd.date_range("2020-01-31", periods=240, freq="ME"),
+        "fip_spread": np.random.normal(0.005, 0.02, 240),
+    })
+    # No ret_col kwarg — should auto-detect "fip_spread".
+    m = performance_metrics(df, freq="M")
+    assert "sharpe_ratio" in m
+    # 240 months of iid N(0.005, 0.02) gives annual_return ~ 0.06 +/- 0.015.
+    assert abs(m["annual_return"] - 0.06) < 0.02
+
+
+def test_tstat_newey_west_auto_detect_custom_column() -> None:
+    """End-to-end: pass a DataFrame with a custom column name."""
+    np.random.seed(0)
+    df = pd.DataFrame({
+        "month": pd.date_range("2020-01-31", periods=60, freq="ME"),
+        "fip_spread": np.random.normal(0.005, 0.02, 60),
+    })
+    out = tstat_newey_west(df, n_lags=0)  # auto-detect "fip_spread"
+    assert "t_stat" in out
+    assert np.isfinite(out["t_stat"])
