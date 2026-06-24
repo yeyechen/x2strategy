@@ -5,10 +5,9 @@ visualization).
 WHY THIS FILE EXISTS
 --------------------
 Letting the agent write the runner / plotting block from scratch produces high
-variance: charts go missing, the commission sweep is skipped, SPY is not
-highlighted, or plots try to open a GUI on a headless server. This template
-pins the structural parts so the SKILL.md / spec2code.md output contract holds
-every run.
+variance: charts go missing, plots try to open a GUI on a headless server, or
+the wrong fields are written. This template pins the structural parts so the
+SKILL.md / spec2code.md output contract holds every run.
 
 HOW TO USE
 ----------
@@ -26,13 +25,11 @@ CLICKHOUSE_USER, CLICKHOUSE_PASSWORD).  Adapt `fetch_data_cached` to
 query the correct table and columns for the paper.
 
 Everything else — the local cache, the analyzer `_name` strings, the headless
-matplotlib backend, the three-commission sweep, and the portfolio-vs-assets
-chart with SPY + portfolio boldface — is the output contract. Keep it.
+matplotlib backend, and the key-pred charts — is the output contract. Keep it.
 
 Required charts under results/ (see SKILL.md "Output Paths"):
-  - results/portfolio_vs_assets.png / .csv  (3 commission curves + every asset
-    buy-and-hold; SPY and portfolio boldface; distinguishable colors + legend)
   - results/key_pred/<factor>.png / .csv    (one per key observable factor)
+  - results/pnl_curve.png / .csv            (the strategy's own P&L curve)
 
 The DATA_DIR / RESULTS_DIR / KEY_PRED_DIR constants below are resolved
 via `paper_layout(slug)` from `paper2spec/paths.py`, which expects this
@@ -122,8 +119,6 @@ except ImportError:
 # Set from the spec. SPY is the mandatory US-equity baseline (boldface in plots).
 SPY_SYMBOL = "SPY"
 INITIAL_CASH = 100_000.0
-# The three commission rates the portfolio-vs-assets sweep must compare.
-COMMISSION_RATES = (0.0, 0.0001, 0.0005)
 
 # ── Mandatory local data cache ────────────────────────────────────────────────
 # Every ClickHouse fetch is cached as a CSV and reused on later runs. Never hit
@@ -223,18 +218,18 @@ class MyStrategy(bt.Strategy):
 
 
 # ── Single backtest run + metric extraction ──────────────────────────────────
-def run_once(feeds, commission: float):
-    """Run one backtest at a given commission. Returns (metrics, value_series).
+def run_once(feeds):
+    """Run one backtest. Returns (metrics, value_series).
 
     Analyzer `_name` strings are load-bearing — keep them. Sharpe is configured
     explicitly (riskfreerate=0.0, annualize) rather than left at defaults.
+    Academic papers don't model transaction costs — backtest is gross.
     """
     cerebro = bt.Cerebro()
     for feed in feeds:
         cerebro.adddata(feed)
     cerebro.addstrategy(MyStrategy, fetched_data={f._name: f for f in feeds})
     cerebro.broker.setcash(INITIAL_CASH)
-    cerebro.broker.setcommission(commission=commission)
 
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe",
                         riskfreerate=0.0, annualize=True)
@@ -265,7 +260,6 @@ def run_once(feeds, commission: float):
     dd = strat.analyzers.drawdown.get_analysis()
     trades = strat.analyzers.trades.get_analysis()  # AutoOrderedDict — use .get
     metrics = {
-        "commission": commission,
         "final_value": round(final_value, 2),
         "return_value": round(final_value, 2),
         "total_return": round((final_value / INITIAL_CASH - 1) * 100, 2),
@@ -274,46 +268,6 @@ def run_once(feeds, commission: float):
         "num_trades": trades.get("total", {}).get("closed", 0),
     }
     return metrics, value_series
-
-
-# ── Portfolio-vs-assets chart (the required output contract) ──────────────────
-def plot_portfolio_vs_assets(value_by_commission, asset_prices: dict) -> None:
-    """One image: 3 commission portfolio curves + every asset buy-and-hold.
-
-    Contract:
-      - all three commission portfolio curves on one axis;
-      - one same-capital buy-and-hold curve per used asset, distinguishable
-        colors + legend labels;
-      - SPY and the portfolio curves are BOLDFACE (thicker linewidth);
-      - written to results/portfolio_vs_assets.png and .csv.
-    """
-    fig, ax = plt.subplots(figsize=(12, 7))
-    combined = pd.DataFrame()
-
-    # Buy-and-hold curves: normalise each asset to the same starting capital.
-    for sym, prices in asset_prices.items():
-        s = prices.astype(float).ffill()
-        bh = INITIAL_CASH * (s / s.iloc[0])
-        is_spy = sym.upper() == SPY_SYMBOL.upper()
-        ax.plot(bh.index, bh.values, label=f"{sym} (B&H)",
-                linewidth=2.6 if is_spy else 1.0,
-                alpha=1.0 if is_spy else 0.7)
-        combined[f"{sym}_bh"] = bh
-
-    # Portfolio curves at each commission — boldface.
-    for comm, vseries in value_by_commission.items():
-        label = f"Portfolio @ {comm*100:.2f}% comm"
-        ax.plot(vseries.index, vseries.values, label=label, linewidth=2.6)
-        combined[f"portfolio_comm_{comm}"] = vseries
-
-    ax.set_title("Portfolio vs Same-Capital Buy-and-Hold (SPY + portfolio boldface)")
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Account value")
-    ax.legend(loc="best", fontsize=8)
-    fig.tight_layout()
-    fig.savefig(RESULTS_DIR / "portfolio_vs_assets.png", dpi=120)
-    plt.close(fig)
-    combined.to_csv(RESULTS_DIR / "portfolio_vs_assets.csv")
 
 
 def plot_key_factor(name: str, series: pd.Series) -> None:
@@ -334,21 +288,14 @@ def main() -> None:
     start, end = "2015-01-01", "2024-01-02"
 
     raw = {sym: fetch_data_cached(sym, start, end) for sym in universe}
-    asset_prices = {sym: df["Close"] for sym, df in raw.items()}
 
-    # 2. Run the commission sweep on the same feeds shape.
-    value_by_commission = {}
-    all_metrics = []
-    for comm in COMMISSION_RATES:
-        feeds = [to_feed(raw[sym], sym) for sym in universe]
-        metrics, vseries = run_once(feeds, comm)
-        value_by_commission[comm] = vseries
-        all_metrics.append(metrics)
+    # 2. Run a single backtest (gross; no commission sweep — academic setting).
+    feeds = [to_feed(raw[sym], sym) for sym in universe]
+    metrics, _vseries = run_once(feeds)
 
     # 3. Required artifacts.
-    plot_portfolio_vs_assets(value_by_commission, asset_prices)
-    (RESULTS_DIR / "metrics.json").write_text(json.dumps(all_metrics, indent=2))
-    print(json.dumps(all_metrics, indent=2))
+    (RESULTS_DIR / "metrics.json").write_text(json.dumps([metrics], indent=2))
+    print(json.dumps([metrics], indent=2))
 
 
 if __name__ == "__main__":
