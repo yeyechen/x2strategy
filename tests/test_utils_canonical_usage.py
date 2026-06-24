@@ -49,20 +49,30 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from utils.quantile import assign_quantiles, assign_ranks, double_sort
-from utils.portfolio import (
+# IMPORTANT: import via the package path ('from utils import X'), NOT
+# the module path ('from utils.module import X'). This mirrors how
+# agents write 'from utils import forward_returns_h' in strategy.py
+# and catches re-export drift in utils/__init__.py — iter 9 added 3
+# primitives to their modules but missed __init__.py, crashing the
+# FIP refactor at 'from utils import double_sort'.
+from utils import (
+    assign_quantiles,
+    assign_ranks,
+    double_sort,
     bin_returns,
     long_short,
     forward_returns,
     forward_returns_h,
-)
-from utils.metrics import performance_metrics, format_metrics, tstat_newey_west
-from utils.plot import (
+    performance_metrics,
+    format_metrics,
+    tstat_newey_west,
     plot_cumulative_returns,
     plot_drawdown,
     plot_decile_spread,
+    run_ols,
+    fama_macbeth,
+    summarize_fama_macbeth,
 )
-from utils.regressions import run_ols, fama_macbeth, summarize_fama_macbeth
 
 
 # ── Fixture ──────────────────────────────────────────────────
@@ -448,3 +458,28 @@ def test_canonical_tstat_newey_west() -> None:
     # the iid t-stat (mean / (std / sqrt(n))).
     iid_t = r.mean() / (r.std(ddof=1) / np.sqrt(len(r)))
     assert abs(out["t_stat"] - iid_t) < 0.01
+
+
+# ── Re-export sanity check (TODO #14) ────────────────────────────────────────
+
+
+def test_utils_package_re_exports_all_primitives() -> None:
+    """utils/__init__.py must re-export every public primitive.
+
+    The package-path import at the top of this file already exercises
+    this for the primitives we use. This test additionally walks
+    utils.__all__ and asserts every name is callable, which catches
+    drift in either direction (added a primitive but didn't re-export,
+    or renamed a primitive in __all__ but forgot to update the
+    module).
+    """
+    import utils
+    for name in utils.__all__:
+        assert hasattr(utils, name), f"utils.{name} missing"
+        obj = getattr(utils, name)
+        # Exceptions and the plot_config singleton are valid __all__
+        # entries that aren't callable. Skip the callability check
+        # for those.
+        if isinstance(obj, type) or name in ("plot_config",):
+            continue
+        assert callable(obj), f"utils.{name} is not callable"
