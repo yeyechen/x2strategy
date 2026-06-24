@@ -4,7 +4,6 @@ A paper replication has settings that vary by paper:
 - date range
 - universe filter (exchange codes, share codes)
 - signal / binning parameters (n_bins, weighting, forward-returns lag)
-- commission rates
 - Fama-French control table (when applicable)
 - output list
 
@@ -102,7 +101,6 @@ def render_run_config(
       - n_bins (default 10, from first numeric parameter in indicators)
       - weighting (default "VW", from spec.execution_plan[0].position_sizing)
       - forward_returns_lag (default 1 — the cross-sectional convention)
-      - commission rates (default 0%, 0.01%, 0.05%)
       - ff_controls (default 4-factor Carhart if the strategy is
         cross-sectional equity)
 
@@ -211,9 +209,6 @@ def render_run_config(
                         )
                         break
 
-    # ── Commission rates ─────────────────────────────────────
-    commission_rates = [0.0, 0.0001, 0.0005]  # 0%, 0.01%, 0.05%
-
     # ── Fama-French controls ──────────────────────────────────
     # Default to 4-factor Carhart if this is a US equity strategy that
     # is NOT explicitly single-asset. Most academic equity papers
@@ -253,7 +248,6 @@ def render_run_config(
         "n_bins": n_bins,
         "weighting": weighting,
         "forward_returns_lag": 1,
-        "commission_rates": commission_rates,
         "initial_cash": 100000.0,
         "trading_frequency": "M",
         "outputs": outputs,
