@@ -18,6 +18,11 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 
 ## 1. Pick the right primitive
 
+> **Decision aid for the two `forward_returns` variants:**
+> - `forward_returns(n_lags=1)` — **bin-and-evaluate** pattern. The return at month t+1 is paired with the signal at month t before binning. Used by **MAX, value, B/M** (1-month holding).
+> - `forward_returns_h(n_lags=H)` — **overlapping-cohort** pattern. The column added is the per-month equivalent of the compounded H-month forward return. Used by **FIP, momentum** (H-month holding).
+> Mixing them up gives look-ahead bias (using `forward_returns` for momentum) or wrong column shape (using `forward_returns_h` and binning on the wrong column).
+
 | I need to... | Use this | Returns |
 |---|---|---|
 | Bin stocks cross-sectionally by a signal | `assign_quantiles(panel, date_col, signal_col, n_bins=10)` | `pd.Series` of bin labels (1..n_bins) |
@@ -25,10 +30,10 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 | Conditional (outer × inner) double sort | `double_sort(panel, date_col, outer_col, inner_col, n_bins=5)` | DataFrame with `outer_q` + `inner_q` columns |
 | Compute per-decile EW + VW returns | `bin_returns(panel, date_col, bin_col, ret_col, mcap_col)` | DataFrame with columns `[date_col, bin_col, "EW", "VW"]` |
 | Form a long-short portfolio | `long_short(bin_rets, date_col, weighting="VW", long_bin, short_bin)` | DataFrame `[date_col, "ret"]` |
-| Shift the return forward to avoid look-ahead | `forward_returns(panel, signal_col, date_col, ret_col, n_lags=1)` | DataFrame with `ret_col` REPLACED (not new column) |
+| Shift the return forward to avoid look-ahead (1-period) | `forward_returns(panel, signal_col, date_col, ret_col, n_lags=1)` | DataFrame with `ret_col` REPLACED (not new column) |
 | Geometric-mean H-month forward return (overlapping cohorts) | `forward_returns_h(panel, signal_col, date_col, ret_col, n_lags=6)` | DataFrame with `ret_fwd{H}` ADDED (preserves `ret_col`) |
-| Compute Sharpe / CAGR / max DD / vol | `performance_metrics(returns, freq="M")` | dict |
-| HAC t-stat for autocorrelated returns (use n_lags=H-1 for overlapping cohorts) | `tstat_newey_west(returns, n_lags=5)` | dict `{mean_return, t_stat, n_obs}` |
+| Compute Sharpe / CAGR / max DD / vol | `performance_metrics(returns, freq="M")` (PREFERRED: pass `pd.Series`) | dict |
+| HAC t-stat for autocorrelated returns (use n_lags=H-1 for overlapping cohorts) | `tstat_newey_west(returns, n_lags=5)` (PREFERRED: pass `pd.Series`) | dict `{mean_return, t_stat, n_obs}` |
 | Plot cumulative P&L | `plot_cumulative_returns(df, index_col_name, ret_col_lst, save_to=...)` | PNG at `save_to` |
 | Plot drawdown | `plot_drawdown(df, date_col, ret_col, save_to=...)` | PNG at `save_to` |
 | Plot per-bin EW + VW bar chart | `plot_decile_spread(bin_rets, bin_col="bin", save_to=...)` | PNG at `save_to` |
