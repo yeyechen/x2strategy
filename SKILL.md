@@ -230,33 +230,35 @@ the single source of truth for this layout.
 
 ```
 <slug>/
-├── README.md                  # what this paper replicates, expected vs actual metrics, how to re-run
 ├── paper/                     # source PDF (large; usually gitignored per-paper)
-│   └── original.pdf
+│   └── original.pdf           # REQUIRED: agents that fail to copy the PDF here are broken
 ├── inputs/                    # paper2spec artifacts (parse + extract + metadata)
 │   ├── content.json
 │   ├── content.md
 │   ├── spec.json
 │   ├── spec.md
 │   └── metadata.json
-├── diagnostics/               # mid-pipeline debug artifacts
+├── diagnostics/               # mid-pipeline analysis artifacts
 │   ├── data_requirements.json
-│   └── data_match_report.json
+│   ├── data_match_report.json
+│   ├── operator_pitfall_context.md
+│   └── diagnosis.md           # moved from results/ — conceptually an analysis, not a binary output
 ├── src/                       # generated strategy code
-│   ├── __init__.py
 │   └── strategy.py
 ├── data/                      # parquet caches (gitignored per-paper)
 │   └── *.parquet
-├── results/                   # spec2code outputs
+├── results/                   # spec2code outputs (binary: PNG, JSON, Parquet only)
 │   ├── metrics.json
 │   ├── backtest_output.txt
-│   ├── diagnosis.md
 │   ├── decile_spread.csv
 │   ├── decile_spread.png
 │   └── key_pred/              # one CSV + PNG per key observable factor
 │       ├── <factor>.csv
 │       └── <factor>.png
-└── config/                    # optional run config (run_config.yaml, etc.)
+├── config/                    # optional run config (run_config.yaml, etc.)
+└── logs/                      # runtime logs (per-paper, not at slug root)
+    ├── agent_run.log
+    └── run.log
 ```
 
 ### File responsibilities
@@ -268,14 +270,15 @@ the single source of truth for this layout.
 | `inputs/metadata.json` | `scripts/analyze.py` | Pipeline run metadata (model, parser mode, instruction files) |
 | `diagnostics/data_requirements.json` | `scripts/extract_requirements.py` | What data the spec needs |
 | `diagnostics/data_match_report.json` | `scripts/extract_requirements.py` | What ClickHouse actually has |
+| `diagnostics/operator_pitfall_context.md` | `scripts/operator_pitfalls.py` | Retrieved operator-pitfall context for the spec |
+| `diagnostics/diagnosis.md` | spec2code runtime | Strategy output vs paper-claimed metrics |
 | `src/strategy.py` | spec2code LLM | Generated code. One file per paper — no `_1` suffix |
 | `data/*.parquet` | spec2code runtime | Local cache, see `assets/backtrader_template.py` |
 | `results/metrics.json` | spec2code runtime | Sharpe, max DD, total return, final value |
 | `results/backtest_output.txt` | spec2code runtime | Human-readable backtest summary |
-| `results/diagnosis.md` | spec2code runtime | Strategy output vs paper-claimed metrics |
 | `results/key_pred/<factor>.{csv,png}` | spec2code runtime | One per key observable factor |
-| `paper/original.pdf` | `scripts/analyze.py` | Copy of the source PDF for self-contained replication |
-| `operator_pitfall_context.md` (legacy) | `scripts/operator_pitfalls.py` | Still emitted at the per-paper root for backward compatibility — move to `diagnostics/` if regenerating |
+| `paper/original.pdf` | `scripts/analyze.py` | REQUIRED: copy of the source PDF for self-contained replication |
+| `logs/agent_run.log`, `logs/run.log` | `scripts/run_iteration_agent.sh` | Runtime logs of the agent invocation |
 
 ### Why this layout (vs the previous flat layout)
 
@@ -468,7 +471,7 @@ uv run python scripts/parse.py <file> -o content.json
 uv run python scripts/extract.py content.json -o spec.json
 
 # Matched operator-pitfall context for repair/review
-uv run python scripts/operator_pitfalls.py inputs/spec.json -o operator_pitfall_context.md
+uv run python scripts/operator_pitfalls.py inputs/spec.json -o diagnostics/operator_pitfall_context.md
 
 # Extract data requirements and match against ClickHouse catalog
 uv run python scripts/extract_requirements.py replications/<slug>/inputs/spec.json
