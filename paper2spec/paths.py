@@ -56,6 +56,7 @@ DATA_DIR = "data"
 RESULTS_DIR = "results"
 KEY_PRED_DIR = "key_pred"
 CONFIG_DIR = "config"
+LOGS_DIR = "logs"
 
 
 def _slugify(text: str) -> str:
@@ -88,6 +89,7 @@ class PaperLayout:
     results_dir: Path
     key_pred_dir: Path
     config_dir: Path
+    logs_dir: Path
 
     # ── Construction helpers ───────────────────────────────────────────────
 
@@ -102,6 +104,7 @@ class PaperLayout:
             self.results_dir,
             self.key_pred_dir,
             self.config_dir,
+            self.logs_dir,
         ):
             d.mkdir(parents=True, exist_ok=True)
         return self
@@ -143,6 +146,10 @@ class PaperLayout:
         """Path under paper/ — the source PDF."""
         return self.paper_dir / name
 
+    def log_path(self, name: str) -> Path:
+        """Path under logs/ — runtime log files (agent_run.log, run.log, …)."""
+        return self.logs_dir / name
+
 
 def paper_layout(
     slug: str | None = None,
@@ -182,6 +189,7 @@ def paper_layout(
         results_dir=root / RESULTS_DIR,
         key_pred_dir=root / RESULTS_DIR / KEY_PRED_DIR,
         config_dir=root / CONFIG_DIR,
+        logs_dir=root / LOGS_DIR,
     )
 
 
