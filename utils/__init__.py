@@ -50,6 +50,7 @@ __version__ = "0.1.0"
 from .quantile import (
     assign_quantiles,
     assign_ranks,
+    double_sort,
     QuantileError,
 )
 
@@ -57,12 +58,14 @@ from .portfolio import (
     bin_returns,
     long_short,
     forward_returns,
+    forward_returns_h,
     PortfolioError,
 )
 
 from .metrics import (
     performance_metrics,
     format_metrics,
+    tstat_newey_west,
     MetricsError,
 )
 
@@ -90,15 +93,18 @@ __all__ = [
     # quantile
     "assign_quantiles",
     "assign_ranks",
+    "double_sort",
     "QuantileError",
     # portfolio
     "bin_returns",
     "long_short",
     "forward_returns",
+    "forward_returns_h",
     "PortfolioError",
     # metrics
     "performance_metrics",
     "format_metrics",
+    "tstat_newey_west",
     "MetricsError",
     # plot
     "plot_cumulative_returns",
