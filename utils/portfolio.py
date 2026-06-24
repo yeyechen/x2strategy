@@ -88,25 +88,47 @@ def bin_returns(
 def long_short(
     bins_df: pd.DataFrame,
     date_col: str,
-    ret_col: str,
+    weighting: str = "VW",
     long_bin: Optional[int] = None,
     short_bin: Optional[int] = None,
+    bin_col: str = "bin",
+    ret_col: Optional[str] = None,
 ) -> pd.DataFrame:
     """Construct a long-short portfolio by subtracting two bins.
 
+    The canonical call is::
+
+        ls = long_short(bin_rets, date_col="month", weighting="VW",
+                        long_bin=1, short_bin=N_BINS)
+
+    The function looks up the right per-bin return column from
+    ``bin_rets`` (output of :func:`bin_returns`) using ``weighting`` —
+    the agent does NOT need to know that bin_returns emits columns
+    literally named ``"EW"`` and ``"VW"``.
+
     Args:
         bins_df: output of :func:`bin_returns`. Must contain ``date_col``,
-            a ``"bin"`` column, and ``ret_col``.
+            ``bin_col``, and the column named by ``weighting`` (``"EW"``
+            or ``"VW"``). For backward compatibility, an explicit
+            ``ret_col`` may be supplied instead.
         date_col: date column (used for the merge).
-        ret_col: which weighted-return column to use (typically ``"EW"`` or
-            ``"VW"``).
+        weighting: which weighted-return column to use. ``"EW"`` for
+            equal-weighted, ``"VW"`` for value-weighted. Default ``"VW"``
+            (matches the MAX paper convention). Internally translates
+            to ``ret_col = weighting``.
         long_bin: bin to go long. Default: the highest bin (computed from
             the data).
         short_bin: bin to go short. Default: the lowest bin.
+        bin_col: name of the bin-label column in ``bins_df``. Default
+            ``"bin"`` (matches the column name produced by
+            :func:`utils.quantile.assign_quantiles`).
+        ret_col: DEPRECATED. Use ``weighting=`` instead. If provided,
+            overrides ``weighting`` for backward compatibility. Emits a
+            :class:`DeprecationWarning`.
 
     Returns:
         DataFrame with one row per date, columns ``date_col`` and ``"ret"``
-        where ``ret`` is ``long_minus_short`` of ``ret_col``.
+        where ``ret`` is ``long_minus_short`` of the chosen return column.
 
     Raises:
         PortfolioError: if columns are missing, if either bin is empty, or
@@ -114,19 +136,41 @@ def long_short(
 
     Example::
 
-        ls = long_short(bins_df, "month", "VW", long_bin=10, short_bin=1)
+        # Canonical (preferred):
+        ls = long_short(bin_rets, date_col="month", weighting="VW",
+                        long_bin=10, short_bin=1)
         # ls.columns: ["month", "ret"]
+
+        # Legacy (still works, with DeprecationWarning):
+        ls = long_short(bin_rets, "month", "VW", long_bin=10, short_bin=1)
     """
-    required = [date_col, "bin", ret_col]
+    # Resolve the actual return-column name from weighting / ret_col.
+    if ret_col is not None:
+        import warnings
+        warnings.warn(
+            "long_short(ret_col=...) is deprecated; use weighting= "
+            '("EW" or "VW") instead.',
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        actual_ret_col = ret_col
+    else:
+        if weighting not in ("EW", "VW"):
+            raise PortfolioError(
+                f"long_short: weighting must be 'EW' or 'VW', got {weighting!r}"
+            )
+        actual_ret_col = weighting
+
+    required = [date_col, bin_col, actual_ret_col]
     missing = [c for c in required if c not in bins_df.columns]
     if missing:
         raise PortfolioError(f"long_short: missing columns {missing}")
 
     # Default to extreme bins
     if long_bin is None:
-        long_bin = int(bins_df["bin"].max())
+        long_bin = int(bins_df[bin_col].max())
     if short_bin is None:
-        short_bin = int(bins_df["bin"].min())
+        short_bin = int(bins_df[bin_col].min())
 
     if long_bin == short_bin:
         raise PortfolioError(
@@ -134,11 +178,11 @@ def long_short(
             f"({short_bin}) must differ"
         )
 
-    long_data = bins_df.loc[bins_df["bin"] == long_bin, [date_col, ret_col]].rename(
-        columns={ret_col: f"{ret_col}_long"}
+    long_data = bins_df.loc[bins_df[bin_col] == long_bin, [date_col, actual_ret_col]].rename(
+        columns={actual_ret_col: f"{actual_ret_col}_long"}
     )
-    short_data = bins_df.loc[bins_df["bin"] == short_bin, [date_col, ret_col]].rename(
-        columns={ret_col: f"{ret_col}_short"}
+    short_data = bins_df.loc[bins_df[bin_col] == short_bin, [date_col, actual_ret_col]].rename(
+        columns={actual_ret_col: f"{actual_ret_col}_short"}
     )
 
     if long_data.empty:
@@ -147,7 +191,7 @@ def long_short(
         raise PortfolioError(f"long_short: no data for short_bin={short_bin}")
 
     merged = pd.merge(long_data, short_data, on=date_col, how="inner")
-    merged["ret"] = merged[f"{ret_col}_long"] - merged[f"{ret_col}_short"]
+    merged["ret"] = merged[f"{actual_ret_col}_long"] - merged[f"{actual_ret_col}_short"]
     return merged[[date_col, "ret"]].reset_index(drop=True)
 
 
