@@ -99,8 +99,7 @@ Generate a **single self-contained Python file** at `src/strategy.py`
 6. **Visualization output** — Save equity curve, drawdown, traded-asset prices,
    and every used indicator chart to `results/` (and per-factor charts
    to `results/key_pred/`)
-7. **Commission comparison output** — For trading strategies, save a single equity-curve comparison chart for 0%, 0.01%, and 0.05% commission rates.
-8. **`if __name__ == "__main__"` guard**
+7. **`if __name__ == "__main__"` guard**
 
 Read [backtrader_patterns.md](backtrader_patterns.md) for canonical patterns.
 Read [indicator_cookbook.md](indicator_cookbook.md) for indicator implementations.
@@ -124,7 +123,6 @@ from utils import (
     plot_drawdown,              # drawdown over time
     plot_decile_spread,         # per-bin EW + VW bar charts (auto-aggregates per-date shape)
     plot_performance_comparison,# multiple portfolios side by side
-    plot_portfolio_vs_assets,   # standard replication plot: portfolios + B&H assets
     fama_macbeth,               # monthly cross-section OLS + Newey-West
     summarize_fama_macbeth,     # formatted table output
 )
@@ -153,23 +151,6 @@ plot_cumulative_returns(ls, "month", "ret",
 plot_drawdown(ls, "month", "ret",
               save_to=layout.result_path("drawdown.png"))
 plot_decile_spread(bin_rets, save_to=layout.result_path("decile_spread.png"))
-
-# Standard replication plot — strategy portfolios vs same-capital buy-and-hold.
-# Use plot_portfolio_vs_assets, NOT custom matplotlib code, so the colors match
-# utils.plot_config (blue=portfolio, red=asset).
-plot_portfolio_vs_assets(
-    portfolios={
-        "Portfolio @ 0.000% comm": ls_at_0pct,
-        "Portfolio @ 0.010% comm": ls_at_1bp,
-        "Portfolio @ 0.050% comm": ls_at_5bp,
-    },
-    asset_curves={
-        "CRSP_VW (B&H)": crsp_vw_buy_and_hold,
-    },
-    date_col="month",
-    ret_col="ret",
-    save_to=layout.result_path("portfolio_vs_assets.png"),
-)
 
 # Cross-sectional regression with size / momentum / etc controls
 fm = fama_macbeth(panel, "ret",
@@ -212,7 +193,7 @@ DIAG_REPORT = layout.diagnostic_path("data_match_report.json")
 #### Per-paper run config — load from `config/run_config.yaml`
 
 Paper-specific settings (date range, universe filter, binning params,
-commission rates, FF control table) live in `config/run_config.yaml`,
+FF control table) live in `config/run_config.yaml`,
 auto-generated from the spec by `scripts/render_run_config.py`.
 **Do NOT hard-code these values in `strategy.py`.** Load via:
 
@@ -223,7 +204,6 @@ end         = cfg["end_date"]                            # "2005-12-31"
 n_bins      = cfg["n_bins"]                              # 10
 weighting   = cfg["weighting"]                          # "VW"
 forward_lag = cfg["forward_returns_lag"]                # 1
-commission  = cfg["commission_rates"]                   # [0, 1e-4, 5e-4]
 where       = cfg["universe"]["where_clause"]           # "exchcd IN (1,2,3) AND shrcd IN (10,11)"
 ff_table    = cfg.get("ff_controls", {}).get("table")  # "ff.four_factor_monthly" or None
 ```
@@ -241,9 +221,8 @@ if every script and every generated file uses it.
 **Start from the bundled runner template** [assets/backtrader_template.py](../assets/backtrader_template.py).
 Copy its structural parts verbatim and adapt only the marked spots
 (`fetch_data_cached` source — see §Data Source below, `MyStrategy.__init__/next`,
-universe/SPY symbol). The local data cache, analyzer `_name` strings, headless
-`matplotlib.use('Agg')`, the three-commission sweep, and the `portfolio_vs_assets`
-chart with SPY + portfolio boldface are the output contract — keep them as-is.
+universe/SPY symbol). The local data cache, analyzer `_name` strings, and headless
+`matplotlib.use('Agg')` are the output contract — keep them as-is.
 The template's `DATA_DIR` / `RESULTS_DIR` resolution is now derived from
 `paper_layout(slug)` rather than from the script's `__file__` location.
 
@@ -573,7 +552,6 @@ After a successful backtest, present results in this format:
 **3. Generated files** (list paths):
 - `src/strategy.py` — self-contained strategy code
 - `inputs/spec.json` — strategy specification
-- `results/portfolio_vs_assets.csv` and `results/portfolio_vs_assets.png` comparing the strategy portfolio value against same-capital buy-and-hold curves for every used equity/ETF/asset in one image; asset curves must use distinguishable colors and symbol labels/legend entries, and SPY and portfolio must be boldface (comparing same-parameter portfolio curves at 0%, 0.01%, and 0.05% commission in one image)
 - `results/key_pred/` with one CSV and one PNG per key observable factors used by the strategy
 - `data/` local cached data paths used by the run
 
@@ -607,8 +585,6 @@ replications/<paper>/
 │   ├── metrics.json
 │   ├── backtest_output.txt
 │   ├── diagnosis.md
-│   ├── portfolio_vs_assets.csv
-│   ├── portfolio_vs_assets.png
 │   ├── decile_spread.csv        # when applicable
 │   ├── decile_spread.png
 │   └── key_pred/                # one CSV + PNG per key factor
@@ -681,7 +657,7 @@ gate — if one slips in, fix it before running, not after.
 13. Hedge asset participating in normalisation or the per-position cap pool.
 14. Pre-computing time-varying indicators inside `__init__` (look-ahead).
 15. `.shift(-n)` look-ahead (pulling future rows into the current bar).
-16. Non-zero `setcommission(...)` or explicit slippage unless the spec / paper states a transaction-cost value. (The 0% / 0.01% / 0.05% comparison chart is a separate, explicit sweep — not a silent default.)
+16. `setcommission(...)` or any explicit slippage — academic papers don't model transaction costs; backtest is always gross.
 17. Normalising / clipping / de-leveraging allocation output when both `max_position_pct` and `total_exposure` are null (see §7 direct-weight pass-through).
 18. **Near-zero denominator clamp** — `max(denom, eps)` / `np.maximum(denom, eps)` flips negative denominators to `+eps` and reverses sign. Mask invalid entries to `0.0` instead.
 19. Close-only tradable feeds: `bt.feeds.PandasData(..., open=None, high=None, low=None, close=...)` for a tradable asset. Build finite OHLCV first.
@@ -702,7 +678,7 @@ result, which is worse than a crash.
 - [ ] All network data was cached locally first and reused; no live fetch inside the strategy class.
 - [ ] No forbidden pattern from §13 above (especially `.shift(-n)`, near-zero clamp, close-only tradable feed, `hasattr` on analyzer dicts).
 - [ ] Metrics reported: at least Sharpe, max drawdown, total return, final/return value.
-- [ ] Required artifacts written to `results/`: `metrics.json`, `backtest_output.txt`, `diagnosis_report.md`, the `portfolio_vs_assets` CSV+PNG (all three commission curves + every asset buy-and-hold, SPY + portfolio boldface), and `key_pred/` (one CSV+PNG per key observable factor). For US-equity strategies SPY is included and highlighted as the baseline.
+- [ ] Required artifacts written to `results/`: `metrics.json`, `backtest_output.txt`, `diagnosis.md`, and `key_pred/` (one CSV+PNG per key observable factor). The strategy P&L curve is `results/pnl_curve.png`.
 - [ ] Final broker value and computed returns are finite — guard with `np.isfinite`; a NaN/None/inf portfolio value must raise, never silently "succeed".
 
 Only once every box is green do you report completion. Tie this to the
