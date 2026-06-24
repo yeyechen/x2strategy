@@ -317,6 +317,21 @@ workspace-relative path that was written.
 output, every time. The agent writes only the **paper-specific signal**.
 Primitives handle everything downstream.
 
+**Before writing strategy.py, READ `utils/INDEX.md`** — it's the
+one-page reference listing every primitive, the canonical call
+pattern, and three worked end-to-end patterns (cross-sectional L-S,
+single-asset trend-following, FM-with-controls). Pair that with
+`tests/test_utils_canonical_usage.py`, which exercises every
+primitive on a 2-stock × 3-date fixture in ~7 seconds.
+
+**Between edits to strategy.py, RUN** the canonical-usage test as a
+smoke check — if any utility call is wrong, you'll know in seconds
+instead of after a 5-minute backtest:
+
+```bash
+uv run pytest tests/test_utils_canonical_usage.py -x
+```
+
 ```python
 from utils import (
     assign_quantiles,             # within-date quantile binning
