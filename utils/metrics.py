@@ -52,14 +52,25 @@ def performance_metrics(
     """Compute performance metrics for a return series.
 
     Args:
-        returns: either a pandas Series indexed by date, or a DataFrame
-            with columns ``date_col`` (date) and ``ret_col`` (return).
+        returns: either a pandas Series indexed by date (PREFERRED), or
+            a DataFrame with columns ``date_col`` (date) and ``ret_col``
+            (return). The Series path is preferred — it removes the
+            column-name pitfall (passing a DataFrame whose return column
+            isn't called ``"ret"`` will raise unless ``ret_col=`` is set).
         freq: ``"D"``, ``"W"``, or ``"M"`` — drives annualization
             (252 / 52 / 12 trading periods per year).
         date_col: name of the date column when ``returns`` is a DataFrame.
             Ignored if ``returns`` is a Series.
         ret_col: name of the return column when ``returns`` is a DataFrame.
             Ignored if ``returns`` is a Series.
+
+    Example::
+
+        # PREFERRED — Series path:
+        metrics = performance_metrics(ls["ret"], freq="M")
+
+        # OK — DataFrame path (must pass ret_col= if column name != "ret"):
+        metrics = performance_metrics(fip_df, freq="M", ret_col="fip_spread")
 
     Returns:
         Dict with keys ``total_return``, ``annual_return``,
@@ -205,12 +216,17 @@ def tstat_newey_west(
     report. Under H-month overlapping cohorts, set n_lags = H - 1.
 
     Args:
-        returns: a pandas Series indexed by date, or a DataFrame with
-            ``date_col`` and ``ret_col``.
+        returns: a pandas Series indexed by date (PREFERRED), or a
+            DataFrame with ``date_col`` + ``ret_col``. The Series path
+            is preferred because it removes the column-name pitfall
+            that bit the FIP refactor (the agent passed a DataFrame
+            with a custom column name and had to remember
+            ``ret_col="fip_spread"``).
         n_lags: number of HAC lags. Default 5. For H-month overlapping
             cohorts, use H - 1.
         date_col: name of the date column when ``returns`` is a DataFrame.
         ret_col: name of the return column when ``returns`` is a DataFrame.
+            Only used when ``returns`` is a DataFrame.
 
     Returns:
         Dict with keys:
@@ -220,12 +236,14 @@ def tstat_newey_west(
 
     Example::
 
-        # FIP 6-month overlapping cohorts:
-        nw = tstat_newey_west(fip_spread, n_lags=5)
-        # Paper reports t=5.03; iid t=21.01; NW-corrected should be ~5.
+        # PREFERRED — Series path (no column name to remember):
+        nw = tstat_newey_west(fip_spread.set_index("month")["fip_spread"], n_lags=5)
 
-        # MAX 1-month holding (no overlap):
-        nw = tstat_newey_west(ls_spread, n_lags=0)
+        # OK — DataFrame path (must pass ret_col= if column name != "ret"):
+        nw = tstat_newey_west(fip_df, n_lags=5, ret_col="fip_spread")
+
+        # FIP 6-month overlapping cohorts: n_lags=5.
+        # MAX 1-month holding (no overlap): n_lags=0.
     """
     from statsmodels.regression.linear_model import OLS
     from statsmodels.tools import add_constant
