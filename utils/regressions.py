@@ -111,13 +111,16 @@ def run_ols(
 
 def fama_macbeth(
     df: pd.DataFrame,
-    dependent_var: str,
-    independent_vars: List[str],
+    dependent_var: Optional[str] = None,
+    independent_vars: Optional[List[str]] = None,
     time_col: str = "month",
     winsorize_pct: float = 0.01,
     n_lags: int = 2,
     n_jobs: int = -2,
     min_obs: int = 5,
+    *,
+    y_col: Optional[str] = None,
+    x_cols: Optional[List[str]] = None,
 ) -> FamaMacBethResult:
     """Run the Fama-MacBeth (1973) two-pass procedure with Newey-West t-stats.
 
@@ -134,12 +137,20 @@ def fama_macbeth(
          coefficient time series.
 
     Args:
-        df: input DataFrame. Must contain ``dependent_var``,
-            ``independent_vars``, and ``time_col``.
+        df: input DataFrame. Must contain the dependent variable, the
+            independent variables, and ``time_col``.
         dependent_var: column name of the dependent variable
-            (e.g. ``"ret"``).
+            (e.g. ``"ret"``). Use this OR ``y_col``.
         independent_vars: list of column names for the regressors
             (e.g. ``["MAX", "log_mcap", "log_bm", "ret_11_2", "ret_1"]``).
+            Use this OR ``x_cols``.
+        y_col: DEPRECATED sklearn-style alias for ``dependent_var``.
+            If both are given, ``dependent_var`` wins. Emits a
+            :class:`DeprecationWarning`.
+        x_cols: DEPRECATED sklearn-style alias for
+            ``independent_vars``. If both are given,
+            ``independent_vars`` wins. Emits a
+            :class:`DeprecationWarning`.
         time_col: name of the time column. Default ``"month"``.
         winsorize_pct: percentile for winsorization. Default 0.01
             (clip to 1st and 99th percentile within each period).
@@ -153,9 +164,40 @@ def fama_macbeth(
         and the summary dict.
 
     Raises:
-        RegressionError: if statsmodels is not installed, or no period
+        RegressionError: if statsmodels is not installed, if neither
+            ``dependent_var`` nor ``y_col`` is given, or if no period
             has enough observations.
     """
+    # Resolve dependent_var / y_col
+    if dependent_var is None and y_col is None:
+        raise RegressionError(
+            "fama_macbeth: must provide either dependent_var= or y_col="
+        )
+    if y_col is not None:
+        import warnings
+        warnings.warn(
+            "fama_macbeth(y_col=...) is deprecated; use dependent_var= instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if dependent_var is None:
+            dependent_var = y_col
+
+    # Resolve independent_vars / x_cols
+    if independent_vars is None and x_cols is None:
+        raise RegressionError(
+            "fama_macbeth: must provide either independent_vars= or x_cols="
+        )
+    if x_cols is not None:
+        import warnings
+        warnings.warn(
+            "fama_macbeth(x_cols=...) is deprecated; use independent_vars= instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if independent_vars is None:
+            independent_vars = list(x_cols)
+
     try:
         from joblib import Parallel, delayed
         from scipy import stats
@@ -168,7 +210,7 @@ def fama_macbeth(
         ) from e
 
     # 1. Clean
-    all_vars = [dependent_var] + independent_vars + [time_col]
+    all_vars = [dependent_var] + list(independent_vars) + [time_col]
     clean_df = df[all_vars].copy().replace([np.inf, -np.inf], np.nan).dropna()
 
     if clean_df.empty:
