@@ -97,8 +97,22 @@ def run_ols(
         min_obs: minimum number of observations to fit (default 5).
 
     Returns:
-        Dict with keys ``params`` (pd.Series), ``rsquared``, ``nobs``.
-        Raises ``RegressionError`` if fit fails or insufficient observations.
+        Dict with the following keys (mirror of statsmodels' OLS
+        results — keys are LITERALLY these names, not e.g. "coef"
+        or "coefficients"):
+
+            - ``"params"``   (pd.Series, indexed by variable name including
+              ``"const"``) — the OLS coefficients
+            - ``"bse"``      (pd.Series) — standard errors of the coefficients
+            - ``"pvalues"``  (pd.Series) — p-values for the coefficients
+            - ``"rsquared"`` (float) — R² of the fit
+            - ``"nobs"``     (int) — number of observations used
+
+        To access a coefficient: ``result["params"]["const"]`` or
+        ``result["params"]["MAX"]`` (NOT ``result["coef"]``).
+
+    Raises:
+        RegressionError: if fit fails or insufficient observations.
     """
     result = _run_ols(df, dependent_var, independent_vars, min_obs=min_obs)
     if result is None:
