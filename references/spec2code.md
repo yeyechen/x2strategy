@@ -566,31 +566,33 @@ After a successful backtest, present results in this format:
 
 ```
 replications/<paper>/
-├── README.md
-├── paper/                       # source PDF (paper/original.pdf)
+├── paper/                       # source PDF (paper/original.pdf — REQUIRED)
 ├── inputs/                      # paper2spec artifacts
 │   ├── content.json
 │   ├── content.md
 │   ├── spec.json
 │   ├── spec.md
 │   └── metadata.json
-├── diagnostics/                 # mid-pipeline debug artifacts
+├── diagnostics/                 # analysis artifacts (mid-pipeline + post-run)
 │   ├── data_requirements.json
-│   └── data_match_report.json
+│   ├── data_match_report.json
+│   ├── operator_pitfall_context.md
+│   └── diagnosis.md             # strategy output vs paper-claimed metrics
 ├── src/
-│   ├── __init__.py
 │   └── strategy.py              # one paper, one strategy
 ├── data/                        # parquet caches (gitignored)
-├── results/
+├── results/                     # binary outputs only (PNG, JSON, Parquet)
 │   ├── metrics.json
 │   ├── backtest_output.txt
-│   ├── diagnosis.md
 │   ├── decile_spread.csv        # when applicable
 │   ├── decile_spread.png
 │   └── key_pred/                # one CSV + PNG per key factor
 │       ├── <factor>.csv
 │       └── <factor>.png
-└── config/                      # optional
+├── config/                      # optional run config (run_config.yaml, etc.)
+└── logs/                        # runtime logs (NOT at slug root)
+    ├── agent_run.log
+    └── run.log
 ```
 
 See `SKILL.md §Output Paths` for the full contract. Use
