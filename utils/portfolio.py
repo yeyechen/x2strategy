@@ -54,11 +54,17 @@ def bin_returns(
             ``"mcap_lag1"`` matches the MAX paper convention.
 
     Returns:
-        DataFrame with one row per (date, bin) and columns:
-            - ``date_col`` (renamed via the ``date_col`` arg)
-            - ``bin_col``
-            - ``EW`` (equal-weighted mean return within the bin)
-            - ``VW`` (value-weighted mean return within the bin)
+        DataFrame with one row per (date, bin) and the following columns:
+            - ``date_col`` (the date column, exactly as named — e.g. "month")
+            - ``bin_col``  (the bin label column, exactly as named —
+              whatever you passed as ``bin_col``, e.g. "decile" or "bin")
+            - ``"EW"``     (equal-weighted mean return within the bin)
+            - ``"VW"``     (value-weighted mean return within the bin)
+
+        **The return columns are LITERALLY named ``"EW"`` and ``"VW"`` —
+        they are NOT renamed based on the input.** Pass the column name
+        you want via the ``weighting`` argument to
+        :func:`long_short` (which understands both).
 
     Raises:
         PortfolioError: if required columns are missing or aggregation fails.
@@ -67,6 +73,12 @@ def bin_returns(
 
         bin_returns_df = bin_returns(df, "month", "decile", "ret", "mcap_lag1")
         # bin_returns_df columns: ["month", "decile", "EW", "VW"]
+        #                              ^        ^         ^    ^
+        #                              date_col bin_col   EW  VW
+
+        # Then form the long-short portfolio — pick EW or VW via weighting:
+        ls = long_short(bin_returns_df, date_col="month", weighting="VW",
+                        long_bin=1, short_bin=N_BINS)
     """
     required = [date_col, bin_col, ret_col, mcap_col]
     missing = [c for c in required if c not in df.columns]
