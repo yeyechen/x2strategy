@@ -15,7 +15,7 @@ Usage:
     python scripts/analyze.py strategy.md                          # Markdown input
     python scripts/analyze.py report.docx                          # DOCX input
     python scripts/analyze.py paper.pdf -o replications/my_paper/  # custom slug
-    python scripts/analyze.py paper.pdf --parser-mode agent        # Mode B (FAISS)
+    python scripts/analyze.py paper.pdf                            # OCR + extract
 """
 
 import argparse
@@ -76,12 +76,6 @@ def main():
         help="Override the auto-derived paper slug (filesystem-safe identifier)",
     )
     parser.add_argument(
-        "--parser-mode",
-        choices=["builtin", "agent"],
-        default="agent",
-        help="Parser mode: 'agent' (FAISS, recommended) or 'builtin' (fast, truncates at 100K chars)",
-    )
-    parser.add_argument(
         "--extractor-mode",
         choices=["multilayer", "single"],
         default="multilayer",
@@ -112,7 +106,7 @@ def main():
 
     # ── Stage 1: Parse ──
     print(f"📄 Parsing {args.input}...")
-    pc = parse_document(args.input, mode=args.parser_mode, model=args.model)
+    pc = parse_document(args.input)
     print(f"   Title: {pc.title}")
 
     # Determine the per-paper layout
@@ -129,17 +123,12 @@ def main():
         layout = paper_layout(slug)
         layout.ensure()
 
-    # Write PaperContent JSON + Markdown to inputs/
-    content_json_path = layout.input_path("content.json")
-    with open(content_json_path, "w", encoding="utf-8") as f:
-        f.write(pc.to_json())
-
+    # Write content.md (raw OCR markdown — the single intermediate format)
     content_md_path = layout.input_path("content.md")
     with open(content_md_path, "w", encoding="utf-8") as f:
-        f.write(content_to_markdown(pc))
+        f.write(pc.full_text)
 
-    print(f"   → {content_json_path} ({os.path.getsize(content_json_path):,} bytes)")
-    print(f"   → {content_md_path}")
+    print(f"   → {content_md_path} ({os.path.getsize(content_md_path):,} bytes)")
 
     # ── Stage 2: Extract ──
     print(f"\n🔬 Extracting strategies...")
@@ -173,7 +162,6 @@ def main():
         "source_filename": src_basename,
         "source_format": os.path.splitext(src_basename)[1].lower(),
         "paper_title": pc.title,
-        "parser_mode": args.parser_mode,
         "extractor_mode": args.extractor_mode,
         "instruction_files": args.instruction,
         "instructions_dir": args.instructions_dir or "",
@@ -197,8 +185,7 @@ def main():
 
     print(f"\n   Files:")
     print(f"     paper/{src_basename:<24s} — Original document")
-    print(f"     inputs/content.json          — PaperContent (machine-readable)")
-    print(f"     inputs/content.md            — PaperContent (human-readable)")
+    print(f"     inputs/content.md            — Paper content (OCR markdown, single intermediate format)")
     print(f"     inputs/spec.json             — StrategySpec (machine-readable)")
     print(f"     inputs/spec.md               — StrategySpec (human-readable)")
     print(f"     inputs/metadata.json         — Analysis metadata")

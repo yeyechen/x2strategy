@@ -129,6 +129,8 @@ FULL PAPER CONTENT:
 
 Extract as JSON:
 {{
+    "indicators": [
+        {{
             "name": "Human-readable name",
             "category": "technical|fundamental|derived",
             "formula": "Clear natural language description of the calculation",
@@ -187,6 +189,8 @@ FULL PAPER CONTENT:
 
 Extract as JSON:
 {{
+    "logic_pipeline": [
+        {{
             "step_id": "step1",
             "description": "What this step does",
             "function": "filter|rank|quantile_sort|group_quantile_sort|condition|threshold|crossover|arithmetic|z_score|custom",
