@@ -149,14 +149,17 @@ def main():
     print(f"   → {spec_json_path} ({os.path.getsize(spec_json_path):,} bytes)")
     print(f"   → {spec_md_path}")
 
-    # Copy original source file into paper/ for self-contained library
-    src_basename = os.path.basename(args.input)
-    src_dest = layout.paper_pdf_path(name=src_basename)
-    if os.path.abspath(args.input) != os.path.abspath(src_dest):
+    # Copy original source file into paper/ as original.pdf (per layout contract).
+    # Skip if paper/original.pdf already exists — don't overwrite or duplicate.
+    src_dest = layout.paper_pdf_path()  # default: original.pdf
+    if src_dest.exists() and os.path.getsize(src_dest) == os.path.getsize(args.input):
+        print(f"   → {src_dest} (already present, skip)")
+    elif os.path.abspath(args.input) != os.path.abspath(src_dest):
         shutil.copy2(args.input, src_dest)
         print(f"   → {src_dest} (original source)")
 
     # Write metadata to inputs/
+    src_basename = os.path.basename(args.input)
     metadata = {
         "source_file": os.path.abspath(args.input),
         "source_filename": src_basename,
