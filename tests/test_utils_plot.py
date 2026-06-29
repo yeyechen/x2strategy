@@ -15,7 +15,7 @@ import pytest
 
 from utils.plot import (
     plot_cumulative_returns, plot_drawdown, plot_decile_spread,
-    plot_performance_comparison, plot_portfolio_vs_assets, PlotError,
+    plot_performance_comparison, PlotError,
 )
 
 
@@ -92,42 +92,6 @@ class TestPlotPerformanceComparison:
     def test_empty_raises(self):
         with pytest.raises(PlotError, match="no portfolios"):
             plot_performance_comparison({}, "month", "ret")
-
-
-class TestPlotPortfolioVsAssets:
-    def test_writes_png(self, sample_returns, tmp_path):
-        path = tmp_path / "pva.png"
-        plot_portfolio_vs_assets(
-            portfolios={"Portfolio @ 0.000% comm": sample_returns},
-            asset_curves={"CRSP_VW (B&H)": sample_returns},
-            date_col="month", ret_col="ret_EW", save_to=path,
-        )
-        assert path.exists()
-        assert path.stat().st_size > 0
-
-    def test_empty_portfolios_raises(self, sample_returns):
-        with pytest.raises(PlotError, match="no portfolios"):
-            plot_portfolio_vs_assets(
-                portfolios={},
-                asset_curves={"CRSP_VW": sample_returns},
-                date_col="month", ret_col="ret_EW",
-            )
-
-    def test_empty_assets_raises(self, sample_returns):
-        with pytest.raises(PlotError, match="no asset_curves"):
-            plot_portfolio_vs_assets(
-                portfolios={"P": sample_returns},
-                asset_curves={},
-                date_col="month", ret_col="ret_EW",
-            )
-
-    def test_missing_col_raises(self, sample_returns):
-        with pytest.raises(PlotError, match="missing"):
-            plot_portfolio_vs_assets(
-                portfolios={"P": sample_returns},
-                asset_curves={"A": sample_returns[["month"]]},  # no 'ret_EW'
-                date_col="month", ret_col="ret_EW",
-            )
 
 
 class TestPlotDecileSpreadAutoAggregation:
