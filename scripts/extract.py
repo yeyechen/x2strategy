@@ -22,6 +22,7 @@ import logging
 import os
 import sys
 from pathlib import Path
+from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -58,7 +59,7 @@ def _load_instruction_context(paths: list[str], instructions_dir: str | None) ->
 
 
 def _infer_slug_from_content_path(content_path: str) -> str | None:
-    """Best-effort slug inference: walk up from inputs/content.json.
+    """Best-effort slug inference: walk up from inputs/content.{md,json}.
 
     If the content JSON lives at ``<root>/<slug>/inputs/content.json``, this
     returns ``<slug>``. Otherwise returns ``None``.
@@ -73,7 +74,7 @@ def main():
     parser = argparse.ArgumentParser(
         description="Extract StrategySpec(s) from PaperContent JSON."
     )
-    parser.add_argument("content_json", help="Path to PaperContent JSON (from parse.py)")
+    parser.add_argument("content_path", help="Path to content.md (from parse.py) or legacy content.json")
     parser.add_argument(
         "-o", "--output",
         help="Output JSON path (default: <slug>/inputs/spec.json)",
@@ -109,13 +110,19 @@ def main():
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    if not os.path.isfile(args.content_json):
-        print(f"Error: file not found: {args.content_json}", file=sys.stderr)
+    if not os.path.isfile(args.content_path):
+        print(f"Error: file not found: {args.content_path}", file=sys.stderr)
         sys.exit(1)
 
-    # Load PaperContent
-    with open(args.content_json, "r", encoding="utf-8") as f:
-        pc = PaperContent.from_dict(json.load(f))
+    # Load content — accept both .md (new) and .json (backward compat)
+    if args.content_path.endswith(".json"):
+        with open(args.content_path, "r", encoding="utf-8") as f:
+            pc = PaperContent.from_dict(json.load(f))
+    else:
+        # .md file — extractor accepts str | PaperContent
+        content_md = Path(args.content_path).read_text(encoding="utf-8")
+        pc = content_md  # pass string directly
+
     instruction_context = _load_instruction_context(args.instruction, args.instructions_dir)
     if instruction_context:
         logging.info("Loaded %d chars of instruction/clarification context", len(instruction_context))
@@ -127,7 +134,7 @@ def main():
     if args.output:
         out_path = args.output
     else:
-        slug = _infer_slug_from_content_path(args.content_json)
+        slug = _infer_slug_from_content_path(args.content_path)
         if slug:
             from paper2spec.paths import paper_layout
             layout = paper_layout(slug)
@@ -135,11 +142,11 @@ def main():
             out_path = str(layout.input_path("spec.json"))
         else:
             # Fallback: legacy <stem>_spec.json next to the input
-            stem = os.path.splitext(os.path.basename(args.content_json))[0]
+            stem = os.path.splitext(os.path.basename(args.content_path))[0]
             stem = stem.replace("_content", "")
             out_path = f"{stem}_spec.json"
             print(
-                f"⚠️  Could not infer per-paper layout from {args.content_json}; "
+                f"⚠️  Could not infer per-paper layout from {args.content_path}; "
                 f"writing to legacy location {out_path}",
                 file=sys.stderr,
             )
@@ -147,7 +154,14 @@ def main():
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(result.to_json())
 
+    # Also write human-readable markdown
+    from paper2spec.render import spec_to_markdown
+    spec_md_path = os.path.splitext(out_path)[0] + ".md"
+    with open(spec_md_path, "w", encoding="utf-8") as f:
+        f.write(spec_to_markdown(result))
+
     print(f"\n✅ Wrote {out_path} ({os.path.getsize(out_path)} bytes)")
+    print(f"   Wrote {spec_md_path}")
     print(f"   Paper: {result.paper_title}")
     print(f"   Strategies detected: {result.num_detected}")
     for i, spec in enumerate(result.strategies):

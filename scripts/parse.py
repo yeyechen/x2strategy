@@ -2,24 +2,21 @@
 """parse.py — Extract structured content from a quantitative finance paper PDF.
 
 Usage (CLI):
-    python scripts/parse.py paper.pdf                    # Mode A (builtin)
-    python scripts/parse.py paper.pdf --mode agent       # Mode B (FAISS)
-    python scripts/parse.py paper.pdf -o content.json    # custom output path
-    # default output if -o omitted:
-    # <PAPER2SPEC_REPLICATIONS_PATH>/<pdf_stem>/inputs/content.json
+    python scripts/parse.py paper.pdf                    # OCR + write content.md
+    python scripts/parse.py paper.pdf -o content.md      # custom output path
+    python scripts/parse.py paper.pdf --force-ocr        # ignore cache, re-OCR
 
-Usage (agent):
-    The agent reads SKILL.md, then runs this script on the user's PDF.
+Output: Markdown file with HTML tables and LaTeX equations, written under
+``<slug>/inputs/content.md``.
 
-Output: JSON file with PaperContent (title, abstract, methodology, data_description, signal_logic, …)
-written under <slug>/inputs/.
+The extractor (extract.py) reads this file directly — no JSON intermediate.
 """
 
 import argparse
-import json
 import logging
 import os
 import sys
+from pathlib import Path
 
 # Allow running from repo root or scripts/
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -30,22 +27,17 @@ from paper2spec.paths import paper_layout_from_pdf
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Parse a quantitative finance paper PDF into structured JSON."
+        description="Parse a quantitative finance paper PDF into content.md (markdown)."
     )
     parser.add_argument("pdf", help="Path to the PDF file")
     parser.add_argument(
         "-o", "--output",
-        help="Output JSON path (default: <PAPER2SPEC_REPLICATIONS_PATH>/<pdf_stem>/inputs/content.json)",
+        help="Output path (default: <PAPER2SPEC_REPLICATIONS_PATH>/<pdf_stem>/inputs/content.md)",
     )
     parser.add_argument(
-        "--mode",
-        choices=["builtin", "agent"],
-        default="agent",
-        help="Extraction mode: 'agent' (FAISS semantic search, full context, recommended) or 'builtin' (direct LLM, truncates at 100K chars)",
-    )
-    parser.add_argument(
-        "--model",
-        help="Override LLM model (e.g. deepseek/deepseek-chat, openrouter/deepseek/deepseek-chat-v3-0324, openai/gpt-4o, anthropic/claude-sonnet-4-20250514)",
+        "--force-ocr",
+        action="store_true",
+        help="Force re-OCR even if a cached full.md exists",
     )
     parser.add_argument(
         "-v", "--verbose",
@@ -63,8 +55,8 @@ def main():
         print(f"Error: file not found: {args.pdf}", file=sys.stderr)
         sys.exit(1)
 
-    # Parse
-    paper_content = parse_pdf(args.pdf, mode=args.mode, model=args.model)
+    # Parse (OCR via LightOnOCR-2 with automatic global cache)
+    pc = parse_pdf(args.pdf, force_ocr=args.force_ocr)
 
     # Output path — defaults to the per-paper inputs/ directory
     if args.output:
@@ -72,21 +64,18 @@ def main():
     else:
         layout = paper_layout_from_pdf(args.pdf)
         layout.ensure()
-        out_path = str(layout.input_path("content.json"))
+        out_path = str(layout.input_path("content.md"))
 
     out_parent = os.path.dirname(out_path)
     if out_parent:
         os.makedirs(out_parent, exist_ok=True)
 
-    # Write
-    with open(out_path, "w", encoding="utf-8") as f:
-        f.write(paper_content.to_json())
+    # Write content.md (raw OCR markdown)
+    Path(out_path).write_text(pc.full_text, encoding="utf-8")
 
     print(f"✅ Wrote {out_path} ({os.path.getsize(out_path)} bytes)")
-    print(f"   Title: {paper_content.title}")
-    print(f"   Methodology: {len(paper_content.methodology)} chars")
-    print(f"   Signal Logic: {len(paper_content.signal_logic)} chars")
-    print(f"   Data Description: {len(paper_content.data_description)} chars")
+    print(f"   Title: {pc.title}")
+    print(f"   Full text: {len(pc.full_text)} chars")
 
 
 if __name__ == "__main__":
