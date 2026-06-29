@@ -98,10 +98,11 @@ Extract as JSON:
 }}
 
 INSTRUCTIONS:
-1. strategy_type: "technical" (price/volume only), "fundamental" (accounting data), "hybrid" (both), "multi_asset" (multiple asset classes)
+1. strategy_name: Short, specific name (e.g., "MAX Effect: Long-Short Decile Strategy"). Do NOT use the paper title or "Untitled". Keep under 8 words.
+1b. strategy_type: "technical" (price/volume only), "fundamental" (accounting data), "hybrid" (both), "multi_asset" (multiple asset classes)
 2. fundamental_data: List ALL accounting/financial metrics explicitly used (not just mentioned)
 3. alternative_data: External/non-traditional data (macro, sentiment, analyst forecasts)
-4. lookback_period: Use the exact paper/plan value; if absent, use null. Do NOT guess 252/200/21.
+4. lookback_period: The number of trading days used for signal computation. Convert paper units: "one month" → 21, "12 months" → 252, "60 days" → 60. Use null only if the paper never states a lookback. Always use TRADING DAYS as the unit.
 5. universe_selection_criteria: Be comprehensive — include ALL filters (price, market cap, exchange, industry exclusions)
 6. expected_*: Extract from MAIN results table only; use null if not reported; annual_return as decimal (0.12 = 12%)
 7. If a field is not mentioned in the paper/instructions, use null or empty — do NOT guess.
