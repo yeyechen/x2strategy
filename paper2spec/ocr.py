@@ -13,10 +13,10 @@ Usage::
     # md is a string containing the full paper as markdown
 
 Caching:
-    Output is cached globally at ``<x2strategy>/.cache/<pdf_stem>/full.md``
-    (one folder per paper, named after the PDF filename).  Subsequent
-    calls with the same PDF skip OCR entirely (<0.1s).  Safe to delete
-    ``.cache/`` — it will be regenerated on the next run.
+    Output is cached globally at ``<x2strategy>/.cache/<pdf_stem>/ocr_output.md``
+    (one folder per paper, keyed by the PDF filename stem).  Subsequent
+    calls skip OCR entirely (<0.1s).  Safe to delete ``.cache/`` — it
+    will be regenerated on the next run.
 
 Dependencies (optional — import fails gracefully if missing):
     ``transformers >= 5.0.0, pypdfium2, torch >= 2.11, pillow``
@@ -41,8 +41,8 @@ _CACHE_ROOT = Path(__file__).resolve().parent.parent / ".cache"
 class LightOnOCREngine:
     """LightOnOCR-2 inference with global disk caching and GPU/CPU fallback.
 
-    The cache is keyed by a content hash of the PDF, so the same PDF
-    used across multiple replications shares a single cached output.
+    The cache is keyed by the PDF filename stem, so different papers
+    get their own cache slot.
 
     Parameters
     ----------
@@ -68,9 +68,8 @@ class LightOnOCREngine:
     ) -> str:
         """OCR *pdf_path* and return a single markdown string.
 
-        Output is cached globally at ``.cache/lightonocr/{pdf_hash}/full.md``
-        (under the x2strategy package root).  Different replications of the
-        same PDF share a single cache entry.
+        Output is cached globally at ``.cache/<pdf_stem>/ocr_output.md``
+        (under the x2strategy package root).
 
         Parameters
         ----------
@@ -92,10 +91,10 @@ class LightOnOCREngine:
         if not pdf_path.is_file():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
-        # Cache keyed by paper name (PDF stem)
+        # Cache keyed by PDF filename
         cache_dir = _CACHE_ROOT / pdf_path.stem
         cache_dir.mkdir(parents=True, exist_ok=True)
-        full_md = cache_dir / "full.md"
+        full_md = cache_dir / "ocr_output.md"
 
         # --- cache hit? --------------------------------------------------
         if not force and full_md.exists():
@@ -103,7 +102,8 @@ class LightOnOCREngine:
             return full_md.read_text(encoding="utf-8")
 
         # --- run OCR -----------------------------------------------------
-        logger.info("OCR: %s (%s)", pdf_path.name, "CPU" if self._force_cpu else "GPU")
+        logger.info("OCR: %s (%s)", pdf_path.name,
+                     "CPU" if self._force_cpu else "GPU")
         device, dtype = self._resolve_device()
         self._ensure_model(device, dtype)
 
