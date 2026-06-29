@@ -112,7 +112,11 @@ INSTRUCTIONS:
 
 Output ONLY valid JSON."""
 
-LAYER2_INDICATORS_PROMPT = """Extract all indicators, factors, and computed signals used in this trading strategy.
+LAYER2_INDICATORS_PROMPT = """Extract ALL indicators, factors, and computed signals used in this trading strategy — including primary signals, controls, and any auxiliary inputs referenced in robustness/subsidiary analyses.
+
+**Do not stop at the headline signal.** A paper using MAX as the primary signal also typically references SIZE, BM, MOM, IVOL, TURNOVER, and similar factors as controls — extract these too, even if only mentioned in tables or robustness checks.
+
+**Aim for comprehensive coverage:** a typical equity-replication paper has 10-20 indicators across primary + control + robustness categories.
 
 STRATEGY CONTEXT:
 Name: {strategy_name}
