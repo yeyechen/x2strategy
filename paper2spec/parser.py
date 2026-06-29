@@ -182,10 +182,14 @@ def _populate_paper_content(content_md: str, *, source: str = "text") -> PaperCo
 
 
 def _extract_title(source: str, full_text: str) -> str:
-    """Heuristic: first H1 heading in the markdown."""
-    title_match = re.search(r"^#\s+(.+?)$", full_text[:500], re.MULTILINE)
-    if title_match:
-        return title_match.group(1).strip()
+    """Heuristic: first H1 heading in the markdown, skipping ``# Page N`` markers."""
+    for line in full_text[:2000].splitlines():
+        m = re.match(r"^#\s+(.+?)$", line)
+        if m:
+            candidate = m.group(1).strip()
+            # Skip the per-page marker that the OCR engine inserts.
+            if not re.match(r"^Page\s+\d+$", candidate):
+                return candidate
     return os.path.basename(source).replace(".pdf", "").replace("_", " ")
 
 
