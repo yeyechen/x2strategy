@@ -7,10 +7,10 @@ and has the same nested structure:
     ├── README.md
     ├── paper/                 # source PDF (large; usually gitignored per-paper)
     ├── inputs/                # paper2spec artifacts (parse + extract + metadata)
-    ├── diagnostics/           # mid-pipeline debug artifacts
+    ├── diagnostics/           # mid-pipeline artifacts + diagnosis.md
     ├── src/                   # generated strategy code (strategy.py)
     ├── data/                  # parquet caches (gitignored per-paper)
-    ├── results/               # spec2code outputs (metrics, plots, diagnosis)
+    ├── results/               # spec2code outputs (metrics, plots — binary only)
     │   └── key_pred/          # one CSV + PNG per key observable factor
     └── config/                # optional run config
 
