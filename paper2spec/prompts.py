@@ -1,10 +1,8 @@
 """Prompt templates for structured extraction.
 
-Each prompt takes a ``{context}`` variable (retrieved paper chunks)
-and returns a natural-language description of the target section.
-
 The multi-layer extraction prompts (LAYER_*) are used by the extractor
-to produce a full StrategySpec through 4 focused LLM calls.
+to produce a full StrategySpec through 5 focused LLM calls.  Each prompt
+injects the full paper markdown as ``{content}``.
 """
 
 SYSTEM_PROMPT = (
@@ -12,57 +10,6 @@ SYSTEM_PROMPT = (
     "Extract precise, structured information from academic finance papers. "
     "Be rigorous — prefer exact values from the paper over guessed defaults."
 )
-
-METHODOLOGY_PROMPT = """Synthesize the trading strategy methodology from the provided text.
-
-Context from paper:
-{context}
-
-Instructions:
-1. Describe the core trading idea (e.g., Momentum, Mean Reversion, Factor-based, Pairs Trading).
-2. Explain the step-by-step process of the strategy — how signals are generated, how portfolios are formed.
-3. Detail how the portfolio is constructed (weighting scheme, rebalancing frequency, long/short structure).
-4. Identify whether this is a time-series strategy (per-asset over time) or cross-sectional strategy (across assets).
-5. Note any formulas, equations, or mathematical definitions used.
-6. Focus on the core strategy; ignore literature review unless it defines the strategy.
-
-Output a clear, structured description of the methodology (3-5 paragraphs).
-Include specific parameter values, thresholds, and calculation details when mentioned."""
-
-SIGNAL_LOGIC_PROMPT = """Extract precise trading rules and signal logic from the text.
-
-Context from paper:
-{context}
-
-Extract the following with maximum specificity:
-1. **Entry conditions**: When to buy/go long — exact indicator thresholds, crossover conditions, ranking criteria
-2. **Exit conditions**: When to sell/close — time-based, signal-reversal, stop-loss, take-profit
-3. **Technical indicators**: Name, calculation period, parameters (e.g., RSI(14), SMA(200), MACD(12,26,9))
-4. **Fundamental factors**: Accounting ratios (P/E, B/M, ROE), factor definitions, data transformations
-5. **Sorting/ranking procedures**: Quantile sorts, double sorts, conditional sorts — number of groups, breakpoint methodology
-6. **Threshold values**: Exact numeric thresholds, percentile cutoffs, z-score boundaries
-7. **Holding period and rebalancing**: How long positions are held, when portfolios are reformed
-8. **Data requirements**: Price fields (Close, Open, High, Low, Volume), fundamental fields, frequency
-
-Be precise — extract exact formulas, parameter values, and conditional logic.
-If the paper uses multiple strategy variants, describe each one."""
-
-DATA_DESCRIPTION_PROMPT = """Extract data requirements and sample description from the text.
-
-Context:
-{context}
-
-Identify with specificity:
-1. **Data sources**: CRSP, Compustat, Yahoo Finance, FRED, Bloomberg, Datastream, etc.
-2. **Asset universe**: S&P 500, NYSE/AMEX/NASDAQ, all US stocks, international markets, specific sectors
-3. **Time period**: Exact start and end dates (e.g., January 1963 to December 2019)
-4. **Data frequency**: Daily, Weekly, Monthly — and whether returns or prices are used
-5. **Selection/filter criteria**: Price filters (>$5), market cap filters (>$100M), exchange filters, industry exclusions
-6. **Fundamental data fields**: All accounting variables used (Book-to-Market, Operating Profitability, Investment, etc.)
-7. **Alternative data**: Macro indicators, sentiment scores, analyst forecasts, options data
-8. **Benchmark**: Market index used for comparison (S&P 500, CRSP value-weighted, Russell 2000)
-
-Be comprehensive — list ALL data sources and filters mentioned in the paper."""
 
 # ═══════════════════════════════════════════════════════════════
 # Layer 0: Strategy Detection (multi-strategy pre-scan)
@@ -72,14 +19,8 @@ LAYER0_STRATEGY_DETECTION_PROMPT = """Analyze this research paper and determine 
 
 PAPER TITLE: {title}
 
-ABSTRACT:
-{abstract}
-
-METHODOLOGY:
-{methodology}
-
-SIGNAL LOGIC:
-{signal_logic}
+FULL PAPER CONTENT (markdown format, may contain HTML tables and LaTeX equations):
+{content}
 
 INSTRUCTIONS:
 A paper may contain multiple independent strategies. Count them carefully:
@@ -128,15 +69,11 @@ PAPER TITLE: {title}
 INSTRUCTION / CLARIFICATION CONTEXT (authoritative fallback when paper is incomplete):
 {instruction_context}
 
-ABSTRACT:
-{abstract}
+The paper content below is in markdown format with HTML tables and LaTeX equations.
+Focus on the methodology, data description, and results sections.
 
-METHODOLOGY:
-{methodology}
-
-DATA DESCRIPTION:
-{data_description}
-
+FULL PAPER CONTENT:
+{content}
 Extract as JSON:
 {{
     "strategy_name": "Concise descriptive name based on paper content",
@@ -184,17 +121,14 @@ Description: {description}
 INSTRUCTION / CLARIFICATION CONTEXT (authoritative fallback when paper is incomplete):
 {instruction_context}
 
-SIGNAL LOGIC FROM PAPER:
-{signal_logic}
+The paper content below is in markdown format with HTML tables and LaTeX equations.
+Focus on the signal construction, indicator definitions, and formula sections.
 
-METHODOLOGY FROM PAPER:
-{methodology}
+FULL PAPER CONTENT:
+{content}
 
 Extract as JSON:
 {{
-    "indicators": [
-        {{
-            "indicator_id": "lowercase_underscore_id",
             "name": "Human-readable name",
             "category": "technical|fundamental|derived",
             "formula": "Clear natural language description of the calculation",
@@ -245,16 +179,14 @@ INSTRUCTION / CLARIFICATION CONTEXT (authoritative fallback when paper is incomp
 AVAILABLE INDICATORS:
 {indicators_summary}
 
-SIGNAL LOGIC FROM PAPER:
-{signal_logic}
+The paper content below is in markdown format with HTML tables and LaTeX equations.
+Focus on the sorting procedures, portfolio construction steps, and weighting schemes.
 
-METHODOLOGY FROM PAPER:
-{methodology}
+FULL PAPER CONTENT:
+{content}
 
 Extract as JSON:
 {{
-    "logic_pipeline": [
-        {{
             "step_id": "step1",
             "description": "What this step does",
             "function": "filter|rank|quantile_sort|group_quantile_sort|condition|threshold|crossover|arithmetic|z_score|custom",
@@ -343,11 +275,11 @@ INSTRUCTION / CLARIFICATION CONTEXT (authoritative fallback when paper is incomp
 LOGIC PIPELINE (available signals):
 {logic_summary}
 
-DATA DESCRIPTION:
-{data_description}
+The paper content below is in markdown format with HTML tables and LaTeX equations.
+Focus on the rebalancing frequency, execution timing, and risk management rules.
 
-METHODOLOGY:
-{methodology}
+FULL PAPER CONTENT:
+{content}
 
 Extract as JSON:
 {{
@@ -430,10 +362,9 @@ Output ONLY valid JSON."""
 
 SPECIFICATION_PROMPT = """Convert the extracted paper content into a precise, executable strategy specification.
 
-Title: {title}
-Methodology: {methodology}
-Signal Logic: {signal_logic}
-Data Description: {data_description}
+FULL PAPER CONTENT (markdown, may include HTML tables and LaTeX):
+{content}
+
 Instruction / clarification context: {instruction_context}
 
 Map the information into a JSON object with the following structure:

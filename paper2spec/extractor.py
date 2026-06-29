@@ -54,16 +54,16 @@ MAX_RETRIES = 2  # Retry once on JSON parse failure
 
 
 def extract_spec(
-    paper_content: PaperContent,
+    paper_content: "str | PaperContent",
     *,
     model: Optional[str] = None,
     mode: str = "multilayer",
     instruction_context: str = "",
 ) -> ExtractionResult:
-    """Synchronous: PaperContent → ExtractionResult (list of StrategySpec).
+    """Synchronous: content.md string or PaperContent → ExtractionResult.
 
     Args:
-        paper_content: Structured paper content from parser.
+        paper_content: Full markdown string (content.md) or PaperContent.
         model: Override LLM model string.
         mode: "multilayer" (4 focused calls, recommended) or "single" (1 call, legacy).
     """
@@ -71,32 +71,39 @@ def extract_spec(
 
 
 async def aextract_spec(
-    paper_content: PaperContent,
+    paper_content: "str | PaperContent",
     *,
     model: Optional[str] = None,
     mode: str = "multilayer",
     instruction_context: str = "",
 ) -> ExtractionResult:
-    """Async: PaperContent → ExtractionResult via multi-layer LLM extraction."""
+    """Async: content.md string or PaperContent → ExtractionResult."""
+    # Accept both str (new content.md) and PaperContent (backward compat)
+    if isinstance(paper_content, str):
+        pc = PaperContent(full_text=paper_content)
+        pc.title = _extract_title_from_md(paper_content)
+        pc.abstract = _extract_abstract_from_md(paper_content)
+    else:
+        pc = paper_content
     if mode == "single":
-        spec = await _extract_single_call(paper_content, model=model, instruction_context=instruction_context)
+        spec = await _extract_single_call(pc, model=model, instruction_context=instruction_context)
         _postprocess_spec(spec)
         return ExtractionResult(
             strategies=[spec],
-            paper_title=paper_content.title,
+            paper_title=pc.title,
             num_detected=1,
         )
 
     # Layer 0: Detect strategies
-    briefs = await _detect_strategies(paper_content, model=model)
+    briefs = await _detect_strategies(pc, model=model)
 
     if len(briefs) <= 1:
         # Single strategy — run standard 4-layer extraction (no context injection)
-        spec = await _extract_multilayer(paper_content, model=model, instruction_context=instruction_context)
+        spec = await _extract_multilayer(pc, model=model, instruction_context=instruction_context)
         _postprocess_spec(spec)
         return ExtractionResult(
             strategies=[spec],
-            paper_title=paper_content.title,
+            paper_title=pc.title,
             num_detected=1,
         )
 
@@ -107,9 +114,9 @@ async def aextract_spec(
         logger.info("━━━ Strategy %d/%d: %s ━━━", i + 1, len(briefs), brief.name)
         strategy_focus = _build_strategy_focus(brief)
         spec = await _extract_multilayer(
-            paper_content, model=model, strategy_focus=strategy_focus, instruction_context=instruction_context
+            pc, model=model, strategy_focus=strategy_focus, instruction_context=instruction_context
         )
-        if not spec.strategy_name or spec.strategy_name == paper_content.title:
+        if not spec.strategy_name or spec.strategy_name == pc.title:
             spec.strategy_name = brief.name
         _postprocess_spec(spec)
         return spec
@@ -120,7 +127,7 @@ async def aextract_spec(
 
     return ExtractionResult(
         strategies=specs,
-        paper_title=paper_content.title,
+        paper_title=pc.title,
         num_detected=len(briefs),
     )
 
@@ -135,9 +142,7 @@ async def _detect_strategies(
     logger.info("Layer 0: Detecting strategies...")
     prompt = LAYER0_STRATEGY_DETECTION_PROMPT.format(
         title=pc.title,
-        abstract=pc.abstract or pc.full_text[:2000],
-        methodology=pc.methodology,
-        signal_logic=pc.signal_logic,
+        content=pc.full_text,
     )
     result = await _call_llm_json(prompt, model=model)
     if not result:
@@ -185,9 +190,15 @@ def _build_strategy_focus(brief: StrategyBrief) -> str:
     return "\n".join(lines)
 
 
-def _infer_output_type(output_name: str, declared: str = "label") -> str:
+def _infer_output_type(output_name, declared: str = "label") -> str:
     """Infer canonical dimensionality from output variable names."""
-    name = (output_name or "").lower()
+    # Defensive: LLM may return a list, dict, or other type
+    if isinstance(output_name, list):
+        name = str(output_name[0] if output_name else "").lower()
+    elif isinstance(output_name, dict):
+        name = str(output_name.get("name", "") or output_name.get("output", "")).lower()
+    else:
+        name = (str(output_name or "")).lower()
     if name == "portfolio_weights" or name.endswith("_weights"):
         return "vector"
     if any(token in name for token in ("matrix", "covariance", "second_moment", "moment_matrix")):
@@ -279,9 +290,7 @@ async def _extract_multilayer(
     logger.info("Layer 1: Extracting metadata and data requirements...")
     prompt = LAYER1_METADATA_AND_DATA_PROMPT.format(
         title=pc.title,
-        abstract=pc.abstract or pc.full_text[:2000],
-        methodology=pc.methodology,
-        data_description=pc.data_description,
+        content=pc.full_text,
         strategy_focus=strategy_focus,
         instruction_context=instruction_context,
     )
@@ -314,14 +323,17 @@ async def _extract_multilayer(
         strategy_name=spec.strategy_name,
         strategy_type=spec.strategy_type,
         description=spec.description,
-        signal_logic=pc.signal_logic,
-        methodology=pc.methodology,
+        content=pc.full_text,
         strategy_focus=strategy_focus,
         instruction_context=instruction_context,
     )
     l2 = await _call_llm_json(prompt, model=model)
     if l2:
-        raw_indicators = l2.get("indicators", [])
+        # Defensive: LLM may return a list directly or a dict with "indicators"
+        if isinstance(l2, list):
+            raw_indicators = l2
+        else:
+            raw_indicators = l2.get("indicators", [])
         spec.indicators = [
             Indicator(**{k: v for k, v in ind.items() if k in Indicator.__dataclass_fields__})
             for ind in raw_indicators
@@ -339,14 +351,16 @@ async def _extract_multilayer(
         strategy_name=spec.strategy_name,
         strategy_type=spec.strategy_type,
         indicators_summary=indicators_summary,
-        signal_logic=pc.signal_logic,
-        methodology=pc.methodology,
+        content=pc.full_text,
         strategy_focus=strategy_focus,
         instruction_context=instruction_context,
     )
     l3 = await _call_llm_json(prompt, model=model)
     if l3:
-        raw_steps = l3.get("logic_pipeline", [])
+        if isinstance(l3, list):
+            raw_steps = l3
+        else:
+            raw_steps = l3.get("logic_pipeline", [])
         spec.logic_pipeline = [
             LogicStep(**{k: v for k, v in step.items() if k in LogicStep.__dataclass_fields__})
             for step in raw_steps
@@ -367,14 +381,16 @@ async def _extract_multilayer(
         strategy_name=spec.strategy_name,
         strategy_type=spec.strategy_type,
         logic_summary=logic_summary,
-        data_description=pc.data_description,
-        methodology=pc.methodology,
+        content=pc.full_text,
         strategy_focus=strategy_focus,
         instruction_context=instruction_context,
     )
     l4 = await _call_llm_json(prompt, model=model)
     if l4:
-        raw_plans = l4.get("execution_plan", [])
+        if isinstance(l4, list):
+            raw_plans = l4
+        else:
+            raw_plans = l4.get("execution_plan", [])
         spec.execution_plan = [_parse_execution_plan(p) for p in raw_plans if isinstance(p, dict)]
         spec.risk_management = l4.get("risk_management", [])
         spec.executable_explanation = l4.get("executable_explanation")
@@ -401,9 +417,7 @@ async def _extract_single_call(
     """Original single-prompt extraction (kept for comparison / fallback)."""
     prompt = SPECIFICATION_PROMPT.format(
         title=pc.title,
-        methodology=pc.methodology,
-        signal_logic=pc.signal_logic,
-        data_description=pc.data_description,
+        content=pc.full_text,
         instruction_context=instruction_context,
     )
     raw = await achat(prompt, system=SYSTEM_PROMPT, model=model, max_tokens=8192)
@@ -504,3 +518,28 @@ def _parse_json_response(text: str) -> dict:
             pass
 
     raise ValueError(f"Could not parse JSON from LLM response:\n{text[:500]}")
+
+
+# ── Heuristic helpers (shared with parser) ───────────────────
+
+
+def _extract_title_from_md(md: str) -> str:
+    """Heuristic: first H1 heading in the markdown."""
+    import os, re
+    m = re.search(r"^#\s+(.+?)$", md[:500], re.MULTILINE)
+    if m:
+        return m.group(1).strip()
+    return "Untitled Paper"
+
+
+def _extract_abstract_from_md(md: str) -> str:
+    """Heuristic: section between '# Abstract' and next heading."""
+    import re
+    m = re.search(
+        r"(?:^|\n)#{1,3}\s*Abstract\s*\n+(.*?)(?:\n#{1,3}\s+|\n\n[A-Z])",
+        md[:5000],
+        re.IGNORECASE | re.DOTALL,
+    )
+    if m:
+        return m.group(1).strip()
+    return ""
