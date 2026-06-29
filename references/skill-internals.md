@@ -51,7 +51,7 @@ Initialization completion policy:
 ### `scripts/analyze.py` — Full Pipeline (recommended)
 
 ```
-uv run python scripts/analyze.py <file> [-o DIR] [--parser-mode builtin|agent] [--model MODEL] [--instruction FILE] [--instructions-dir DIR]
+uv run python scripts/analyze.py <file> [-o DIR] [--extractor-mode multilayer|single] [--model MODEL] [--instruction FILE] [--instructions-dir DIR]
 ```
 
 Accepts: `.pdf`, `.md`, `.markdown`, `.docx`, `.txt` (auto-detects from extension).
@@ -59,7 +59,6 @@ Accepts: `.pdf`, `.md`, `.markdown`, `.docx`, `.txt` (auto-detects from extensio
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-o, --output-dir` | `<PAPER2SPEC_REPLICATIONS_PATH>/<slug>/` | Output directory |
-| `--parser-mode` | `builtin` | `builtin` (fast, <40 pages) or `agent` (FAISS semantic retrieval) |
 | `--extractor-mode` | `multilayer` | `multilayer` (recommended) or `single` (legacy) |
 | `--instruction` | — | Extra instruction/clarification Markdown file to ground extraction; can be repeated |
 | `--instructions-dir` | — | Directory scanned for `*instruction*.md`, `*clarification*.md`, and `*reference*.md` |
@@ -78,15 +77,15 @@ Accepts: `.pdf`, `.md`, `.markdown`, `.docx`, `.txt` (auto-detects from extensio
 ### `scripts/parse.py` — Document → PaperContent
 
 ```
-uv run python scripts/parse.py <file> [--mode builtin|agent] [--model MODEL] [-o FILE]
+uv run python scripts/parse.py <file> [--force-ocr] [--model MODEL] [-o FILE]
 ```
 
-Default output: `<PAPER2SPEC_REPLICATIONS_PATH>/<file_stem>/inputs/content.json`
+Default output: `<PAPER2SPEC_REPLICATIONS_PATH>/<file_stem>/inputs/content.md`
 
 ### `scripts/extract.py` — PaperContent → ExtractionResult
 
 ```
-uv run python scripts/extract.py <content.json> [--mode multilayer|single] [--model MODEL] [-o FILE] [--instruction FILE] [--instructions-dir DIR]
+uv run python scripts/extract.py <content.md> [--mode multilayer|single] [--model MODEL] [-o FILE] [--instruction FILE] [--instructions-dir DIR]
 ```
 
 ### `scripts/search.py` — Academic Paper Search
@@ -167,31 +166,6 @@ replications/<slug>/
 ```
 
 See `SKILL.md §Output Paths` for the full contract.
-
----
-
-## Parser Mode Selection
-
-Two modes — pick automatically based on paper length:
-
-| Condition | Mode | Reason |
-|-----------|------|--------|
-| PDF ≤ 60 pages | `builtin` (Mode A) | Fast. 100K char threshold covers ~33 pages without truncation. |
-| PDF 60-100 pages | `builtin` (Mode A) | Truncation keeps first 90K + last 10K chars (methodology + results). |
-| PDF > 100 pages or user reports missing content | `agent` (Mode B) | FAISS semantic retrieval. Requires `uv sync --extra agent`. |
-
-### Mode A (builtin)
-Extracts full PDF text → if >100K chars, takes first 90K + last 10K (skips middle).
-Sends 3 parallel LLM prompts (methodology, data description, signal logic).
-
-### Mode B (agent/FAISS)
-Extracts full PDF text → chunks at 1500 chars / 200 overlap → builds FAISS index
-with bge-small-en-v1.5 embeddings → per section, runs 5 semantic queries to
-retrieve most relevant chunks → sends chunks to LLM. Better recall for buried
-details in very long papers, but slower (~500MB extra dependencies).
-
-**Rule of thumb**: Mode A works for 95% of papers. Switch to Mode B only if
-the spec is missing something visible in the paper, or the PDF is >100 pages.
 
 ---
 
@@ -285,9 +259,9 @@ This isolates strategy deps from the skill's own environment.
 ### Selective Installation
 
 ```bash
-uv sync                    # Core only (paper2spec Mode A basic)
+uv sync                    # Core only (paper2spec basic)
 uv sync --extra codegen    # + backtrader/yfinance/akshare (for spec2code)
-uv sync --extra agent      # + FAISS/embeddings (Mode B: long papers)
+uv sync --extra ocr        # + LightOnOCR-2 + pypdfium2 + torch (for PDF parsing)
 uv sync --extra dev        # + pytest (for testing)
 uv sync --all-extras       # Everything (recommended)
 ```
@@ -297,7 +271,7 @@ uv sync --all-extras       # Everything (recommended)
 ```bash
 cd <skill-path>
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[codegen,agent,dev]"
+pip install -e ".[codegen,ocr,dev]"
 ```
 
 ---
@@ -308,13 +282,14 @@ pip install -e ".[codegen,agent,dev]"
 paper2spec/          # PDF → structured spec
 ├── __init__.py        # v0.3.0
 ├── models.py          # PaperContent, StrategySpec, ExtractionResult, StrategyBrief
-├── parser.py          # PDF → PaperContent (Mode A: builtin, Mode B: FAISS)
+├── parser.py          # PDF → PaperContent (LightOnOCR-2 + fitz fallback)
 ├── extractor.py       # PaperContent → ExtractionResult (Layer 0-4)
-├── operator_pitfall.py # Semantic retrieval over editable pitfall corpus
+├── ocr.py             # LightOnOCR-2 inference engine with disk caching
+├── operator_pitfall.py # Keyword retrieval over editable pitfall corpus
 ├── resources/
 │   └── operator_pitfall_index.md # User-extensible pitfall corpus
 ├── render.py          # JSON → Markdown renderers
-├── pdf_utils.py       # Hybrid PDF extraction (pymupdf4llm + fitz)
+├── pdf_utils.py       # Simple fitz text extraction (fallback)
 ├── llm.py             # litellm wrapper
 ├── prompts.py         # Layer 0-4 prompt templates
 └── search.py          # arXiv + SSRN search

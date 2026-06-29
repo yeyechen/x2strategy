@@ -7,8 +7,8 @@ strategy specifications — with automatic multi-strategy detection.
 
 Given a **PDF** of a quantitative finance paper, paper2spec:
 
-1. **Parses** the paper into structured sections (methodology, signal logic,
-  data requirements) via dual-mode extraction (direct LLM or FAISS semantic retrieval).
+1. **Parses** the paper into markdown via LightOnOCR-2 (1B vision-language
+   model), yielding a single `content.md` with HTML tables + LaTeX equations.
 2. **Detects** if the paper contains multiple independent strategies (Layer 0).
 3. **Extracts** a complete specification per strategy through 4 focused LLM
    calls (metadata → indicators → logic pipeline → execution plan).
@@ -67,13 +67,12 @@ uv run python scripts/extract.py content.json -o spec.json --instruction notes.m
 ### `scripts/analyze.py` — Full Pipeline (recommended)
 
 ```
-uv run python scripts/analyze.py <pdf> [-o DIR] [--parser-mode builtin|agent] [--model MODEL] [--instruction FILE] [--instructions-dir DIR]
+uv run python scripts/analyze.py <pdf> [-o DIR] [--extractor-mode multilayer|single] [--model MODEL] [--instruction FILE] [--instructions-dir DIR]
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-o, --output-dir` | `<PAPER2SPEC_REPLICATIONS_PATH>/<slug>/` | Output directory |
-| `--parser-mode` | `builtin` | `builtin` (fast, <40 pages) or `agent` (FAISS semantic retrieval) |
 | `--extractor-mode` | `multilayer` | `multilayer` (recommended) or `single` (legacy) |
 | `--instruction` | — | Extra instruction/clarification Markdown file; can be repeated |
 | `--instructions-dir` | — | Directory scanned for `*instruction*.md`, `*clarification*.md`, and `*reference*.md` |
@@ -82,7 +81,7 @@ uv run python scripts/analyze.py <pdf> [-o DIR] [--parser-mode builtin|agent] [-
 ### `scripts/parse.py` — PDF → PaperContent
 
 ```
-uv run python scripts/parse.py <pdf> [--mode builtin|agent] [--model MODEL] [-o FILE]
+uv run python scripts/parse.py <pdf> [--force-ocr] [--model MODEL] [-o FILE]
 ```
 
 ### `scripts/extract.py` — PaperContent → ExtractionResult
@@ -141,16 +140,6 @@ The example above is abbreviated. Current `StrategySpec` objects are expected to
 }
 ```
 
-## Parser Mode Selection
-
-Pick automatically based on paper length — do not ask the user:
-
-| Condition | Mode | Reason |
-|-----------|------|--------|
-| PDF ≤ 60 pages | `builtin` (Mode A) | Fast. 100K char threshold covers ~33 pages. |
-| PDF 60-100 pages | `builtin` (Mode A) | Truncation keeps first 90K + last 10K chars. |
-| PDF > 100 pages | `agent` (Mode B) | FAISS semantic retrieval. Requires `[agent]` extra. |
-
 ## Multi-Strategy Detection
 
 | Paper | Strategies Detected |
@@ -170,10 +159,11 @@ Pick automatically based on paper length — do not ask the user:
 paper2spec/
 ├── __init__.py        # v0.3.0
 ├── models.py          # PaperContent, StrategySpec, ExtractionResult
-├── parser.py          # PDF → PaperContent (builtin or FAISS)
+├── parser.py          # PDF → PaperContent (LightOnOCR-2 + fitz fallback)
+├── ocr.py             # LightOnOCR-2 inference engine with disk caching
 ├── extractor.py       # PaperContent → ExtractionResult (Layer 0-4)
 ├── render.py          # JSON → Markdown renderers
-├── pdf_utils.py       # Hybrid PDF extraction
+├── pdf_utils.py       # Simple fitz text extraction (fallback)
 ├── llm.py             # litellm wrapper
 ├── prompts.py         # Layer 0-4 prompt templates
 └── search.py          # arXiv + SSRN search
@@ -181,7 +171,6 @@ paper2spec/
 
 ## Limitations
 
-- **Mode A**: Truncates to first 90K + last 10K chars for >100K text.
+- **OCR quality**: LightOnOCR-2 output depends on PDF clarity; rotated pages or dense layouts may need preprocessing.
 - **SSRN search**: Best-effort HTML scraping — may break if SSRN changes layout.
-- **Tables/formulas**: Not yet extracted (reserved fields in PaperContent).
 - **Multi-strategy**: Conservative detector — may merge borderline-distinct strategies.

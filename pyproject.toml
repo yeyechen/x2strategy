@@ -26,12 +26,6 @@ ocr = [
     "torch>=2.11",
     "pillow>=11.0",
 ]
-agent = [  # DEPRECATED: FAISS/semantic search removed; keep for legacy tests
-    "langchain-community>=0.2",
-    "langchain-text-splitters>=0.2",
-    "sentence-transformers>=2.2",
-    "faiss-cpu>=1.7",
-]
 codegen = [
     "backtrader>=1.9",
     "yfinance>=0.2",

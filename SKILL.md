@@ -37,7 +37,7 @@ Input format auto-detected from extension:
 
 | Format | Extension | Notes |
 |--------|-----------|-------|
-| PDF (papers) | `.pdf` | PyMuPDF → Mode A (direct) or Mode B (FAISS) |
+| PDF (papers) | `.pdf` | LightOnOCR-2 → markdown with tables + equations |
 | Markdown (drafts) | `.md`, `.markdown` | Direct text read |
 | DOCX (reports) | `.docx` | python-docx (requires `uv sync --extra docx`) |
 | Plain text | `.txt` | Direct read |
@@ -540,8 +540,7 @@ Read on demand for implementation details:
 
 ## Limitations
 
-- **Mode A** truncates at 100K chars (first 90K + last 10K). Use Mode B for >100 page papers.
-- **Tables/formulas**: not yet extracted from PDFs.
+- **OCR quality**: LightOnOCR-2 output is markdown with HTML tables and LaTeX equations; quality depends on PDF clarity. Rotated pages or dense multi-column layouts may need preprocessing.
 - **Multi-strategy**: conservative — may merge borderline-distinct strategies.
 - **DOCX**: paragraph text only (tables, images not preserved — use PDF for rich docs).
 - **SSRN search**: best-effort HTML scraping, may break on layout changes.

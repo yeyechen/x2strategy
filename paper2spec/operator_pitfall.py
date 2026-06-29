@@ -127,51 +127,31 @@ def retrieve_operator_pitfalls(
     top_k: int = DEFAULT_TOP_K,
     corpus_path: Optional[Path] = None,
 ) -> List[Dict[str, Any]]:
-    """Retrieve matched operator-pitfall entries via semantic similarity.
+    """Retrieve matched operator-pitfall entries via keyword overlap.
 
-    Requires the optional `agent` dependencies (`langchain-community`,
-    `sentence-transformers`, `faiss-cpu`). The LLM should consume this output;
-    it should not self-select operator pitfalls without retrieval.
+    Queries extracted from the spec are matched against the pitfall corpus
+    by counting shared word overlap. No heavy dependencies required — just
+    plain Python string matching.
     """
     queries = operator_pitfall_queries_from_spec(spec_dict)
     entries = load_operator_pitfall_entries(corpus_path)
     if not queries or not entries:
         return []
 
-    try:
-        from langchain_community.embeddings import HuggingFaceEmbeddings
-        from langchain_community.vectorstores import FAISS
-
-        embeddings = HuggingFaceEmbeddings(
-            model_name=os.getenv("X2STRATEGY_OPERATOR_PITFALL_EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5"),
-            encode_kwargs={"normalize_embeddings": True},
-        )
-        vectorstore = FAISS.from_texts(
-            [entry["text"] for entry in entries],
-            embeddings,
-            metadatas=[{"operator_id": entry["operator_id"], "entry_index": idx} for idx, entry in enumerate(entries)],
-        )
-    except Exception as exc:
-        # Don't crash the run — the script-level caller writes a
-        # placeholder to disk when render_operator_pitfall_matches([])
-        # is invoked. We re-raise so the script's CLI shows the
-        # install hint, but a wrapper (e.g. the agent's loop) can
-        # catch and continue.
-        raise RuntimeError(
-            "Operator-pitfall semantic retrieval requires optional agent dependencies. "
-            "Install with `uv sync --extra agent` or `pip install -e .[agent]`."
-        ) from exc
-
     matched: Dict[str, Dict[str, Any]] = {}
     for query_path, query_text in queries:
-        docs = vectorstore.similarity_search_with_relevance_scores(
-            query_text,
-            k=min(top_k, len(entries)),
-        )
-        for doc, score in docs:
+        query_words = set(query_text.lower().split())
+        if len(query_words) < 3:
+            continue
+        for idx, entry in enumerate(entries):
+            entry_words = set(entry["text"].lower().split())
+            if not entry_words:
+                continue
+            overlap = query_words & entry_words
+            score = len(overlap) / max(len(query_words), 1)
             if score < threshold:
                 continue
-            operator_id = str(doc.metadata.get("operator_id") or "operator")
+            operator_id = entry["operator_id"]
             previous = matched.get(operator_id)
             if previous is None or score > previous["score"]:
                 matched[operator_id] = {
@@ -179,7 +159,7 @@ def retrieve_operator_pitfalls(
                     "score": float(score),
                     "matched_from": query_path,
                     "threshold": float(threshold),
-                    "text": doc.page_content,
+                    "text": entry["text"],
                 }
 
     return sorted(matched.values(), key=lambda item: item["score"], reverse=True)

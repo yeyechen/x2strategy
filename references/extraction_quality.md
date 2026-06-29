@@ -80,14 +80,13 @@ paper2spec flow and add a concise new `## operator:` entry before retrieval.
 2. Build semantic search over operator entries from
   [../paper2spec/resources/operator_pitfall_index.md](../paper2spec/resources/operator_pitfall_index.md). In x2strategy, run
    `scripts/operator_pitfalls.py <spec.json> --strategy-index <i> -o <context.md>`
-   for this step. This uses FAISS + HuggingFace embeddings when optional
-   `agent` dependencies are installed.
+   for this step. This uses keyword-overlap matching against the pitfall
+   corpus — no heavy dependencies required.
 3. Keep only relevant matches above threshold. The QSA implementation uses
   `SPEC_REPAIR_OPERATOR_PITFALL_THRESHOLD` and
   `SPEC_REPAIR_OPERATOR_PITFALL_TOP_K` to control this retrieval. x2strategy
-  uses `X2STRATEGY_OPERATOR_PITFALL_THRESHOLD`,
-  `X2STRATEGY_OPERATOR_PITFALL_TOP_K`, and
-  `X2STRATEGY_OPERATOR_PITFALL_EMBEDDING_MODEL`.
+  uses `X2STRATEGY_OPERATOR_PITFALL_THRESHOLD` and
+  `X2STRATEGY_OPERATOR_PITFALL_TOP_K`.
 4. Apply matched pitfalls only to the reported `matched_from` component path.
 5. Use the matched entry as an audit checklist, not as a source for missing
    formulas or numeric constants.
