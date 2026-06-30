@@ -10,7 +10,6 @@
 PAPER2SPEC_REPLICATIONS_PATH=/absolute/path/to/replications
 PAPER2SPEC_MODEL=deepseek/deepseek-chat
 DEEPSEEK_API_KEY=sk-actualKeyFromUser
-PAPER2SPEC_INIT_VERSION=1
 ```
 
 ### OpenRouter (multi-model gateway)
@@ -18,7 +17,6 @@ PAPER2SPEC_INIT_VERSION=1
 PAPER2SPEC_REPLICATIONS_PATH=/absolute/path/to/replications
 PAPER2SPEC_MODEL=openrouter/deepseek/deepseek-chat-v3-0324
 OPENROUTER_API_KEY=sk-or-actualKeyFromUser
-PAPER2SPEC_INIT_VERSION=1
 ```
 
 ### OpenAI (direct)
@@ -26,7 +24,6 @@ PAPER2SPEC_INIT_VERSION=1
 PAPER2SPEC_REPLICATIONS_PATH=/absolute/path/to/replications
 PAPER2SPEC_MODEL=openai/gpt-4o-mini
 OPENAI_API_KEY=sk-actualKeyFromUser
-PAPER2SPEC_INIT_VERSION=1
 ```
 
 **Important**: Never write `.env` with placeholder values. Always wait for
@@ -38,11 +35,6 @@ the real key from the user, then write the file.
 # Verify key works
 uv run python -c "from paper2spec.llm import chat; print(chat('Say OK'))" 2>&1 | head -1
 ```
-
-Initialization completion policy:
-- `PAPER2SPEC_INIT_VERSION` is a quick marker (recommended value: `1`).
-- Do not trust marker alone. Always verify runtime: `PAPER2SPEC_REPLICATIONS_PATH`,
-  `PAPER2SPEC_MODEL`, and at least one provider API key must all be set.
 
 ---
 
@@ -70,7 +62,6 @@ Accepts: `.pdf`, `.md`, `.markdown`, `.docx`, `.txt` (auto-detects from extensio
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PAPER2SPEC_INIT_VERSION` | — | Setup completion marker (set to `1`) |
 | `PAPER2SPEC_ARXIV_MIN_INTERVAL` | `3.0` | Minimum seconds between arXiv API requests |
 | `PAPER2SPEC_SEARCH_MAX_RETRIES` | `3` | Retry count for search HTTP 429/5xx |
 
