@@ -39,7 +39,6 @@ from paper2spec.models import (
 
 # ── Constants ────────────────────────────────────────────────
 
-SAMPLE_PAPERS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "sample_papers")
 EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "examples")
 
 # Realistic mock LLM responses for each layer
@@ -413,63 +412,11 @@ class TestSearchRouter:
 
 
 # ═══════════════════════════════════════════════════════════════
-# 2. PDF EXTRACTION TESTS
+# 2. PARSER E2E (Mode A + Mode B)
 # ═══════════════════════════════════════════════════════════════
 
-
-def _has_sample_papers() -> bool:
-    return os.path.isdir(SAMPLE_PAPERS_DIR) and any(
-        f.endswith(".pdf") for f in os.listdir(SAMPLE_PAPERS_DIR)
-    )
-
-
-@pytest.mark.skipif(not _has_sample_papers(), reason="sample_papers/ not found")
-class TestPDFExtraction:
-    """Test PDF extraction quality with real papers."""
-
-    @pytest.fixture(params=[
-        "A Quantitative Approach to Tactical Asset Allocation.pdf",
-        "Pairs trading  does volatility timing matter .pdf",
-        "Volatility-Managed Portfolios.pdf",
-    ])
-    def pdf_path(self, request):
-        path = os.path.join(SAMPLE_PAPERS_DIR, request.param)
-        if not os.path.isfile(path):
-            pytest.skip(f"PDF not found: {request.param}")
-        return path
-
-    def test_extraction_non_empty(self, pdf_path):
-        from paper2spec.pdf_utils import PDFExtractor
-        text = PDFExtractor.extract_text(pdf_path)
-        assert len(text) > 5000, f"Extracted text too short: {len(text)} chars"
-
-    def test_extraction_contains_keywords(self, pdf_path):
-        from paper2spec.pdf_utils import PDFExtractor
-        text = PDFExtractor.extract_text(pdf_path).lower()
-        # Any quant finance paper should contain some of these
-        keywords = ["return", "portfolio", "risk", "data", "table", "figure"]
-        found = [k for k in keywords if k in text]
-        assert len(found) >= 3, f"Expected ≥3 finance keywords, found: {found}"
-
-    def test_extraction_has_reasonable_size(self, pdf_path):
-        from paper2spec.pdf_utils import PDFExtractor
-        text = PDFExtractor.extract_text(pdf_path)
-        # pymupdf4llm averages ~3K chars/page; 10-80 page papers → 30K-240K
-        assert 10_000 <= len(text) <= 500_000, f"Unusual extraction size: {len(text)}"
-
-
-class TestPDFExtractorErrors:
-    """Edge case handling for PDF extraction."""
-
-    def test_missing_file_raises(self):
-        from paper2spec.pdf_utils import PDFExtractor
-        with pytest.raises(FileNotFoundError):
-            PDFExtractor.extract_text("/nonexistent/path.pdf")
-
-
-# ═══════════════════════════════════════════════════════════════
-# 3. PARSER E2E (Mode A + Mode B)
-# ═══════════════════════════════════════════════════════════════
+# (TestPDFExtraction + TestPDFExtractorErrors removed: pdf_utils.py deleted in
+# the OCR-only cleanup; the OCR path is exercised by the parser tests below.)
 
 
 SYNTHETIC_PAPER_TEXT = textwrap.dedent("""\

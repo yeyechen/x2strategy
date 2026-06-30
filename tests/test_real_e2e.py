@@ -37,7 +37,6 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from paper2spec.extractor import extract_spec
 from paper2spec.models import ExtractionResult, PaperContent, StrategySpec
 from paper2spec.parser import parse_pdf
-from paper2spec.pdf_utils import PDFExtractor
 from paper2spec.render import content_to_markdown, spec_to_markdown
 from paper2spec.search import search
 
@@ -151,52 +150,9 @@ class TestRealSearch:
 
 
 # ==============================================================================
-# 2. PDF EXTRACTION: Can we extract text from real PDFs?
+# 2. PDF EXTRACTION: pdf_utils.py / fallback removed; OCR path is exercised
+#    by the parser tests below.
 # ==============================================================================
-
-
-class TestRealPDFExtraction:
-    """Test real PDF text extraction quality."""
-
-    @pytest.fixture(autouse=True)
-    def _check_sample_papers(self, sample_pdf_paths):
-        if not SAMPLE_PAPERS.exists():
-            pytest.skip("sample_papers directory not found")
-
-    def test_extract_tactical_aa(self, sample_pdf_paths):
-        """Tactical AA: known good paper, moderate length."""
-        text = PDFExtractor.extract_text(str(sample_pdf_paths["tactical_aa"]))
-        assert len(text) > 10000, f"Too short: {len(text)} chars"
-        # Should contain key terms from this paper
-        lower = text.lower()
-        assert "asset allocation" in lower
-        assert "moving average" in lower or "sma" in lower
-
-    def test_extract_pairs_trading(self, sample_pdf_paths):
-        """Pairs Trading: multi-strategy paper, should be rich."""
-        text = PDFExtractor.extract_text(str(sample_pdf_paths["pairs_trading"]))
-        assert len(text) > 15000
-        lower = text.lower()
-        assert "pairs" in lower
-        assert "cointegration" in lower or "distance" in lower
-
-    def test_extract_momentum(self, sample_pdf_paths):
-        """Market States and Momentum."""
-        text = PDFExtractor.extract_text(str(sample_pdf_paths["momentum"]))
-        assert len(text) > 10000
-        assert "momentum" in text.lower()
-
-    @pytest.mark.parametrize("name", [
-        "volatility", "vol_managed", "abs_momentum",
-        "equity_risk", "trend_friend", "persistence", "momentum_bc",
-    ])
-    def test_extract_all_pdfs(self, sample_pdf_paths, name):
-        """All sample PDFs should extract >5000 chars of text."""
-        pdf_path = sample_pdf_paths[name]
-        if not pdf_path.exists():
-            pytest.skip(f"PDF not found: {pdf_path.name}")
-        text = PDFExtractor.extract_text(str(pdf_path))
-        assert len(text) > 5000, f"{name}: only {len(text)} chars extracted"
 
 
 # ==============================================================================

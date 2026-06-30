@@ -3,9 +3,7 @@
 Supported formats: PDF (via LightOnOCR-2), Markdown (.md), DOCX, plain text.
 
 For PDFs, the parser uses LightOnOCR-2 (a 1B-param vision-language model)
-to produce clean markdown with HTML tables and LaTeX equations.  If
-LightOnOCR-2 is unavailable (missing deps or no GPU), it falls back to
-simple PyMuPDF text extraction.
+to produce clean markdown with HTML tables and LaTeX equations.
 
 The LLM extraction step (methodology / data_description / signal_logic)
 has been moved to the extractor stage — the parser now produces a single
@@ -20,7 +18,6 @@ from pathlib import Path
 from typing import Optional
 
 from paper2spec.models import PaperContent
-from paper2spec.pdf_utils import PDFExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -62,24 +59,11 @@ async def aparse_pdf(
     """
     logger.info("Parsing PDF: %s", pdf_path)
 
-    content_md: str
+    from paper2spec.ocr import LightOnOCREngine
 
-    try:
-        from paper2spec.ocr import LightOnOCREngine
-
-        engine = LightOnOCREngine()
-        content_md = engine.extract_pdf(pdf_path, force=force_ocr)
-        logger.info("OCR extracted %d chars from %s", len(content_md), pdf_path)
-    except Exception as exc:
-        logger.warning(
-            "LightOnOCR-2 unavailable (%s), falling back to text extraction",
-            exc,
-        )
-        content_md = await asyncio.to_thread(PDFExtractor.extract_text, pdf_path)
-        logger.info(
-            "Fallback text extraction: %d chars from %s",
-            len(content_md), pdf_path,
-        )
+    engine = LightOnOCREngine()
+    content_md = engine.extract_pdf(pdf_path, force=force_ocr)
+    logger.info("OCR extracted %d chars from %s", len(content_md), pdf_path)
 
     return _populate_paper_content(content_md, source=pdf_path)
 
