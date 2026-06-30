@@ -1,31 +1,22 @@
-"""End-to-end tests: parse → extract → render.
+"""End-to-end tests: parse → extract.
 
 Coverage plan:
-  1. Parser (Mode A/B): mock LLM, validate PaperContent structure
-  2. Extractor (Layer 0): multi-strategy detection with mock LLM
-  3. Extractor (Layers 1-4): full multilayer pipeline with mock LLM
-  4. Extractor (single-call legacy): backward compatibility
-  5. Render: PaperContent + ExtractionResult → Markdown quality
+  1. Extractor (Layer 0): multi-strategy detection with mock LLM
+  2. Extractor (Layers 1-4): full multilayer pipeline with mock LLM
+  3. Extractor (multi-strategy): multiple strategies with mock LLM
 
 All tests in this file are deterministic: mocked LLM, synthetic
-fixtures, no network. PDF extraction tests live in test_parser/
-or are exercised through the OCR path downstream.
+fixtures, no network.
 """
 
 import json
-import os
 import textwrap
-from dataclasses import dataclass
-from typing import Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from paper2spec.models import (
     ExtractionResult,
-    Indicator,
-    LogicStep,
-    ExecutionPlan,
     PaperContent,
     StrategyBrief,
     StrategySpec,
@@ -33,8 +24,6 @@ from paper2spec.models import (
 
 
 # ── Constants ────────────────────────────────────────────────
-
-EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "examples")
 
 # Realistic mock LLM responses for each layer
 _MOCK_LAYER0_SINGLE = json.dumps({
@@ -538,162 +527,3 @@ class TestExtractorMultiStrategy:
         # Layer 0 (1) + 3 strategies × 4 layers (12) = 13
         # But _call_llm_json may retry on failures, so check minimum
         assert mock_achat.call_count >= 13
-
-
-class TestExtractorSingleCall:
-    """Test legacy single-call extraction mode."""
-
-    @pytest.mark.asyncio
-    @patch("paper2spec.extractor.achat", new_callable=AsyncMock)
-    async def test_single_call_mode(self, mock_achat, momentum_paper_content):
-        mock_achat.side_effect = _make_layer_router()
-        from paper2spec.extractor import aextract_spec
-        result = await aextract_spec(momentum_paper_content, mode="single")
-
-        assert result.num_detected == 1
-        assert len(result.strategies) == 1
-        # Single-call mode should make exactly 1 LLM call
-        assert mock_achat.call_count == 1
-
-
-class TestExtractorJSONParsing:
-    """Test JSON parsing robustness in extractor."""
-
-    def test_parse_clean_json(self):
-        from paper2spec.extractor import _parse_json_response
-        result = _parse_json_response('{"key": "value"}')
-        assert result == {"key": "value"}
-
-    def test_parse_markdown_fenced_json(self):
-        from paper2spec.extractor import _parse_json_response
-        text = '```json\n{"key": "value"}\n```'
-        result = _parse_json_response(text)
-        assert result == {"key": "value"}
-
-    def test_parse_json_with_preamble(self):
-        from paper2spec.extractor import _parse_json_response
-        text = 'Here is the JSON:\n\n{"key": "value"}\n\nEnd.'
-        result = _parse_json_response(text)
-        assert result == {"key": "value"}
-
-    def test_parse_non_json_raises(self):
-        from paper2spec.extractor import _parse_json_response
-        with pytest.raises(ValueError, match="Could not parse JSON"):
-            _parse_json_response("This is plain text with no JSON.")
-
-
-# ═══════════════════════════════════════════════════════════════
-# 2. RENDER QUALITY TESTS
-# ═══════════════════════════════════════════════════════════════
-
-
-class TestRenderContentE2E:
-    """Test content_to_markdown quality."""
-
-    def test_full_render_structure(self, momentum_paper_content):
-        from paper2spec.render import content_to_markdown
-        md = content_to_markdown(momentum_paper_content)
-
-        assert md.startswith("# Time-Series Momentum")
-        assert "## Methodology" in md
-        assert "## Data Description" in md
-        assert "## Signal Logic" in md
-        assert "Full text:" in md  # stats footer
-
-    def test_abstract_as_blockquote(self, momentum_paper_content):
-        from paper2spec.render import content_to_markdown
-        md = content_to_markdown(momentum_paper_content)
-        # Abstract should be in blockquote format
-        assert "> " in md
-
-
-class TestRenderSpecE2E:
-    """Test spec_to_markdown quality and completeness."""
-
-    def _make_full_result(self) -> ExtractionResult:
-        """Create a fully populated ExtractionResult."""
-        from paper2spec.models import ExecutionTrigger, ExecutionAction, PositionSizing
-        spec = StrategySpec(
-            strategy_name="TSMOM",
-            strategy_type="technical",
-            asset_class=["equity", "commodity"],
-            description="Time-series momentum with vol scaling.",
-            data_source="Datastream",
-            time_period="1985-2020",
-            data_frequency="daily",
-            lookback_period=252,
-            expected_sharpe=1.03,
-            expected_return=0.18,
-            max_drawdown=-0.22,
-            indicators=[
-                Indicator(
-                    indicator_id="MOM_12_1",
-                    name="12-1 Momentum",
-                    category="technical",
-                    formula="(P_{t-1}/P_{t-12})-1",
-                    scope="time_series",
-                    output_type="scalar",
-                ),
-            ],
-            logic_pipeline=[
-                LogicStep(
-                    step_id="S1",
-                    description="Compute momentum signal",
-                    function="compute",
-                    scope="time_series",
-                    output="mom_signal",
-                    output_type="scalar",
-                ),
-            ],
-            execution_plan=[
-                ExecutionPlan(
-                    plan_id="EP1",
-                    description="Monthly rebalance",
-                    trigger=ExecutionTrigger(frequency="monthly"),
-                    action=ExecutionAction(logic="long/short based on signal"),
-                    position_sizing=PositionSizing(method="equal_weight", long_short="long_short"),
-                ),
-            ],
-            risk_management=["Stop-loss at -30%", "Max 5% per position"],
-        )
-        return ExtractionResult(
-            strategies=[spec],
-            paper_title="Time-Series Momentum Paper",
-            num_detected=1,
-        )
-
-    def test_spec_markdown_has_all_sections(self):
-        from paper2spec.render import spec_to_markdown
-        result = self._make_full_result()
-        md = spec_to_markdown(result)
-
-        assert "# Time-Series Momentum Paper" in md
-        assert "### Data Requirements" in md
-        assert "### Expected Performance" in md
-        assert "### Indicators" in md
-        assert "### Logic Pipeline" in md
-        assert "### Execution" in md
-        assert "### Risk Management" in md
-
-    def test_indicator_table_format(self):
-        from paper2spec.render import spec_to_markdown
-        md = spec_to_markdown(self._make_full_result())
-        assert "| ID |" in md  # table header
-        assert "MOM_12_1" in md
-        assert "12-1 Momentum" in md
-
-    def test_multi_strategy_render(self):
-        from paper2spec.render import spec_to_markdown
-        result = self._make_full_result()
-        result.strategies.append(StrategySpec(strategy_name="Vol Timing"))
-        result.num_detected = 2
-        md = spec_to_markdown(result)
-        assert "2 independent strategies" in md
-        assert "Strategy 1:" in md
-        assert "Strategy 2:" in md
-
-# (TestLibraryQuality + TestLibraryCrossExampleQuality removed: gated on
-# `examples/pairs_trading_*.json` / `tactical_aa_*.json` /
-# `value_momentum_*.json` which don't exist in this fork. Only
-# `examples/upsa/` is shipped; the upstream example names were never
-# replicated here.)

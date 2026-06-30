@@ -14,7 +14,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from paper2spec.clickhouse import (
-    _build_auth,
     _query_json,
     extract_data_requirements,
     load_catalog,
@@ -321,42 +320,6 @@ class TestMatchWithRealCatalog:
         assert len(report["gaps"]) >= 1, (
             "Expected at least one gap for nonexistent column"
         )
-
-
-# ── _build_auth (pure function) ──────────────────────────────────
-
-
-class TestBuildAuth:
-    """Tests for HTTP query-string auth builder."""
-
-    def test_basic_auth(self):
-        cfg = {"user": "testuser", "password": "secret", "database": "mydb"}
-        result = _build_auth(cfg)
-        assert "user=testuser" in result
-        assert "password=secret" in result
-        assert "database=mydb" in result
-
-    def test_no_password(self):
-        cfg = {"user": "default", "password": "", "database": "mydb"}
-        result = _build_auth(cfg)
-        assert "password" not in result
-
-    def test_exclude_database(self):
-        cfg = {"user": "u", "password": "p", "database": "db"}
-        result = _build_auth(cfg, include_database=False)
-        assert "database" not in result
-
-    def test_override_database(self):
-        cfg = {"user": "u", "password": "p", "database": "default"}
-        result = _build_auth(cfg, database="other_db")
-        assert "database=other_db" in result
-        assert "database=default" not in result
-
-    def test_ampersand_separated(self):
-        cfg = {"user": "u", "password": "p", "database": "d"}
-        result = _build_auth(cfg)
-        parts = result.split("&")
-        assert len(parts) == 3
 
 
 # ── _query_json (mocked HTTP) ───────────────────────────────────

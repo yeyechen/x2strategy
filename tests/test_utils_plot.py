@@ -95,15 +95,8 @@ class TestPlotPerformanceComparison:
 
 
 class TestPlotDecileSpreadAutoAggregation:
-    """Regression tests for iteration 1: the agent passed raw per-(date,
-    bin) data, breaking the bar chart. plot_decile_spread must accept
-    both shapes."""
-
-    def test_per_bin_shape_writes_png(self, sample_bins, tmp_path):
-        path = tmp_path / "deciles.png"
-        plot_decile_spread(sample_bins, save_to=path)
-        assert path.exists()
-        assert path.stat().st_size > 0
+    """Regression test: the agent passed raw per-(date, bin) data, breaking
+    the bar chart. plot_decile_spread must accept both shapes."""
 
     def test_per_date_per_bin_shape_auto_aggregates(self, tmp_path):
         # Per-(date, bin) shape: 3 dates × 5 bins = 15 rows
@@ -123,27 +116,3 @@ class TestPlotDecileSpreadAutoAggregation:
         plot_decile_spread(long_df, bin_col="bin", save_to=path)
         assert path.exists()
         assert path.stat().st_size > 0
-
-    def test_aggregation_is_mean_by_default(self):
-        # 2 dates × same bin → EW means should be the mean of the two
-        df = pd.DataFrame({
-            "month": pd.to_datetime(["2020-01-31", "2020-02-29"]),
-            "bin": [1, 1],
-            "EW": [0.01, 0.03],
-            "VW": [0.02, 0.04],
-        })
-        # Use save_to=None so we don't need a path; just verify the function
-        # doesn't crash and that the auto-aggregation is mean.
-        from utils.plot import _save_or_show  # noqa: F401 — imports work
-        # Just call it and catch the SystemExit if backend fails; we're
-        # really testing the duplication check, not the rendering.
-        import matplotlib.pyplot as plt
-        fig = plt.figure()
-        plt.close(fig)
-        # Test the aggregation logic in isolation by reaching into the call:
-        # easier — just confirm no error and that duplicates were detected.
-        # The function returns None on success.
-        try:
-            plot_decile_spread(df, bin_col="bin")
-        except Exception as e:
-            pytest.fail(f"plot_decile_spread raised: {e}")

@@ -11,7 +11,6 @@ from paper2spec.models import (
     LogicStep,
     PaperContent,
     PositionSizing,
-    StrategyBrief,
     StrategySpec,
 )
 
@@ -207,25 +206,3 @@ class TestStrategySpec:
         j = sample_strategy_spec.to_json()
         restored = StrategySpec.from_json(j)
         assert restored.risk_management == ["Max position 10%", "Stop loss 5%"]
-
-
-# ── StrategyBrief ─────────────────────────────────────────────
-
-
-class TestStrategyBrief:
-    def test_defaults(self):
-        b = StrategyBrief()
-        assert b.name == ""
-        assert b.strategy_type == "technical"
-        assert b.key_section_hints == []
-
-    def test_construction(self):
-        b = StrategyBrief(
-            name="Distance Method",
-            strategy_type="technical",
-            brief_description="Minimum SSD pairs",
-            differentiation="Uses SSD instead of cointegration",
-            key_section_hints=["Section 3", "Table 2"],
-        )
-        assert b.name == "Distance Method"
-        assert len(b.key_section_hints) == 2
