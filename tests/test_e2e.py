@@ -1,20 +1,15 @@
-"""End-to-end tests: search → parse → extract → render → quality validation.
+"""End-to-end tests: parse → extract → render.
 
 Coverage plan:
-  1. Search (arXiv): live API call, validate SearchResult schema
-  2. Search (SSRN): mock HTML, validate scraping
-  3. PDF extraction: real PDFs → text quality metrics
-  4. Parser (Mode A): mock LLM, validate PaperContent structure
-  5. Parser (Mode B): mock LLM + real FAISS, validate retrieval quality
-  6. Extractor (Layer 0): multi-strategy detection with mock LLM
-  7. Extractor (Layers 1-4): full multilayer pipeline with mock LLM
-  8. Extractor (single-call legacy): backward compatibility
-  9. Render: PaperContent + ExtractionResult → Markdown quality
-  10. Full pipeline E2E: PDF → PaperContent → ExtractionResult → validate
-  11. Library: validate existing examples quality (golden tests)
+  1. Parser (Mode A/B): mock LLM, validate PaperContent structure
+  2. Extractor (Layer 0): multi-strategy detection with mock LLM
+  3. Extractor (Layers 1-4): full multilayer pipeline with mock LLM
+  4. Extractor (single-call legacy): backward compatibility
+  5. Render: PaperContent + ExtractionResult → Markdown quality
 
-Tests marked @pytest.mark.network require internet; skipped in CI.
-Tests marked @pytest.mark.slow take >5s (embedding model load).
+All tests in this file are deterministic: mocked LLM, synthetic
+fixtures, no network. PDF extraction tests live in test_parser/
+or are exercised through the OCR path downstream.
 """
 
 import json
@@ -247,176 +242,14 @@ def _make_layer_router(layer0_response: str = _MOCK_LAYER0_SINGLE):
 
 
 # ═══════════════════════════════════════════════════════════════
-# 1. SEARCH TESTS
-# ═══════════════════════════════════════════════════════════════
-
-
-class TestArxivSearch:
-    """Test arXiv API search — requires network."""
-
-    @pytest.mark.network
-    def test_search_returns_results(self):
-        from paper2spec.search import search
-        results = search("momentum trading strategy", max_results=3, sources=["arxiv"])
-        assert len(results) > 0, "arXiv should return at least 1 result"
-
-    @pytest.mark.network
-    def test_search_result_schema(self):
-        from paper2spec.search import search
-        results = search("pairs trading cointegration", max_results=2, sources=["arxiv"])
-        for r in results:
-            assert r.title, "title should not be empty"
-            assert r.source == "arxiv"
-            assert r.url.startswith("http")
-            assert r.abstract  # arXiv always has abstract
-
-    @pytest.mark.network
-    def test_pdf_url_available(self):
-        from paper2spec.search import search
-        results = search("factor investing", max_results=2, sources=["arxiv"])
-        if results:
-            assert results[0].pdf_url, "arXiv results should have pdf_url"
-            assert "arxiv.org" in results[0].pdf_url
-
-
-class TestArxivSearchMocked:
-    """Test arXiv search with mocked HTTP to avoid network dependency."""
-
-    MOCK_ARXIV_XML = textwrap.dedent("""\
-        <?xml version="1.0" encoding="UTF-8"?>
-        <feed xmlns="http://www.w3.org/2005/Atom">
-          <entry>
-            <title>A Momentum Trading Strategy Using Machine Learning</title>
-            <summary>We propose a momentum-based strategy using LSTM.</summary>
-            <published>2024-01-15T00:00:00Z</published>
-            <author><name>John Doe</name></author>
-            <author><name>Jane Smith</name></author>
-            <link href="http://arxiv.org/abs/2401.12345" rel="alternate"/>
-            <link href="http://arxiv.org/pdf/2401.12345" title="pdf"/>
-          </entry>
-          <entry>
-            <title>Factor Timing with Cross-Sectional Momentum</title>
-            <summary>Cross-sectional momentum applied to factor portfolios.</summary>
-            <published>2023-06-01T00:00:00Z</published>
-            <author><name>Alice Lee</name></author>
-            <link href="http://arxiv.org/abs/2306.00001" rel="alternate"/>
-            <link href="http://arxiv.org/pdf/2306.00001" title="pdf"/>
-          </entry>
-        </feed>
-    """)
-
-    @patch("paper2spec.search.urllib.request.urlopen")
-    def test_parse_arxiv_response(self, mock_urlopen):
-        mock_resp = MagicMock()
-        mock_resp.__enter__ = lambda s: s
-        mock_resp.__exit__ = MagicMock(return_value=False)
-        mock_resp.read.return_value = self.MOCK_ARXIV_XML.encode()
-        mock_urlopen.return_value = mock_resp
-
-        from paper2spec.search import _search_arxiv
-        results = _search_arxiv("momentum", max_results=5)
-
-        assert len(results) == 2
-        assert results[0].title == "A Momentum Trading Strategy Using Machine Learning"
-        assert results[0].source == "arxiv"
-        assert "2401.12345" in results[0].url
-        assert results[0].pdf_url == "http://arxiv.org/pdf/2401.12345"
-        assert results[0].authors == ["John Doe", "Jane Smith"]
-        assert results[0].published == "2024-01-15"
-        assert "LSTM" in results[0].abstract
-
-    @patch("paper2spec.search.urllib.request.urlopen")
-    def test_arxiv_error_returns_empty(self, mock_urlopen):
-        mock_urlopen.side_effect = Exception("Network error")
-        from paper2spec.search import _search_arxiv
-        results = _search_arxiv("momentum")
-        assert results == []
-
-
-class TestSSRNSearchMocked:
-    """Test SSRN scraping with mocked HTML."""
-
-    MOCK_SSRN_HTML = """
-    <html><body>
-    <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=123456" class="title">
-        <font>Momentum and Mean Reversion in Equity Markets</font>
-    </a>
-    <a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=789012" class="title">
-        <font>A New Factor Model for Asset Pricing</font>
-    </a>
-    </body></html>
-    """
-
-    @patch("paper2spec.search.urllib.request.urlopen")
-    def test_parse_ssrn_html(self, mock_urlopen):
-        mock_resp = MagicMock()
-        mock_resp.__enter__ = lambda s: s
-        mock_resp.__exit__ = MagicMock(return_value=False)
-        mock_resp.read.return_value = self.MOCK_SSRN_HTML.encode()
-        mock_urlopen.return_value = mock_resp
-
-        from paper2spec.search import _search_ssrn
-        results = _search_ssrn("momentum", max_results=5)
-
-        assert len(results) == 2
-        assert results[0].source == "ssrn"
-        assert "123456" in results[0].url
-        assert "Momentum" in results[0].title
-
-    @patch("paper2spec.search.urllib.request.urlopen")
-    def test_ssrn_max_results_limit(self, mock_urlopen):
-        mock_resp = MagicMock()
-        mock_resp.__enter__ = lambda s: s
-        mock_resp.__exit__ = MagicMock(return_value=False)
-        mock_resp.read.return_value = self.MOCK_SSRN_HTML.encode()
-        mock_urlopen.return_value = mock_resp
-
-        from paper2spec.search import _search_ssrn
-        results = _search_ssrn("momentum", max_results=1)
-        assert len(results) == 1
-
-    @patch("paper2spec.search.urllib.request.urlopen")
-    def test_ssrn_error_returns_empty(self, mock_urlopen):
-        mock_urlopen.side_effect = Exception("SSRN down")
-        from paper2spec.search import _search_ssrn
-        results = _search_ssrn("query")
-        assert results == []
-
-
-class TestSearchRouter:
-    """Test the unified search() dispatcher."""
-
-    @patch("paper2spec.search._search_arxiv")
-    def test_default_sources_arxiv_only(self, mock_arxiv):
-        from paper2spec.search import search, SearchResult
-        mock_arxiv.return_value = [SearchResult(title="Test", source="arxiv")]
-        results = search("test")
-        mock_arxiv.assert_called_once_with("test", max_results=10)
-        assert len(results) == 1
-
-    @patch("paper2spec.search._search_ssrn")
-    @patch("paper2spec.search._search_arxiv")
-    def test_multi_source(self, mock_arxiv, mock_ssrn):
-        from paper2spec.search import search, SearchResult
-        mock_arxiv.return_value = [SearchResult(title="A", source="arxiv")]
-        mock_ssrn.return_value = [SearchResult(title="B", source="ssrn")]
-        results = search("test", sources=["arxiv", "ssrn"])
-        assert len(results) == 2
-
-    @patch("paper2spec.search._search_arxiv")
-    def test_unknown_source_skipped(self, mock_arxiv):
-        from paper2spec.search import search
-        mock_arxiv.return_value = []
-        results = search("test", sources=["arxiv", "google_scholar"])
-        assert isinstance(results, list)
-
-
-# ═══════════════════════════════════════════════════════════════
-# 2. PARSER E2E (Mode A + Mode B)
+# 1. PARSER E2E (Mode A + Mode B)
 # ═══════════════════════════════════════════════════════════════
 
 # (TestPDFExtraction + TestPDFExtractorErrors removed: pdf_utils.py deleted in
 # the OCR-only cleanup; the OCR path is exercised by the parser tests below.)
+# (Test*Search classes removed: paper2spec/search.py (arxiv + ssrn) not part
+# of this fork's paper→replication pipeline; tests require real network calls
+# or mocks of upstream-only code paths.)
 
 
 SYNTHETIC_PAPER_TEXT = textwrap.dedent("""\
@@ -750,7 +583,7 @@ class TestExtractorJSONParsing:
 
 
 # ═══════════════════════════════════════════════════════════════
-# 5. RENDER QUALITY TESTS
+# 2. RENDER QUALITY TESTS
 # ═══════════════════════════════════════════════════════════════
 
 
@@ -859,204 +692,8 @@ class TestRenderSpecE2E:
         assert "Strategy 1:" in md
         assert "Strategy 2:" in md
 
-
-# ═══════════════════════════════════════════════════════════════
-# 6. FULL PIPELINE E2E (parse → extract → render)
-# ═══════════════════════════════════════════════════════════════
-
-
-# ═══════════════════════════════════════════════════════════════
-# 7. EXAMPLE GOLDEN TESTS (output quality of pre-generated replications)
-# ═══════════════════════════════════════════════════════════════
-
-
-def _has_examples() -> bool:
-    return os.path.isdir(EXAMPLES_DIR) and os.path.exists(
-        os.path.join(EXAMPLES_DIR, "pairs_trading_spec.json")
-    )
-
-
-@pytest.mark.skipif(not _has_examples(), reason="examples/ not found")
-class TestLibraryQuality:
-    """Validate the quality of shipped example outputs."""
-
-    @pytest.fixture
-    def pairs_spec(self):
-        with open(os.path.join(EXAMPLES_DIR, "pairs_trading_spec.json")) as f:
-            return ExtractionResult.from_dict(json.load(f))
-
-    @pytest.fixture
-    def tactical_spec(self):
-        with open(os.path.join(EXAMPLES_DIR, "tactical_aa_spec.json")) as f:
-            return ExtractionResult.from_dict(json.load(f))
-
-    @pytest.fixture
-    def value_momentum_spec(self):
-        with open(os.path.join(EXAMPLES_DIR, "value_momentum_spec.json")) as f:
-            return ExtractionResult.from_dict(json.load(f))
-
-    # ── Pairs Trading (multi-strategy) ──
-
-    def test_pairs_multi_strategy_count(self, pairs_spec):
-        """Pairs trading paper should detect 2-4 strategies."""
-        assert 2 <= len(pairs_spec.strategies) <= 4
-
-    def test_pairs_strategy_differentiation(self, pairs_spec):
-        """Each pairs trading strategy should have a distinct name."""
-        names = [s.strategy_name for s in pairs_spec.strategies]
-        assert len(set(names)) == len(names), f"Duplicate names: {names}"
-
-    def test_pairs_indicators_per_strategy(self, pairs_spec):
-        """Each strategy should have ≥2 indicators."""
-        for spec in pairs_spec.strategies:
-            assert len(spec.indicators) >= 2, (
-                f"{spec.strategy_name}: only {len(spec.indicators)} indicators"
-            )
-
-    def test_pairs_logic_pipeline_nonempty(self, pairs_spec):
-        """Each strategy should have ≥1 logic step."""
-        for spec in pairs_spec.strategies:
-            assert len(spec.logic_pipeline) >= 1, (
-                f"{spec.strategy_name}: empty logic pipeline"
-            )
-
-    def test_pairs_has_execution_plan(self, pairs_spec):
-        """Each strategy should have ≥1 execution plan."""
-        for spec in pairs_spec.strategies:
-            assert len(spec.execution_plan) >= 1, (
-                f"{spec.strategy_name}: no execution plan"
-            )
-
-    def test_pairs_indicator_ids_unique(self, pairs_spec):
-        """Indicator IDs should be unique within each strategy."""
-        for spec in pairs_spec.strategies:
-            ids = [i.indicator_id for i in spec.indicators]
-            assert len(set(ids)) == len(ids), (
-                f"{spec.strategy_name}: duplicate indicator IDs: {ids}"
-            )
-
-    # ── Tactical Asset Allocation (single strategy) ──
-
-    def test_tactical_single_strategy(self, tactical_spec):
-        assert len(tactical_spec.strategies) == 1
-
-    def test_tactical_has_sma_indicator(self, tactical_spec):
-        """TAA uses SMA (Simple Moving Average) — should be extracted."""
-        spec = tactical_spec.strategies[0]
-        indicator_text = " ".join(
-            f"{i.name} {i.formula} {i.indicator_id}" for i in spec.indicators
-        ).lower()
-        assert "sma" in indicator_text or "moving average" in indicator_text or "average" in indicator_text, (
-            f"Expected SMA-related indicator, got: {[i.name for i in spec.indicators]}"
-        )
-
-    def test_tactical_asset_class_multi_asset(self, tactical_spec):
-        """Tactical AA is a multi-asset strategy."""
-        spec = tactical_spec.strategies[0]
-        # Strategy type or asset class should reflect multi-asset nature
-        is_multiasset = (
-            "multi" in spec.strategy_type.lower()
-            or len(spec.asset_class) > 1
-            or "multi" in spec.description.lower()
-            or "asset" in " ".join(spec.asset_class).lower()
-        )
-        # Relaxed: some extractors classify as "technical"
-        assert spec.strategy_name  # at minimum, name should exist
-
-    # ── Value & Momentum (multi-strategy) ──
-
-    def test_value_momentum_multi_strategy(self, value_momentum_spec):
-        """Should detect 2-3 strategies (value, momentum, combo)."""
-        assert 2 <= len(value_momentum_spec.strategies) <= 3
-
-    def test_value_momentum_strategy_types(self, value_momentum_spec):
-        """At least one should be 'fundamental' or 'hybrid'."""
-        types = [s.strategy_type for s in value_momentum_spec.strategies]
-        has_diverse_types = (
-            len(set(types)) >= 2
-            or "fundamental" in types
-            or "hybrid" in types
-        )
-        # If all are technical, it's still acceptable but worth noting
-        assert len(value_momentum_spec.strategies) >= 2  # at minimum multi-strategy
-
-    def test_value_momentum_round_trip(self, value_momentum_spec):
-        """JSON round-trip should preserve all data."""
-        json_str = value_momentum_spec.to_json()
-        restored = ExtractionResult.from_dict(json.loads(json_str))
-        assert len(restored.strategies) == len(value_momentum_spec.strategies)
-        for orig, rest in zip(value_momentum_spec.strategies, restored.strategies):
-            assert orig.strategy_name == rest.strategy_name
-            assert len(orig.indicators) == len(rest.indicators)
-            assert len(orig.logic_pipeline) == len(rest.logic_pipeline)
-
-
-# ── Cross-example quality checks ──
-
-
-@pytest.mark.skipif(not _has_examples(), reason="examples/ not found")
-class TestLibraryCrossExampleQuality:
-    """Cross-example quality and consistency checks."""
-
-    @pytest.fixture
-    def all_specs(self):
-        specs = {}
-        for name in ["tactical_aa_spec.json", "pairs_trading_spec.json", "value_momentum_spec.json"]:
-            path = os.path.join(EXAMPLES_DIR, name)
-            if os.path.exists(path):
-                with open(path) as f:
-                    specs[name] = ExtractionResult.from_dict(json.load(f))
-        return specs
-
-    def test_all_have_paper_title(self, all_specs):
-        for name, result in all_specs.items():
-            assert result.paper_title, f"{name}: missing paper_title"
-
-    def test_all_strategies_have_data_frequency(self, all_specs):
-        for name, result in all_specs.items():
-            for spec in result.strategies:
-                assert spec.data_frequency, (
-                    f"{name}/{spec.strategy_name}: missing data_frequency"
-                )
-
-    def test_all_strategies_have_description(self, all_specs):
-        for name, result in all_specs.items():
-            for spec in result.strategies:
-                assert spec.description, (
-                    f"{name}/{spec.strategy_name}: missing description"
-                )
-
-    def test_content_json_exists_for_each_spec(self, all_specs):
-        """For each spec, there should be a matching content JSON."""
-        for spec_name in all_specs:
-            content_name = spec_name.replace("_spec.json", "_content.json")
-            path = os.path.join(EXAMPLES_DIR, content_name)
-            assert os.path.exists(path), f"Missing {content_name} for {spec_name}"
-
-    def test_markdown_exists_for_each(self, all_specs):
-        """For each spec/content JSON, there should be a matching .md."""
-        for spec_name in all_specs:
-            for suffix in ["_spec.md", "_content.md"]:
-                md_name = spec_name.replace("_spec.json", suffix)
-                path = os.path.join(EXAMPLES_DIR, md_name)
-                assert os.path.exists(path), f"Missing {md_name}"
-
-    def test_total_indicator_count_reasonable(self, all_specs):
-        """Total indicators across all examples should be substantial."""
-        total = sum(
-            len(spec.indicators)
-            for result in all_specs.values()
-            for spec in result.strategies
-        )
-        assert total >= 15, f"Only {total} total indicators across all examples — too few"
-
-    def test_logic_step_ids_sequential(self, all_specs):
-        """Logic pipeline step_ids should follow some ordering pattern."""
-        for name, result in all_specs.items():
-            for spec in result.strategies:
-                if spec.logic_pipeline:
-                    # Steps should have non-empty IDs
-                    for step in spec.logic_pipeline:
-                        assert step.step_id, (
-                            f"{name}/{spec.strategy_name}: logic step missing step_id"
-                        )
+# (TestLibraryQuality + TestLibraryCrossExampleQuality removed: gated on
+# `examples/pairs_trading_*.json` / `tactical_aa_*.json` /
+# `value_momentum_*.json` which don't exist in this fork. Only
+# `examples/upsa/` is shipped; the upstream example names were never
+# replicated here.)
