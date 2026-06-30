@@ -247,9 +247,9 @@ def _make_layer_router(layer0_response: str = _MOCK_LAYER0_SINGLE):
 
 # (TestPDFExtraction + TestPDFExtractorErrors removed: pdf_utils.py deleted in
 # the OCR-only cleanup; the OCR path is exercised by the parser tests below.)
-# (Test*Search classes removed: paper2spec/search.py (arxiv + ssrn) not part
-# of this fork's paper→replication pipeline; tests require real network calls
-# or mocks of upstream-only code paths.)
+# (Test*Search classes + paper2spec/search.py + scripts/search.py removed:
+# arxiv + ssrn paper-search is not part of this fork's
+# paper→replication pipeline. User provides papers directly.)
 
 
 SYNTHETIC_PAPER_TEXT = textwrap.dedent("""\

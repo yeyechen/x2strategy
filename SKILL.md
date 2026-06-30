@@ -496,9 +496,6 @@ uv run python scripts/validate_strategy.py replications/<slug>/src/strategy.py
 
 # Run backtest
 uv run python replications/<slug>/src/strategy.py
-
-# Search papers
-uv run python scripts/search.py "<query>" -n 5
 ```
 
 For full flags, output formats, and library management:

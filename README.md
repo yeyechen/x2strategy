@@ -240,8 +240,7 @@ x2strategy/
 │   ├── resources/
 │   │   └── operator_pitfall_index.md # Editable pitfall corpus for retrieval
 │   ├── llm.py                  #   LiteLLM unified interface
-│   ├── render.py               #   JSON → Markdown rendering
-│   └── search.py               #   arXiv + SSRN paper search
+│   └── render.py               #   JSON → Markdown rendering
 │
 ├── spec2code/                  # Phase 2 support: agent-driven codegen validation
 │   ├── __init__.py
@@ -262,7 +261,6 @@ x2strategy/
 │   ├── analyze.py              #   Full paper2spec pipeline
 │   ├── extract.py              #   Extract specs from parsed content
 │   ├── parse.py                #   Parse documents into PaperContent
-│   ├── search.py               #   Search for papers
 │   ├── operator_pitfalls.py     #   Retrieve matched operator-pitfall context
 │   ├── generate_schemas.py     #   Generate JSON schemas
 │   ├── run_full_tests.sh       #   Test runner helper

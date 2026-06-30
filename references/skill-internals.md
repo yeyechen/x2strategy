@@ -88,12 +88,6 @@ Default output: `<PAPER2SPEC_REPLICATIONS_PATH>/<file_stem>/inputs/content.md`
 uv run python scripts/extract.py <content.md> [--mode multilayer|single] [--model MODEL] [-o FILE] [--instruction FILE] [--instructions-dir DIR]
 ```
 
-### `scripts/search.py` — Academic Paper Search
-
-```
-uv run python scripts/search.py <query> [--sources arxiv ssrn] [-n 10] [-o FILE]
-```
-
 ### `scripts/validate_strategy.py` — Validate Generated Code
 
 ```
@@ -289,10 +283,9 @@ paper2spec/          # PDF → structured spec
 ├── resources/
 │   └── operator_pitfall_index.md # User-extensible pitfall corpus
 ├── render.py          # JSON → Markdown renderers
-├── pdf_utils.py       # Simple fitz text extraction (fallback)
+├── ocr.py            # LightOnOCR-2 engine (PDF → markdown)
 ├── llm.py             # litellm wrapper
 ├── prompts.py         # Layer 0-4 prompt templates
-└── search.py          # arXiv + SSRN search
 
 spec2code/           # Tools for agent-driven code generation
 ├── models.py        #   CodeModules, ValidationResult, BacktestMetrics, etc.
@@ -301,7 +294,7 @@ spec2code/           # Tools for agent-driven code generation
 
 scripts/             # CLI entry points (agent-only)
 ├── analyze.py         # Full paper2spec pipeline
-├── parse.py, extract.py, search.py
+├── parse.py, extract.py
 ├── operator_pitfalls.py # Semantic retrieval for repair pitfall context
 ├── validate_strategy.py
 └── generate_schemas.py

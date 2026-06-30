@@ -51,13 +51,10 @@ replications/my_paper/
 ### Step-by-Step Pipeline
 
 ```bash
-# 1. Search for papers (optional)
-uv run python scripts/search.py "momentum trading strategy" -n 5
-
-# 2. Parse PDF → PaperContent
+# 1. Parse PDF → PaperContent
 uv run python scripts/parse.py paper.pdf -o content.json
 
-# 3. Extract PaperContent → ExtractionResult (multi-strategy)
+# 2. Extract PaperContent → ExtractionResult (multi-strategy)
 uv run python scripts/extract.py content.json -o spec.json
 uv run python scripts/extract.py content.json -o spec.json --instruction notes.md
 ```
@@ -95,12 +92,6 @@ Before extraction, ask whether the user wants to add clarifications, selected-pl
 If extraction returns multiple strategies/plans, ask which one should continue before repair or code generation. Before any code generation, always review and repair the selected spec against [extraction_quality.md](extraction_quality.md). It is the required quality contract for selected-plan fidelity, `portfolio_weights`, direct-weight sizing, formula grounding, reported/evaluation scaling, and `needs_human_review`. For operator-pitfall checks, run `scripts/operator_pitfalls.py` against [../paper2spec/resources/operator_pitfall_index.md](../paper2spec/resources/operator_pitfall_index.md); do not let the model pick pitfalls from the full index on its own. If the user knows repeated formula, timing, or sizing pitfalls, add concise `## operator:` entries before retrieval.
 
 After extraction, select the target plan, run the repair/review pass for that plan, then check `needs_human_review`. If anything remains unresolved, ask through the interactive dialog before code generation, or let the user provide another instruction file for another repair or re-extraction pass. Do not send raw extraction output straight to code generation.
-
-### `scripts/search.py` — Academic Paper Search
-
-```
-uv run python scripts/search.py <query> [--sources arxiv ssrn] [-n 10] [-o FILE]
-```
 
 ## Output Formats
 
@@ -163,10 +154,9 @@ paper2spec/
 ├── ocr.py             # LightOnOCR-2 inference engine with disk caching
 ├── extractor.py       # PaperContent → ExtractionResult (Layer 0-4)
 ├── render.py          # JSON → Markdown renderers
-├── pdf_utils.py       # Simple fitz text extraction (fallback)
+├── ocr.py             # LightOnOCR-2 engine (PDF → markdown)
 ├── llm.py             # litellm wrapper
 ├── prompts.py         # Layer 0-4 prompt templates
-└── search.py          # arXiv + SSRN search
 ```
 
 ## Limitations
