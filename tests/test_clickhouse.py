@@ -1,52 +1,24 @@
-"""Tests for paper2spec.clickhouse — data requirements extraction and matching.
+"""Tests for paper2spec.clickhouse — catalog matching and HTTP query helpers.
 
-Follows the same pattern as test_extractor.py:
-  - Mock the LLM (``achat``) for deterministic tests
   - Pure function tests for the matching logic (no mocks needed)
+  - Mocked HTTP tests for _query_json (ClickHouse discovery helper)
   - Integration test with the real catalog
 """
 
 import json
 import os
-import tempfile
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import pytest
 
 from paper2spec.clickhouse import (
     _query_json,
-    extract_data_requirements,
     load_catalog,
     match_requirements,
 )
 
 
 # ── Helpers ──────────────────────────────────────────────────────
-
-
-def _fake_requirements_dict():
-    """Return a minimal but valid requirements dict (no LLM needed)."""
-    return {
-        "paper_title": "MAX Factor: Stocks as Lotteries",
-        "requirements": [
-            {
-                "id": "daily_returns",
-                "description": "Daily stock returns, prices, volume, shares",
-                "fields": ["date", "permno", "ret", "prc", "vol", "shrout"],
-                "frequency": "daily",
-                "date_range": ["1962-07-01", "2005-12-31"],
-                "filters": ["share_code 10/11", "NYSE/AMEX/NASDAQ"],
-            },
-            {
-                "id": "monthly_returns",
-                "description": "Monthly returns and market cap",
-                "fields": ["date", "permno", "ret", "prc", "shrout"],
-                "frequency": "monthly",
-                "date_range": ["1962-07-01", "2005-12-31"],
-                "filters": [],
-            },
-        ],
-    }
 
 
 def _fake_catalog():
@@ -190,78 +162,6 @@ class TestMatchRequirements:
         assert "1925" in report["matches"][0]["date_range"][0]
 
 
-# ── extract_data_requirements (LLM mocked) ───────────────────────
-
-
-class TestExtractDataRequirements:
-    """Tests for the LLM-powered requirements extraction."""
-
-    def _write_spec(self, d, tmpdir):
-        p = os.path.join(tmpdir, "spec.json")
-        with open(p, "w") as f:
-            json.dump(d, f)
-        return p
-
-    @patch("paper2spec.llm.achat", new_callable=AsyncMock)
-    def test_extract_returns_structured_result(self, mock_achat, tmpdir):
-        """With a mocked LLM response, extract returns a valid dict."""
-        spec = {
-            "paper_title": "Test Paper",
-            "strategies": [{"strategy_name": "Momentum"}],
-        }
-        spec_path = self._write_spec(spec, str(tmpdir))
-
-        mock_achat.return_value = json.dumps(_fake_requirements_dict())
-
-        result = extract_data_requirements(
-            spec_path, output_path=os.path.join(str(tmpdir), "reqs.json")
-        )
-
-        assert result["paper_title"] == "MAX Factor: Stocks as Lotteries"
-        assert len(result["requirements"]) == 2
-        assert result["requirements"][0]["id"] == "daily_returns"
-
-    @patch("paper2spec.llm.achat", new_callable=AsyncMock)
-    def test_extract_writes_output_file(self, mock_achat, tmpdir):
-        """Output file must be written to the specified path."""
-        spec = {"paper_title": "Test", "strategies": []}
-        spec_path = self._write_spec(spec, str(tmpdir))
-        out = os.path.join(str(tmpdir), "data_requirements.json")
-
-        mock_achat.return_value = json.dumps(_fake_requirements_dict())
-        extract_data_requirements(spec_path, output_path=out)
-
-        assert os.path.isfile(out)
-        with open(out) as f:
-            written = json.load(f)
-        assert "requirements" in written
-
-    @patch("paper2spec.llm.achat", new_callable=AsyncMock)
-    def test_extract_handles_markdown_fence(self, mock_achat, tmpdir):
-        """LLM response wrapped in ```json``` fences is still parsed."""
-        spec = {"paper_title": "Test", "strategies": []}
-        spec_path = self._write_spec(spec, str(tmpdir))
-
-        mock_achat.return_value = "```json\n" + json.dumps(_fake_requirements_dict()) + "\n```"
-
-        result = extract_data_requirements(
-            spec_path, output_path=os.path.join(str(tmpdir), "reqs.json")
-        )
-        assert result["paper_title"] == "MAX Factor: Stocks as Lotteries"
-
-    @patch("paper2spec.llm.achat", new_callable=AsyncMock)
-    def test_extract_default_output_alongside_spec(self, mock_achat, tmpdir):
-        """When no output_path given, data_requirements.json goes next to spec.json."""
-        spec = {"paper_title": "Test", "strategies": []}
-        spec_path = self._write_spec(spec, str(tmpdir))
-
-        mock_achat.return_value = json.dumps(_fake_requirements_dict())
-        extract_data_requirements(spec_path)
-
-        default_path = os.path.join(str(tmpdir), "data_requirements.json")
-        assert os.path.isfile(default_path)
-
-
 # ── End-to-end with real catalog (no LLM) ────────────────────────
 
 
@@ -385,26 +285,6 @@ class TestQueryJson:
 # ═══════════════════════════════════════════════════════════════════
 # Phase 1: E2E contract tests (TDD — these DEFINE what must work)
 # ═══════════════════════════════════════════════════════════════════
-
-
-@pytest.fixture
-def max_paper_spec_path():
-    """Path to the real MAX factor paper spec.json (under inputs/)."""
-    import os
-    p = os.path.join(
-        os.path.dirname(__file__),
-        "..", "replications", "ssrn_1262416_e2e", "inputs", "spec.json",
-    )
-    if not os.path.isfile(p):
-        # Legacy fallback (pre-nested-layout runs)
-        legacy = os.path.join(
-            os.path.dirname(__file__),
-            "..", "library", "ssrn_1262416", "spec.json",
-        )
-        if os.path.isfile(legacy):
-            return legacy
-        pytest.skip("MAX paper spec.json not found")
-    return p
 
 
 @pytest.fixture
@@ -573,57 +453,3 @@ class TestE2EContract:
             "Zero-column-overlap requirement must NOT produce a match"
         )
         assert len(report["gaps"]) >= 1
-
-    @patch("paper2spec.llm.achat", new_callable=AsyncMock)
-    def test_max_paper_e2e_requirements_to_matches(
-        self, mock_achat, max_paper_spec_path, max_paper_catalog
-    ):
-        """Full pipeline: real spec → mocked LLM → match against real catalog.
-
-        This is the defining E2E test.  When this passes, the bridge works.
-        """
-        # LLM returns known-good requirements
-        mock_achat.return_value = json.dumps({
-            "paper_title": "MAX Factor: Stocks as Lotteries",
-            "requirements": [
-                {
-                    "id": "daily_returns",
-                    "description": "Daily stock returns from CRSP",
-                    "fields": ["date", "permno", "ret", "prc", "vol", "shrout"],
-                    "frequency": "daily",
-                    "date_range": ["1962-07-01", "2005-12-31"],
-                    "filters": ["share_code 10/11"],
-                },
-                {
-                    "id": "fundamentals",
-                    "description": "Annual Compustat fundamentals",
-                    "fields": ["gvkey", "fyear", "bkvlps", "at", "lt"],
-                    "frequency": "annual",
-                    "date_range": ["1961-01-01", "2005-12-31"],
-                    "filters": [],
-                },
-            ],
-        })
-
-        import tempfile, os
-        with tempfile.TemporaryDirectory() as tmpdir:
-            out = os.path.join(tmpdir, "data_requirements.json")
-            requirements = extract_data_requirements(
-                max_paper_spec_path, output_path=out
-            )
-
-        # Bridge: match against real catalog
-        report = match_requirements(requirements, max_paper_catalog)
-
-        # Contract assertions
-        assert len(report["matches"]) >= 2, (
-            f"Expected ≥2 matches from MAX paper spec, got {len(report['matches'])}"
-        )
-        for match in report["matches"]:
-            assert match["score"] >= 2, (
-                f"Match [{match['requirement']}] score={match['score']} too low"
-            )
-            assert "." in match["fq_name"], (
-                f"fq_name must be dotted: {match['fq_name']}"
-            )
-            assert len(match["matched_columns"]) >= 2

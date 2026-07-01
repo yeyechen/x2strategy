@@ -1,16 +1,19 @@
-"""ClickHouse schema discovery, catalog management, and data requirements.
+"""ClickHouse schema discovery and catalog matching.
 
-Mirrors the pattern in ``paper2spec/parser.py``: a core function that
-connects to an external system, extracts structured information, and
-writes a resource file for downstream LLM consumption.
+Two deterministic responsibilities:
+  1. discover_schema() — one-shot scan of a live ClickHouse instance,
+     writes resources/clickhouse_catalog.json (run manually via
+     scripts/discover_clickhouse.py when the schema changes).
+  2. match_requirements() — pure set-overlap matcher: given a
+     requirements dict (agent-produced) and a catalog, returns which
+     tables satisfy each requirement and which fields are missing.
 
-Also provides the data bridge: extract structured data requirements
-from a strategy spec, then match them against the catalog.
+The abstract→concrete field mapping (e.g. "Book-to-Market" → bkvlps)
+is the agent's job during spec2code, not a hidden LLM call here.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
@@ -25,117 +28,11 @@ logger = logging.getLogger(__name__)
 
 CATALOG_PATH = Path(__file__).resolve().parent / "resources" / "clickhouse_catalog.json"
 
-DATA_REQUIREMENTS_PROMPT = """You are a data engineer.  Given a strategy specification extracted
-from a quantitative finance paper, produce a JSON list of the **minimum
-data tables** needed to replicate the strategy.
-
-STRATEGY SPEC:
-{spec_text}
-
-INSTRUCTIONS:
-1. Identify each distinct dataset the strategy needs (daily returns,
-   monthly returns, fundamental data, factor returns, etc.).
-2. For each, specify the exact fields, frequency, date range, and
-   any universe filters (exchange codes, share codes, price filters).
-3. Be precise — use field names from the paper (e.g. "permno", "ret",
-   "prc", "shrout", "gvkey", "fyear", "bkvlps").
-4. If the paper underspecifies a field, use the conventional CRSP /
-   Compustat field name.
-5. Date range must match the paper's sample period exactly.
-
-Return ONLY valid JSON:
-{{
-  "paper_title": "...",
-  "requirements": [
-    {{
-      "id": "short_descriptive_id",
-      "description": "What this dataset provides",
-      "fields": ["field1", "field2", ...],
-      "frequency": "daily|monthly|annual",
-      "date_range": ["YYYY-MM-DD", "YYYY-MM-DD"],
-      "filters": ["filter description 1", ...],
-      "estimated_rows": null
-    }}
-  ]
-}}"""
-
-
-def extract_data_requirements(
-    spec_path: str, *, model: str | None = None, output_path: str | None = None
-) -> dict[str, Any]:
-    """Run an LLM call to extract structured data requirements from a spec.
-
-    Parameters
-    ----------
-    spec_path : str
-        Path to ``spec.json`` produced by the extraction stage.
-    model : str or None
-        Override LLM model.
-    output_path : str or None
-        Where to write ``data_requirements.json``.  Defaults alongside *spec_path*.
-
-    Returns
-    -------
-    dict
-        The requirements dict, also written to disk.
-    """
-    return asyncio.run(
-        _aextract_data_requirements(spec_path, model=model, output_path=output_path)
-    )
-
-
-async def _aextract_data_requirements(
-    spec_path: str, *, model: str | None = None, output_path: str | None = None
-) -> dict[str, Any]:
-    from paper2spec.llm import achat
-
-    with open(spec_path, encoding="utf-8") as f:
-        spec = json.load(f)
-
-    # Flatten spec to text for the LLM — include strategies, data description
-    spec_text = json.dumps(spec, indent=2, ensure_ascii=False)
-    # Truncate if very long (strategies array can be large)
-    if len(spec_text) > 40_000:
-        spec_text = spec_text[:35_000] + "\n...\n" + spec_text[-5_000:]
-
-    prompt = DATA_REQUIREMENTS_PROMPT.format(spec_text=spec_text)
-    raw = await achat(prompt, model=model, temperature=0.1, max_tokens=4096)
-
-    # Parse JSON from LLM response
-    import re
-    text = raw.strip()
-    if text.startswith("```"):
-        m = re.search(r"```(?:json)?\s*\n?(.*?)```", text, re.DOTALL)
-        if m:
-            text = m.group(1).strip()
-    if not text.startswith("{"):
-        start = text.find("{")
-        end = text.rfind("}")
-        if start != -1 and end != -1:
-            text = text[start : end + 1]
-    requirements = json.loads(text)
-
-    # Write
-    if output_path is None:
-        output_path = os.path.join(
-            os.path.dirname(spec_path), "data_requirements.json"
-        )
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(requirements, f, indent=2, ensure_ascii=False)
-
-    logger.info(
-        "Data requirements: %d datasets → %s",
-        len(requirements.get("requirements", [])),
-        output_path,
-    )
-    return requirements
-
 
 def match_requirements(
     requirements: dict[str, Any], catalog: dict[str, Any]
 ) -> dict[str, Any]:
-    """Match extracted data requirements against the ClickHouse catalog.
+    """Match agent-produced data requirements against the ClickHouse catalog.
 
     For each requirement, scans all catalog tables and scores them by
     column overlap.  Returns the best candidate per requirement, plus
@@ -144,14 +41,15 @@ def match_requirements(
     Parameters
     ----------
     requirements : dict
-        Output of :func:`extract_data_requirements`.
+        Agent-produced dict with a ``requirements`` list. Each entry has
+        ``id``, ``fields`` (list of column names), and optional metadata.
     catalog : dict
         Output of :func:`discover_schema` or :func:`load_catalog`.
 
     Returns
     -------
     dict
-        ``{matches: [...], gaps: [...], coverage_pct: float}``
+        ``{matches: [...], gaps: [...], coverage: str}``
     """
     import math
 

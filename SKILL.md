@@ -209,8 +209,8 @@ Use one workflow for all tasks. Do not choose between competing routers.
      3. Continue with code generation
      4. Document the auto-decisions in `results/diagnosis.md` so the user can see them after the run
    - If none exists, still report that review found no open items and ask for implementation approval (only when interactive).
-7. **Data bridge** — run `scripts/extract_requirements.py` to extract structured data needs from the spec and match against the ClickHouse catalog. Read `data_match_report.json` to learn which tables provide each dataset, which columns are available, and what date ranges are covered. This report is the single source of truth for code generation — never fall back to yfinance or hardcoded ticker lists. **Do not attempt to connect to ClickHouse during code generation** — the host is on a private network. Use the match report and catalog for schema info; the generated code connects at runtime via ``os.getenv()``.
-8. **spec2code** — after the data bridge, read `data_match_report.json` and generate code that queries ClickHouse via HTTP for all data. See `references/spec2code.md` §Data Source for the required pattern. Do not use yfinance or any other external API for data.
+7. **Data verification** — read `inputs/spec.json` + `content.md` + `paper2spec/resources/clickhouse_catalog.json`. Map the spec's abstract data needs to concrete ClickHouse columns (e.g. "Book-to-Market" → `bkvlps, ceq, seq, at` from `comp.funda`; daily CRSP → `permno, date, prc, ret, vol, shrout` from `crsp.dsf`). Write `diagnostics/data_requirements.json` with your field choices. Then run `scripts/extract_requirements.py <slug>/diagnostics/data_requirements.json` to verify those fields exist in the catalog and produce `diagnostics/data_match_report.json`. If gaps appear, adjust your field choices or report to the user. This report is the single source of truth for code generation — never fall back to yfinance or hardcoded ticker lists. **Do not attempt to connect to ClickHouse during code generation** — the host is on a private network. Use the catalog JSON and match report for schema info; the generated code connects at runtime via ``os.getenv()``.
+8. **spec2code** — after data verification, read `data_match_report.json` and generate code that queries ClickHouse via HTTP for all data. See `references/spec2code.md` §Data Source for the required pattern. Do not use yfinance or any other external API for data.
 9. **Validation/backtest/diagnosis** — validate generated code, run available checks/backtests, compare against expected or reference outputs, summarize mismatches, then ask what to do next.
 
 No bypass: never silently chain extraction → repair → implementation. User-provided papers, instructions, data files, existing specs, or reference outputs are evidence, not permission to skip review or HITL. Never generate code that uses yfinance or hardcoded ticker lists — always read `data_match_report.json` and query ClickHouse.
@@ -268,8 +268,8 @@ the single source of truth for this layout.
 | `inputs/content.{json,md}` | `scripts/parse.py`, `scripts/analyze.py` | `PaperContent` — the parsed paper |
 | `inputs/spec.{json,md}` | `scripts/extract.py`, `scripts/analyze.py` | `ExtractionResult` (one or more `StrategySpec`) |
 | `inputs/metadata.json` | `scripts/analyze.py` | Pipeline run metadata (model, parser mode, instruction files) |
-| `diagnostics/data_requirements.json` | `scripts/extract_requirements.py` | What data the spec needs |
-| `diagnostics/data_match_report.json` | `scripts/extract_requirements.py` | What ClickHouse actually has |
+| `diagnostics/data_requirements.json` | agent (spec2code stage) | What data the spec needs — agent maps abstract spec fields to concrete ClickHouse columns |
+| `diagnostics/data_match_report.json` | `scripts/extract_requirements.py` | What ClickHouse actually has — deterministic verification of the agent's field choices |
 | `diagnostics/operator_pitfall_context.md` | `scripts/operator_pitfalls.py` | Retrieved operator-pitfall context for the spec |
 | `diagnostics/diagnosis.md` | spec2code runtime | Strategy output vs paper-claimed metrics |
 | `src/strategy.py` | spec2code LLM | Generated code. One file per paper — no `_1` suffix |
@@ -489,7 +489,7 @@ uv run python scripts/extract.py content.json -o spec.json
 uv run python scripts/operator_pitfalls.py inputs/spec.json -o diagnostics/operator_pitfall_context.md
 
 # Extract data requirements and match against ClickHouse catalog
-uv run python scripts/extract_requirements.py replications/<slug>/inputs/spec.json
+uv run python scripts/extract_requirements.py replications/<slug>/diagnostics/data_requirements.json
 
 # Validate generated code
 uv run python scripts/validate_strategy.py replications/<slug>/src/strategy.py
