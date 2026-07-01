@@ -264,12 +264,10 @@ def render_run_config(
         allow_unicode=True,
         default_flow_style=False,
     )
-    # PyYAML's safe_dump quotes date-like strings ("1962-07-01")
-    # because it could resolve to a date type. We want plain scalars
-    # so the file is grep-friendly. Strip quotes around date-shaped
-    # values. Safe because we control the input shape.
-    import re
-    dumped = re.sub(r"'(\d{4}-\d{2}-\d{2})'", r"\1", dumped)
+    # PyYAML's safe_dump quotes date-like strings ("1962-07-01") so they
+    # stay strings when loaded back. KEEP the quotes — stripping them
+    # causes PyYAML to parse dates as datetime.date objects, which breaks
+    # string operations (slicing, comparison) in generated strategy code.
     return dumped
 
 

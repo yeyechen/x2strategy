@@ -51,8 +51,8 @@ class TestRenderRunConfig:
             ],
         }
         yaml_text = render_run_config(spec)
-        assert "start_date: 1962-07-01" in yaml_text
-        assert "end_date: 2005-12-31" in yaml_text
+        assert "start_date: '1962-07-01'" in yaml_text or 'start_date: "1962-07-01"' in yaml_text
+        assert "end_date: '2005-12-31'" in yaml_text or 'end_date: "2005-12-31"' in yaml_text
         assert "weighting: VW" in yaml_text  # 'value-weighted' → 'VW'
         assert "n_bins: 10" in yaml_text
         assert "forward_returns_lag: 1" in yaml_text
@@ -81,6 +81,34 @@ class TestRenderRunConfig:
         # Commissions are NOT modelled (academic papers don't model them)
         assert "commission_rates" not in yaml_text
 
+    def test_dates_load_as_strings(self, tmp_path):
+        """Dates in run_config.yaml must load as str, not datetime.date.
+
+        Regression test: render_run_config used to strip quotes around
+        date-shaped strings, causing PyYAML to parse them as
+        datetime.date objects — which broke string operations
+        (slicing, comparison) in generated strategy code.
+        """
+        import yaml
+        spec = {
+            "strategies": [{
+                "strategy_name": "test",
+                "strategy_type": "equity_long_short",
+                "asset_class": ["equity"],
+                "time_period": {"start_date": "1962-07-01", "end_date": "2005-12-31"},
+            }]
+        }
+        yaml_text = render_run_config(spec)
+        cfg = yaml.safe_load(yaml_text)
+        assert isinstance(cfg["start_date"], str), (
+            f"start_date should be str, got {type(cfg['start_date']).__name__}"
+        )
+        assert isinstance(cfg["end_date"], str), (
+            f"end_date should be str, got {type(cfg['end_date']).__name__}"
+        )
+        # String operations should work
+        assert cfg["start_date"][:7] == "1962-07"
+
     def test_unwraps_extraction_result(self):
         """If spec_dict has 'strategies' list, render the first strategy."""
         spec = {
@@ -104,7 +132,7 @@ class TestRenderRunConfig:
         }
         yaml_text = render_run_config(spec)
         # First strategy's time_period wins
-        assert "start_date: 1990-01-01" in yaml_text
+        assert "start_date: '1990-01-01'" in yaml_text or 'start_date: "1990-01-01"' in yaml_text
 
     def test_empty_strategies_raises(self):
         with pytest.raises(ValueError, match="empty 'strategies'"):
