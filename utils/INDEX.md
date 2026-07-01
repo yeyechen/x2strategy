@@ -40,6 +40,7 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 | Run monthly cross-sectional regression | `fama_macbeth(panel, dependent_var, independent_vars, time_col)` | `FamaMacBethResult` (use `summarize_fama_macbeth` for text) |
 | Single OLS | `run_ols(df, dependent_var, independent_vars)` | dict with keys `params`, `rsquared`, `nobs` |
 | Load per-paper runtime config | `load_run_config(slug)` | dict |
+| Filter CRSP stocks by share/exchange code | `fetch_universe_filter(fetch_data_cached, shrcd_filter=[10,11], exchcd_filter=[1,2,3])` | `set[int]` of valid permnos |
 
 ### Watch out
 
@@ -66,6 +67,12 @@ uv run pytest tests/test_utils_canonical_usage.py -x
   `ret_col_lst` (a LIST, not a single column name).
 - **`run_ols` returns only `params`, `rsquared`, `nobs`** — no
   `bse` or `pvalues`. Use statsmodels directly if you need those.
+- **`fetch_universe_filter` takes a callable, not a DataFrame.** Pass
+  the strategy's own `fetch_data_cached` as the first arg. It enforces
+  the correct `dsenames` query pattern (wide date range 1900-2100) —
+  do NOT call `fetch_data_cached` directly for share/exchange code
+  lookups or you'll silently exclude stocks listed before your sample
+  start.
 
 ---
 

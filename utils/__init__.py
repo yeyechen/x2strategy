@@ -88,6 +88,11 @@ from .regressions import (
     RegressionError,
 )
 
+from .data import (
+    fetch_universe_filter,
+    DataError,
+)
+
 
 __all__ = [
     # quantile
@@ -123,4 +128,7 @@ __all__ = [
     "fama_macbeth",
     "summarize_fama_macbeth",
     "RegressionError",
+    # data access
+    "fetch_universe_filter",
+    "DataError",
 ]
