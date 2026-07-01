@@ -203,7 +203,7 @@ Use one workflow for all tasks. Do not choose between competing routers.
 3. **paper2spec: PDF/text to content** — parse the selected document into grounded content artifacts.
  4. **paper2spec: extract** — extract candidate strategy specs/plans from the content plus user instructions. Uses a 9-layer pipeline: L0 (detection) → L1 (metadata) → L2 (table scan) → L3 (target selection: top 3 replication targets) → L4 (data) → L5 (universe) → L6 (signal) → L7 (portfolio) → L8 (execution).
 5. **paper2spec: repair/review** — read `references/extraction_quality.md`, retrieve relevant operator pitfalls when high-risk formulas are present, and repair only the selected plan/spec with grounded evidence.
- 6. **HITL review** — after repair, inspect `needs_human_review`. **Convention decisions** (price filter, weighting, breakpoints, delisting adjustment, factor model) are resolved autonomously from `references/paper_conventions.md` — do NOT ask the user about these. Apply the default, emit a `[CONVENTION-APPLIED]` log line, and document in `results/diagnosis.md`. Ask the user **only** for genuinely ambiguous decisions that the paper does not resolve and that have no standard default (e.g. which strategy to extract from a multi-strategy paper, or a methodology with two materially different interpretations). If the user is not reachable, apply the most common interpretation and emit `[HITL-AUTO-RESOLVED]`. After resolving each item, append it to the spec's `convention_resolutions` list (fields: `field_path`, `resolved_value`, `source` = "paper_conventions" | "user" | "auto_resolved") so the resolutions are auditable in `spec.json`.
+ 6. **HITL review** — after repair, inspect `needs_human_review`. **Convention decisions** (price filter, weighting, breakpoints, delisting adjustment, factor model) are resolved autonomously from `references/paper_conventions.md` — do NOT ask the user about these. Apply the default, emit a `[CONVENTION-APPLIED]` log line, and document in `results/SUMMARY.md`. Ask the user **only** for genuinely ambiguous decisions that the paper does not resolve and that have no standard default (e.g. which strategy to extract from a multi-strategy paper, or a methodology with two materially different interpretations). If the user is not reachable, apply the most common interpretation and emit `[HITL-AUTO-RESOLVED]`. After resolving each item, append it to the spec's `convention_resolutions` list (fields: `field_path`, `resolved_value`, `source` = "paper_conventions" | "user" | "auto_resolved") so the resolutions are auditable in `spec.json`.
  7. **Data verification** — read `inputs/spec.json` + `content.md` + `paper2spec/resources/clickhouse_catalog.json`. The catalog is a **20 MB JSON file** — too large to Read directly. Use the **Grep tool** to search it (e.g. grep for `four_factor` or `dsfhdr`); use a `python -c` one-liner only to list database/table names matching a pattern. Its top-level keys are `generated_at`, `host`, `databases`, `database_families`. Use `database_families` to pick the default vintage (e.g. `crsp` → `crsp_202601`, `comp` → `comp_202601`) unless the paper specifies otherwise. **Catalog structure:** `catalog["databases"]` is a **dict** keyed by db name (e.g. `"crsp_202601"`), NOT a list. Each `catalog["databases"][db]["tables"]` is a **dict** keyed by table name (e.g. `"dsf"`), NOT a list. Columns are `catalog["databases"][db]["tables"][tbl]["columns"]` — also a **dict** keyed by column name (e.g. `"ret"`), where each value is a type string (e.g. `"Nullable(Float64)"`). Do NOT iterate with integer indices — use `.keys()` or `.items()`. Map the spec's abstract data needs to concrete ClickHouse columns (e.g. "Book-to-Market" → `bkvlps, ceq, seq, at` from `comp.funda`; daily CRSP → `permno, date, prc, ret, vol, shrout` from `crsp.dsf`). Write `diagnostics/data_requirements.json` with **exactly** this shape (validated by `schemas/data_requirements.schema.json`):
 
      ```json
@@ -255,20 +255,23 @@ the single source of truth for this layout.
 │   ├── spec.json
 │   ├── spec.md
 │   └── metadata.json
-├── diagnostics/               # mid-pipeline analysis artifacts
+├── diagnostics/               # mid-pipeline ONLY: data matching, conventions
 │   ├── data_requirements.json
 │   ├── data_match_report.json
-│   ├── operator_pitfall_context.md
-│   └── diagnosis.md           # moved from results/ — conceptually an analysis, not a binary output
+│   └── operator_pitfall_context.md
 ├── src/                       # generated strategy code
 │   └── strategy.py
 ├── data/                      # parquet caches (gitignored per-paper)
 │   └── *.parquet
-├── results/                   # spec2code outputs (binary: PNG, JSON, Parquet only)
-│   ├── metrics.json
-│   ├── backtest_output.txt
-│   ├── decile_spread.csv
-│   ├── decile_spread.png
+├── results/                   # spec2code outputs
+│   ├── SUMMARY.md             # READ FIRST: hit-rate, per-target table, evidence links
+│   ├── validation.json        # machine-readable: per-target diff + hit-rate
+│   ├── metrics.json           # all raw metrics
+│   ├── pnl_curve.png          # cumulative P&L (fundamental evidence)
+│   ├── drawdown.png           # drawdown (fundamental evidence)
+│   ├── decile_spread.png      # per-decile bar chart
+│   ├── decile_spread.csv      # per-decile returns table
+│   ├── fama_macbeth.json      # FM regression output (when applicable)
 │   └── key_pred/              # one CSV + PNG per key observable factor
 │       ├── <factor>.csv
 │       └── <factor>.png
@@ -288,11 +291,15 @@ the single source of truth for this layout.
 | `diagnostics/data_requirements.json` | agent (spec2code stage) | What data the spec needs — agent maps abstract spec fields to concrete ClickHouse columns |
 | `diagnostics/data_match_report.json` | `scripts/extract_requirements.py` | What ClickHouse actually has — deterministic verification of the agent's field choices |
 | `diagnostics/operator_pitfall_context.md` | `scripts/operator_pitfalls.py` | Retrieved operator-pitfall context for the spec |
-| `diagnostics/diagnosis.md` | spec2code runtime | Strategy output vs paper-claimed metrics |
 | `src/strategy.py` | spec2code LLM | Generated code. One file per paper — no `_1` suffix |
 | `data/*.parquet` | spec2code runtime | Local cache, see `assets/backtrader_template.py` |
-| `results/metrics.json` | spec2code runtime | Sharpe, max DD, total return, final value |
-| `results/backtest_output.txt` | spec2code runtime | Human-readable backtest summary |
+| `results/SUMMARY.md` | spec2code runtime | THE VERDICT: hit-rate table, per-target paper-vs-ours comparison, P&L description, evidence links |
+| `results/validation.json` | `scripts/validate_replication.py` | Machine-readable: per-target diff + hit-rate |
+| `results/metrics.json` | spec2code runtime | Sharpe, max DD, total return, all raw metrics |
+| `results/pnl_curve.png` | spec2code runtime | Cumulative P&L — fundamental evidence |
+| `results/drawdown.png` | spec2code runtime | Drawdown — fundamental evidence |
+| `results/decile_spread.{png,csv}` | spec2code runtime | Per-decile VW/EW returns bar chart + raw data |
+| `results/fama_macbeth.json` | spec2code runtime | FM cross-sectional regression output (when applicable) |
 | `results/key_pred/<factor>.{csv,png}` | spec2code runtime | One per key observable factor |
 | `paper/original.pdf` | `scripts/analyze.py` | REQUIRED: copy of the source PDF for self-contained replication |
 | `logs/agent_run.log`, `logs/run.log` | `scripts/run_iteration_agent.sh` | Runtime logs of the agent invocation |
@@ -415,7 +422,7 @@ alpha:
    - Continue with the partial regression (signal + size + momentum,
      no FF controls)
    - Emit a `[WARNING]` noting that FF factors were unavailable
-   - Write the limitation into `results/diagnosis.md`
+   - Write the limitation into `results/SUMMARY.md`
 3. The full FF-factor gap is tracked as TODO #3 in `TODOs.md`. A paper
    that needs FF factors but can't get them is a known-partial
    replication, not a bug.

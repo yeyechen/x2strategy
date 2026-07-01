@@ -4,11 +4,11 @@ This document is the **single source of truth** for decisions the agent
 makes autonomously when the paper is silent. The agent reads this before
 generating `strategy.py` and applies these defaults, emitting
 `[CONVENTION-APPLIED]` log lines so the user can audit them in
-`results/diagnosis.md`.
+`results/SUMMARY.md`.
 
 **When to deviate:** if the paper explicitly states a different value
 (e.g. "we exclude stocks priced below $10"), use the paper's value, not
-the default. Document the deviation in `diagnosis.md`.
+the default. Document the deviation in `SUMMARY.md`.
 
 ---
 
@@ -57,7 +57,7 @@ the default. Document the deviation in `diagnosis.md`.
 
 The agent should **not** ask the user for any of the decisions above —
 they are convention defaults. The agent applies them, documents them in
-`diagnosis.md`, and the user reviews after the run.
+`results/SUMMARY.md`, and the user reviews after the run.
 
 **Ask the user only for genuinely ambiguous decisions that the paper
 does not resolve and that have no standard default:**

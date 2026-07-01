@@ -207,7 +207,7 @@ def format_metrics(metrics: Dict[str, float]) -> Dict[str, str]:
     """Format a metrics dict as human-readable strings (percent / 2-decimal).
 
     Useful for printing to stdout or writing to
-    ``results/backtest_output.txt``. Pure function — no printing.
+    ``results/SUMMARY.md``. Pure function — no printing.
 
     Args:
         metrics: the dict returned by :func:`performance_metrics`.

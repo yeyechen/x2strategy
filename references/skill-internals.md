@@ -189,9 +189,11 @@ replications/
 │   │   └── strategy.py
 │   ├── data/    # parquet caches (gitignored)
 │   ├── results/
+│   │   ├── SUMMARY.md
+│   │   ├── validation.json
 │   │   ├── metrics.json
-│   │   ├── diagnosis.md
-│   │   ├── portfolio_vs_assets.{csv,png}
+│   │   ├── pnl_curve.png
+│   │   ├── drawdown.png
 │   │   └── key_pred/
 │   └── config/
 ├── pairs_trading/

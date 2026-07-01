@@ -232,11 +232,13 @@ def render_run_config(
 
     # ── Outputs ──────────────────────────────────────────────
     outputs = [
+        "results/SUMMARY.md",
+        "results/validation.json",
+        "results/metrics.json",
+        "results/pnl_curve.png",
+        "results/drawdown.png",
         "results/decile_spread.png",
         "results/decile_spread.csv",
-        "results/metrics.json",
-        "results/backtest_output.txt",
-        "results/diagnosis.md",
     ]
     if ff_controls:
         outputs.append("results/fama_macbeth.txt")

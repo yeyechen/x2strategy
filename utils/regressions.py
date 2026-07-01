@@ -332,7 +332,7 @@ def summarize_fama_macbeth(result: FamaMacBethResult) -> str:
 
     Mirrors the user's ``analyze_fama_macbeth_results`` printer.
     Returns a string instead of printing, so the agent can choose where
-    it goes (stdout, ``results/diagnosis.md``, etc.).
+    it goes (stdout, ``results/SUMMARY.md``, etc.).
 
     Args:
         result: a :class:`FamaMacBethResult`.

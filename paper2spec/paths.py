@@ -7,10 +7,15 @@ and has the same nested structure:
     ├── README.md
     ├── paper/                 # source PDF (large; usually gitignored per-paper)
     ├── inputs/                # paper2spec artifacts (parse + extract + metadata)
-    ├── diagnostics/           # mid-pipeline artifacts + diagnosis.md
+    ├── diagnostics/           # mid-pipeline artifacts (data matching, conventions)
     ├── src/                   # generated strategy code (strategy.py)
     ├── data/                  # parquet caches (gitignored per-paper)
-    ├── results/               # spec2code outputs (metrics, plots — binary only)
+    ├── results/               # spec2code outputs
+    │   ├── SUMMARY.md         # THE VERDICT: hit-rate, per-target table, evidence links
+    │   ├── validation.json    # machine-readable hit-rate
+    │   ├── metrics.json       # all raw metrics
+    │   ├── pnl_curve.png      # cumulative P&L (fundamental evidence)
+    │   ├── drawdown.png       # drawdown (fundamental evidence)
     │   └── key_pred/          # one CSV + PNG per key observable factor
     └── config/                # optional run config
 
@@ -133,6 +138,10 @@ class PaperLayout:
     def result_path(self, name: str) -> Path:
         """Path under results/ — backtest outputs."""
         return self.results_dir / name
+
+    def summary_path(self) -> Path:
+        """Path to results/SUMMARY.md — the replication verdict file."""
+        return self.results_dir / "SUMMARY.md"
 
     def key_pred_path(self, name: str) -> Path:
         """Path under results/key_pred/ — per-factor CSVs/PNGs."""

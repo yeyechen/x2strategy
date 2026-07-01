@@ -574,19 +574,21 @@ replications/<paper>/
 │   ├── spec.json
 │   ├── spec.md
 │   └── metadata.json
-├── diagnostics/                 # analysis artifacts (mid-pipeline + post-run)
+├── diagnostics/                 # mid-pipeline artifacts (data matching, conventions)
 │   ├── data_requirements.json
 │   ├── data_match_report.json
-│   ├── operator_pitfall_context.md
-│   └── diagnosis.md             # strategy output vs paper-claimed metrics
+│   └── operator_pitfall_context.md
 ├── src/
 │   └── strategy.py              # one paper, one strategy
 ├── data/                        # parquet caches (gitignored)
-├── results/                     # binary outputs only (PNG, JSON, Parquet)
-│   ├── metrics.json
-│   ├── backtest_output.txt
-│   ├── decile_spread.csv        # when applicable
-│   ├── decile_spread.png
+├── results/                     # spec2code outputs
+│   ├── SUMMARY.md               # THE VERDICT: hit-rate, per-target table, evidence links
+│   ├── validation.json          # machine-readable hit-rate
+│   ├── metrics.json             # all raw metrics
+│   ├── pnl_curve.png            # cumulative P&L (fundamental evidence)
+│   ├── drawdown.png             # drawdown (fundamental evidence)
+│   ├── decile_spread.png        # per-decile bar chart
+│   ├── decile_spread.csv        # per-decile returns table
 │   └── key_pred/                # one CSV + PNG per key factor
 │       ├── <factor>.csv
 │       └── <factor>.png
@@ -681,7 +683,7 @@ result, which is worse than a crash.
 - [ ] All network data was cached locally first and reused; no live fetch inside the strategy class.
 - [ ] No forbidden pattern from §13 above (especially `.shift(-n)`, near-zero clamp, close-only tradable feed, `hasattr` on analyzer dicts).
 - [ ] Metrics reported: at least Sharpe, max drawdown, total return, final/return value.
-- [ ] Required artifacts written to `results/`: `metrics.json`, `backtest_output.txt`, `diagnosis.md`, and `key_pred/` (one CSV+PNG per key observable factor). The strategy P&L curve is `results/pnl_curve.png`.
+- [ ] Required artifacts written to `results/`: `SUMMARY.md` (verdict + hit-rate table), `metrics.json`, `validation.json`, `pnl_curve.png`, `drawdown.png`, and `key_pred/` (one CSV+PNG per key observable factor).
 - [ ] Final broker value and computed returns are finite — guard with `np.isfinite`; a NaN/None/inf portfolio value must raise, never silently "succeed".
 
 Only once every box is green do you report completion. Tie this to the
