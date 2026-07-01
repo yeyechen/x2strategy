@@ -218,8 +218,29 @@ semantic meaning (e.g., `deleted_at` — NULL = not deleted).
 ## Data Catalog
 
 The auto-generated catalog at ``paper2spec/resources/clickhouse_catalog.json``
-lists every database, table, column, row count, and date range.  Refresh with:
+lists every database, table, column, row count, date range, and sort key.
+Refresh with:
 
 ```bash
 python scripts/discover_clickhouse.py --refresh
 ```
+
+### Catalog structure
+
+Top-level keys:
+- ``generated_at`` — ISO timestamp of the last scan
+- ``host`` — ClickHouse host
+- ``databases`` — ``{db_name: {table_name: {columns, row_count, date_column, date_range, sorting_key, partition_key}}}``
+- ``database_families`` — ``{prefix: latest_vintage_db}`` (e.g. ``{"crsp": "crsp_202601", "comp": "comp_202509", "ff": "ff"}``).  Use the latest vintage as the default unless the paper specifies otherwise.
+
+Per-table fields:
+- ``columns`` — ``[{name, type}]``
+- ``row_count`` — approximate row count
+- ``date_column`` — which candidate column was probed for the date range (``date``, ``dt``, ``caldt``, ``datadate``, ``namedt``, or ``trade_date``); ``null`` if none found
+- ``date_range`` — ``[min, max]`` of ``date_column``, or ``null``
+- ``sorting_key`` — ClickHouse sorting key (always filter on this column for efficient queries)
+- ``partition_key`` — ClickHouse partition key
+
+When ``date_column`` is not ``"date"``, check ``references/data/<db>.md`` for
+the column's semantics — e.g. ``namedt`` in ``dsenames`` is a validity-start
+date, not a trading date.

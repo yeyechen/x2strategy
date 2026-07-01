@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -27,6 +28,16 @@ from paper2spec.config import get_clickhouse_config
 logger = logging.getLogger(__name__)
 
 CATALOG_PATH = Path(__file__).resolve().parent / "resources" / "clickhouse_catalog.json"
+
+# Candidate date-column names probed during discovery, in priority order.
+# The first match wins; the column name is recorded as ``date_column`` in
+# the catalog so the agent knows which column to filter on.
+_DATE_COLUMN_CANDIDATES = ("date", "dt", "caldt", "datadate", "namedt", "trade_date")
+
+# Matches database names with a YYYYMM or YYYY vintage suffix (e.g.
+# ``crsp_202601``, ``comp_snapshot_2024``).  Used to group databases into
+# families and pick the latest vintage as the default.
+_VINTAGE_RE = re.compile(r"^(.+?)_(\d{4,6})$")
 
 
 def match_requirements(
@@ -80,6 +91,7 @@ def match_requirements(
                         "score": score,
                         "row_count": info.get("row_count", 0),
                         "date_range": info.get("date_range"),
+                        "date_column": info.get("date_column"),
                     })
 
         if candidates:
@@ -126,8 +138,18 @@ def discover_schema(output_path: str | None = None) -> dict[str, Any]:
     """Connect to ClickHouse, enumerate **all databases and tables**, and build a catalog.
 
     Discovers every database the user has access to, then enumerates all
-    tables within each.  For each table we record column names / types,
-    row count, and date range (when a ``date`` column exists).
+    tables within each.  For each table we record:
+
+    - column names / types
+    - row count
+    - ``date_column`` — which candidate column was probed (``date``, ``dt``,
+      ``caldt``, ``datadate``, ``namedt``, or ``trade_date``)
+    - ``date_range`` — ``[min, max]`` of that column, or ``null``
+    - ``sorting_key`` / ``partition_key`` — from ``system.tables``
+
+    A top-level ``database_families`` map groups databases by prefix
+    (e.g. ``crsp_202601`` / ``crsp_202501`` → family ``crsp``) and picks
+    the lexicographically-highest (latest vintage) as the default.
 
     The result is written to *output_path* (default:
     ``resources/clickhouse_catalog.json``) and also returned as a dict.
@@ -152,6 +174,7 @@ def discover_schema(output_path: str | None = None) -> dict[str, Any]:
         "generated_at": datetime.now().isoformat(),
         "host": cfg["host"],
         "databases": {},
+        "database_families": {},
     }
 
     for db_name in sorted(db_names):
@@ -161,6 +184,9 @@ def discover_schema(output_path: str | None = None) -> dict[str, Any]:
         )
         if not tables:
             continue
+
+        # Batched: sorting_key + partition_key for all tables in this db
+        key_map = _query_table_keys(base_url, db_auth, db_name)
 
         db_entry: dict[str, Any] = {}
         for row in tables:
@@ -180,25 +206,34 @@ def discover_schema(output_path: str | None = None) -> dict[str, Any]:
             )
             row_count = count_result[0]["cnt"] if count_result else 0
 
-            # Date range (if the table has a 'date' column)
+            # Date range — probe the first matching candidate column
+            date_column = _find_date_column(cols)
             date_range = None
-            if any(c.get("name") == "date" for c in cols):
+            if date_column:
                 dr = _query_json(
                     base_url, db_auth,
-                    f"SELECT min(date) AS d0, max(date) AS d1 FROM {db_name}.{name} FORMAT JSONEachRow",
+                    f"SELECT min({date_column}) AS d0, max({date_column}) AS d1 "
+                    f"FROM {db_name}.{name} FORMAT JSONEachRow",
                 )
                 if dr:
                     date_range = [str(dr[0].get("d0", "")), str(dr[0].get("d1", ""))]
 
+            keys = key_map.get(name, {})
             db_entry[name] = {
                 "columns": [{"name": c["name"], "type": c["type"]} for c in cols],
                 "row_count": row_count,
+                "date_column": date_column,
                 "date_range": date_range,
+                "sorting_key": keys.get("sorting_key", ""),
+                "partition_key": keys.get("partition_key", ""),
             }
             logger.info("  %s: %d cols, %s rows", fq_name, len(cols), f"{row_count:,}")
 
         if db_entry:
             catalog["databases"][db_name] = db_entry
+
+    # 3. Compute database_families — group by prefix, pick latest vintage
+    catalog["database_families"] = _compute_database_families(catalog["databases"])
 
     # Write
     dest = Path(output_path) if output_path else CATALOG_PATH
@@ -219,6 +254,51 @@ def load_catalog(path: str | None = None) -> dict[str, Any] | None:
 
 
 # ── helpers ──────────────────────────────────────────────────────
+
+
+def _find_date_column(cols: list[dict]) -> str | None:
+    """Return the first candidate date column name found in *cols*."""
+    col_names = {c["name"] for c in cols}
+    for candidate in _DATE_COLUMN_CANDIDATES:
+        if candidate in col_names:
+            return candidate
+    return None
+
+
+def _query_table_keys(base_url: str, auth: str, db_name: str) -> dict[str, dict]:
+    """Batched query: sorting_key + partition_key for all tables in *db_name*.
+
+    Returns ``{table_name: {"sorting_key": ..., "partition_key": ...}}``.
+    Falls back to ``{}`` if the query fails (e.g. permissions).
+    """
+    rows = _query_json(
+        base_url, auth,
+        f"SELECT name, sorting_key, partition_key "
+        f"FROM system.tables WHERE database = '{db_name}' FORMAT JSONEachRow",
+    )
+    return {
+        r["name"]: {
+            "sorting_key": r.get("sorting_key", ""),
+            "partition_key": r.get("partition_key", ""),
+        }
+        for r in rows
+    }
+
+
+def _compute_database_families(databases: dict[str, Any]) -> dict[str, str]:
+    """Group database names by prefix and pick the latest vintage per family.
+
+    ``crsp_202601`` / ``crsp_202501`` / ``crsp`` → family ``crsp``,
+    latest ``crsp_202601``.  Databases without a vintage suffix (``ff``,
+    ``ea_oneoff``) are their own family and their own default.
+    """
+    families: dict[str, str] = {}
+    for db_name in databases:
+        m = _VINTAGE_RE.match(db_name)
+        prefix = m.group(1) if m else db_name
+        if prefix not in families or db_name > families[prefix]:
+            families[prefix] = db_name
+    return families
 
 
 def _build_auth(cfg: dict, *, include_database: bool = True, database: str | None = None) -> str:
