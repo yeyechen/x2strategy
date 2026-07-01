@@ -139,6 +139,22 @@ class TestRenderRunConfig:
         assert "exchcd IN (1,2,3)" in yaml_text
         assert "shrcd IN (10,11)" in yaml_text
 
+    def test_convention_defaults_present(self):
+        """Convention defaults from paper_conventions.md should land in YAML."""
+        spec = {
+            "strategies": [
+                {
+                    "strategy_name": "test",
+                    "strategy_type": "equity_long_short",
+                    "asset_class": ["equity"],
+                }
+            ]
+        }
+        yaml_text = render_run_config(spec)
+        assert "price_filter: 5.0" in yaml_text
+        assert "delisting_adjustment: true" in yaml_text
+        assert 'breakpoint_universe: NYSE' in yaml_text or "breakpoint_universe: NYSE" in yaml_text
+
 
 # ── load_run_config ─────────────────────────────────────────
 

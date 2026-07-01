@@ -97,7 +97,9 @@ def render_run_config(
     config from the extracted spec. Extracts:
       - time period (from spec.strategies[0].time_period or spec.metadata)
       - data sources (defaults to CRSP daily + index, Compustat funda)
-      - universe filter (default: NYSE/AMEX/NASDAQ, share codes [10, 11])
+      - universe filter (default: NYSE/AMEX/NASDAQ, share codes [10, 11],
+        $5 price floor, delisting adjustment, NYSE breakpoints — per
+        references/paper_conventions.md)
       - n_bins (default 10, from first numeric parameter in indicators)
       - weighting (default "VW", from spec.execution_plan[0].position_sizing)
       - forward_returns_lag (default 1 — the cross-sectional convention)
@@ -146,11 +148,14 @@ def render_run_config(
         end_date = "2024-12-31"
 
     # ── Universe filter ───────────────────────────────────────
+    # Convention defaults from references/paper_conventions.md.
+    # The agent may override these based on the paper's stated methodology.
     universe = {
         "exchanges": [1, 2, 3],   # NYSE, AMEX, NASDAQ
         "share_codes": [10, 11],   # ordinary common shares
-        # CRSP `dsi` already does this for the index; for `dsf` we
-        # need a WHERE clause. Generated below.
+        "price_filter": 5.0,       # $5 minimum (penny-stock exclusion)
+        "delisting_adjustment": True,  # use dsedelist.dlret when available
+        "breakpoint_universe": "NYSE",  # NYSE-only for size-based breakpoints
     }
     exch_set = ",".join(str(x) for x in universe["exchanges"])
     shr_set = ",".join(str(x) for x in universe["share_codes"])

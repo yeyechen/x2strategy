@@ -203,14 +203,7 @@ Use one workflow for all tasks. Do not choose between competing routers.
 3. **paper2spec: PDF/text to content** — parse the selected document into grounded content artifacts.
 4. **paper2spec: extract** — extract candidate strategy specs/plans from the content plus user instructions.
 5. **paper2spec: repair/review** — read `references/extraction_quality.md`, retrieve relevant operator pitfalls when high-risk formulas are present, and repair only the selected plan/spec with grounded evidence.
-6. **HITL review** — after repair, always inspect `needs_human_review`. If any item exists, **try** to present it through the interactive dialog (`AskUserQuestion`).
-   - **If the user is reachable** (interactive session, terminal is in front of them): wait for explicit answers before continuing. Standard behavior.
-   - **If the user is NOT reachable** (background / batched / async run — e.g., `claude -p` in a tmux session fired by an orchestrator): the `AskUserQuestion` call will fail or block forever. **Do NOT call `AskUserQuestion` in this mode.** Instead:
-     1. Pick the most common academic-finance default for each item (VW weighting, NYSE breakpoints, month-end close → next-month open, etc.)
-     2. Emit a `[HITL-AUTO-RESOLVED]` log line listing what was auto-decided and why
-     3. Continue with code generation
-     4. Document the auto-decisions in `results/diagnosis.md` so the user can see them after the run
-   - If none exists, still report that review found no open items and ask for implementation approval (only when interactive).
+ 6. **HITL review** — after repair, inspect `needs_human_review`. **Convention decisions** (price filter, weighting, breakpoints, delisting adjustment, factor model) are resolved autonomously from `references/paper_conventions.md` — do NOT ask the user about these. Apply the default, emit a `[CONVENTION-APPLIED]` log line, and document in `results/diagnosis.md`. Ask the user **only** for genuinely ambiguous decisions that the paper does not resolve and that have no standard default (e.g. which strategy to extract from a multi-strategy paper, or a methodology with two materially different interpretations). If the user is not reachable, apply the most common interpretation and emit `[HITL-AUTO-RESOLVED]`.
  7. **Data verification** — read `inputs/spec.json` + `content.md` + `paper2spec/resources/clickhouse_catalog.json`. The catalog is a **20 MB JSON file** — too large to Read directly. Use the **Grep tool** to search it (e.g. grep for `four_factor` or `dsfhdr`); use a `python -c` one-liner only to list database/table names matching a pattern. Its top-level keys are `generated_at`, `host`, `databases`, `database_families`. Use `database_families` to pick the default vintage (e.g. `crsp` → `crsp_202601`, `comp` → `comp_202601`) unless the paper specifies otherwise. Map the spec's abstract data needs to concrete ClickHouse columns (e.g. "Book-to-Market" → `bkvlps, ceq, seq, at` from `comp.funda`; daily CRSP → `permno, date, prc, ret, vol, shrout` from `crsp.dsf`). Write `diagnostics/data_requirements.json` with **exactly** this shape (validated by `schemas/data_requirements.schema.json`):
 
      ```json
@@ -486,7 +479,7 @@ For US equity strategies, SPY must be included as the market baseline in any ass
 3. paper2spec: parse PDF/text/doc to content artifacts
 4. paper2spec: extract candidate specs/plans
 5. paper2spec: select target plan/spec and repair with extraction_quality + matched pitfalls
-6. HITL: inspect needs_human_review and resolve through interactive dialog
+6. HITL: resolve convention decisions autonomously from paper_conventions.md; ask user only for genuinely ambiguous selections
 7. Data verification: Grep the 20MB clickhouse_catalog.json (not Read). Map abstract spec fields to concrete ClickHouse columns, write data_requirements.json with the {requirements: [{id, fields, ...}]} shape, run extract_requirements.py to verify and produce data_match_report.json
 8. spec2code: generate code using matched tables, validate, run backtest
 9. Diagnose results and ask next action
@@ -558,6 +551,7 @@ Read on demand for implementation details:
 - [references/clickhouse.md](references/clickhouse.md) — ClickHouse query patterns, schema discovery, data extraction rules
 - [references/indicator_cookbook.md](references/indicator_cookbook.md) — Built-in and custom indicators
 - [references/data_sources.md](references/data_sources.md) — ClickHouse data connection and catalog
+- [references/paper_conventions.md](references/paper_conventions.md) — Standard academic-finance defaults the agent applies autonomously (universe filter, weighting, breakpoints, factor model)
 
 ## Limitations
 
