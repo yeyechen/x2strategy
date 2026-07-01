@@ -92,6 +92,49 @@ class StrategyBrief:
 
 
 @dataclass
+class ReplicationTarget:
+    """One key number from the paper that a replication should match.
+
+    Extracted by Layer 3 (target selection) from the paper's results
+    tables.  At most 3 per strategy — the headline results that define
+    successful replication.
+    """
+
+    id: str = ""
+    description: str = ""
+    table_ref: str = ""
+    metric: str = ""  # decile_spread | fama_macbeth_coef | factor_alpha | ...
+    paper_value: Optional[float] = None
+    paper_tstat: Optional[float] = None
+    unit: str = ""  # percent_per_month | coefficient | ...
+    tolerance: Optional[float] = None
+    rationale: str = ""
+    variable: str = ""  # for FM regression: which variable's coefficient
+    factors: List[str] = field(default_factory=list)  # for factor_alpha
+    weighting: str = ""  # for decile_spread: EW or VW
+
+
+@dataclass
+class Methodology:
+    """Structured universe filter and sample parameters.
+
+    Extracted by Layer 5 (universe).  Replaces the free-text
+    ``universe_selection_criteria`` field with machine-readable
+    fields that ``render_run_config`` reads directly.
+    """
+
+    share_codes: List[int] = field(default_factory=list)
+    exchanges: List[int] = field(default_factory=list)
+    price_filter: Optional[float] = None
+    delisting_adjustment: Optional[bool] = None
+    breakpoint_universe: str = ""  # NYSE | all | ""
+    sample_start: str = ""
+    sample_end: str = ""
+    data_frequency: str = ""  # daily | monthly
+    rebalancing_frequency: str = ""  # monthly | quarterly
+
+
+@dataclass
 class Indicator:
     """Indicator / signal definition."""
 
@@ -190,9 +233,20 @@ class ExecutionPlan:
 
 @dataclass
 class StrategySpec:
-    """Full strategy specification — LLM‑friendly flat structure."""
+    """Full strategy specification — LLM-friendly flat structure.
 
-    # ── Layer 1a: Metadata ──
+    Layer mapping (9-layer extraction):
+      L1 → metadata (strategy_name, type, asset_class, description)
+      L2 → table scan (raw candidate results)
+      L3 → replication_targets (top 3 that define success)
+      L4 → data (data_source, sample_period, data_frequency)
+      L5 → methodology (structured universe filter)
+      L6 → indicators
+      L7 → logic_pipeline
+      L8 → execution_plan + risk_management
+    """
+
+    # ── L1: Metadata ──
     strategy_name: str = ""
     strategy_type: str = "technical"
     asset_class: List[str] = field(default_factory=list)
@@ -202,7 +256,10 @@ class StrategySpec:
     strategy_id: Optional[str] = None
     backtest_id: Optional[str] = None
 
-    # ── Layer 1b: Data Requirements ──
+    # ── L3: Replication Targets (replaces expected_performance) ──
+    replication_targets: List[ReplicationTarget] = field(default_factory=list)
+
+    # ── L4: Data Requirements ──
     price_data: bool = True
     volume_data: bool = False
     fundamental_data: List[str] = field(default_factory=list)
@@ -212,21 +269,24 @@ class StrategySpec:
     data_source: str = ""
     time_period: str = ""
     universe_assets: List[str] = field(default_factory=list)
-    universe_selection_criteria: str = ""
+    universe_selection_criteria: str = ""  # legacy free-text (L5 supersedes)
 
-    # ── Layer 1c: Expected Performance ──
+    # ── L5: Structured Methodology ──
+    methodology: Optional[Methodology] = None
+
+    # ── Legacy performance fields (kept for backward compat; L3 supersedes) ──
     expected_sharpe: Optional[float] = None
     expected_return: Optional[float] = None
     max_drawdown: Optional[float] = None
     expected_performance: Dict[str, Any] = field(default_factory=dict)
 
-    # ── Layer 2a: Indicators ──
+    # ── L6: Indicators ──
     indicators: List[Indicator] = field(default_factory=list)
 
-    # ── Layer 2b: Logic Pipeline ──
+    # ── L7: Logic Pipeline ──
     logic_pipeline: List[LogicStep] = field(default_factory=list)
 
-    # ── Layer 3: Execution ──
+    # ── L8: Execution ──
     execution_plan: List[ExecutionPlan] = field(default_factory=list)
     risk_management: List[str] = field(default_factory=list)
     executable_explanation: Optional[str] = None
@@ -251,6 +311,10 @@ class StrategySpec:
                 kw[fname] = [Indicator(**{k: x for k, x in v.items() if k in Indicator.__dataclass_fields__}) if isinstance(v, dict) else v for v in val]
             elif fname == "logic_pipeline" and isinstance(val, list):
                 kw[fname] = [LogicStep(**{k: x for k, x in v.items() if k in LogicStep.__dataclass_fields__}) if isinstance(v, dict) else v for v in val]
+            elif fname == "replication_targets" and isinstance(val, list):
+                kw[fname] = [ReplicationTarget(**{k: x for k, x in v.items() if k in ReplicationTarget.__dataclass_fields__}) if isinstance(v, dict) else v for v in val]
+            elif fname == "methodology" and isinstance(val, dict):
+                kw[fname] = Methodology(**{k: x for k, x in val.items() if k in Methodology.__dataclass_fields__})
             elif fname == "execution_plan" and isinstance(val, list):
                 plans = []
                 for v in val:

@@ -1,8 +1,19 @@
 """Prompt templates for structured extraction.
 
 The multi-layer extraction prompts (LAYER_*) are used by the extractor
-to produce a full StrategySpec through 5 focused LLM calls.  Each prompt
+to produce a full StrategySpec through 9 focused LLM calls.  Each prompt
 injects the full paper markdown as ``{content}``.
+
+Layer structure (each layer answers ONE question):
+  L0: Detection      — how many strategies?
+  L1: Metadata       — what is this paper?
+  L2: Table scan     — what numbers does the paper claim?
+  L3: Target selection — which 3 define successful replication?
+  L4: Data           — what database, sample period, frequency?
+  L5: Universe       — how is the universe filtered?
+  L6: Signal         — what signal + formula?
+  L7: Portfolio      — how to sort/bin/form portfolios?
+  L8: Execution      — how to execute to reproduce the targets?
 """
 
 SYSTEM_PROMPT = (
@@ -58,61 +69,230 @@ CRITICAL RULES:
 Output ONLY valid JSON."""
 
 # ═══════════════════════════════════════════════════════════════
-# Stage 2: Multi-layer specification extraction prompts
-# (4 focused LLM calls instead of 1 monolithic call)
+# Layer 1: Metadata (thin — 4 fields only)
 # ═══════════════════════════════════════════════════════════════
 
-LAYER1_METADATA_AND_DATA_PROMPT = """Extract strategy metadata and data requirements from this research paper.
+L1_METADATA_PROMPT = """Extract basic strategy metadata from this research paper.
 
 PAPER TITLE: {title}
 {strategy_focus}
 INSTRUCTION / CLARIFICATION CONTEXT (authoritative fallback when paper is incomplete):
 {instruction_context}
 
-The paper content below is in markdown format with HTML tables and LaTeX equations.
-Focus on the methodology, data description, and results sections.
-
 FULL PAPER CONTENT:
 {content}
-Extract as JSON:
+
+Extract ONLY these 4 fields as JSON:
 {{
-    "strategy_name": "Concise descriptive name based on paper content",
+    "strategy_name": "Concise descriptive name (e.g., 'MAX Effect: Long-Short Decile Strategy'). Under 8 words. Do NOT use the paper title.",
     "strategy_type": "technical|fundamental|hybrid|multi_asset",
-    "asset_class": ["equity", "bonds", "commodities", "crypto", "forex"],
-    "description": "2-4 sentence summary of the core trading idea",
-    "price_data": true,
-    "volume_data": false,
-    "fundamental_data": ["P/E", "ROE", "Book-to-Market"],
-    "alternative_data": ["FRED-MD macro factors", "sentiment"],
-    "lookback_period": null,
-    "data_frequency": "daily|weekly|monthly",
-    "data_source": "e.g., CRSP, Yahoo Finance",
-    "time_period": "e.g., 1963-2019",
-    "universe_assets": ["US equities"],
-    "universe_selection_criteria": "e.g., NYSE/AMEX common stocks, price > $5",
-    "expected_sharpe": null,
-    "expected_return": null,
-    "max_drawdown": null,
-    "expected_performance": {{}},
-    "needs_human_review": []
+    "asset_class": ["equity"],
+    "description": "2-4 sentence summary of the core trading idea"
 }}
 
-INSTRUCTIONS:
-1. strategy_name: Short, specific name (e.g., "MAX Effect: Long-Short Decile Strategy"). Do NOT use the paper title or "Untitled". Keep under 8 words.
-1b. strategy_type: "technical" (price/volume only), "fundamental" (accounting data), "hybrid" (both), "multi_asset" (multiple asset classes)
-2. fundamental_data: List ALL accounting/financial metrics explicitly used (not just mentioned)
-3. alternative_data: External/non-traditional data (macro, sentiment, analyst forecasts)
-4. lookback_period: The number of trading days used for signal computation. Convert paper units: "one month" → 21, "12 months" → 252, "60 days" → 60. Use null only if the paper never states a lookback. Always use TRADING DAYS as the unit.
-5. universe_selection_criteria: Be comprehensive — include ALL filters (price, market cap, exchange, industry exclusions)
-6. expected_*: Extract from MAIN results table only; use null if not reported; annual_return as decimal (0.12 = 12%)
-7. If a field is not mentioned in the paper/instructions, use null or empty — do NOT guess.
-8. If data coverage, warm-up, and OOS evaluation differ, make time_period data-loading-safe by including all relevant dates.
-9. For return-series strategies, set price_data=false and describe return_series semantics in later indicator fields.
-10. needs_human_review items must be structured: {{"field_path":"...","label":"...","reason":"...","questions":["..."]}}.
+RULES:
+1. strategy_type: "technical" (price/volume only), "fundamental" (accounting data), "hybrid" (both), "multi_asset" (multiple asset classes)
+2. Do NOT extract data requirements, universe filters, or performance numbers here — those are handled by later layers.
+3. If a field is not mentioned, use empty string or empty list — do NOT guess.
 
 Output ONLY valid JSON."""
 
-LAYER2_INDICATORS_PROMPT = """Extract ALL indicators, factors, and computed signals used in this trading strategy — including primary signals, controls, and any auxiliary inputs referenced in robustness/subsidiary analyses.
+# ═══════════════════════════════════════════════════════════════
+# Layer 2: Table scan (comprehensive — list ALL results tables)
+# ═══════════════════════════════════════════════════════════════
+
+L2_TABLE_SCAN_PROMPT = """List ALL key results tables in this paper with their claimed values.
+
+PAPER TITLE: {title}
+{strategy_focus}
+
+FULL PAPER CONTENT:
+{content}
+
+Scan every table in the paper (Table I, II, III, ...). For each table that
+reports a numeric result, extract:
+
+{{
+    "candidates": [
+        {{
+            "table_ref": "Table III, Panel A",
+            "description": "D1-D10 VW monthly return spread",
+            "metric": "decile_spread",
+            "value": -0.80,
+            "tstat": null,
+            "unit": "percent_per_month"
+        }}
+    ]
+}}
+
+METRIC TYPES (use these exact values for the "metric" field):
+- "decile_spread": D1-D10 or Q1-Q5 return spread (portfolio sort result)
+- "decile_return": individual decile/quintile return
+- "fama_macbeth_coef": Fama-MacBeth regression coefficient
+- "factor_alpha": factor-model alpha (3F, 4F, 5F)
+- "sharpe": Sharpe ratio
+- "correlation": correlation coefficient
+- "summary_stat": summary statistic (mean, std, etc.)
+- "other": anything else
+
+UNITS (use these exact values):
+- "percent_per_month": monthly return in percent
+- "percent_per_year": annual return in percent
+- "coefficient": regression coefficient
+- "ratio": Sharpe or other ratio
+- "count": number of observations
+
+RULES:
+1. Extract EVERY table — be comprehensive, do not filter.
+2. Include the table number and panel/column in table_ref.
+3. If a table has multiple key values (e.g., EW and VW spreads), extract each as a separate candidate.
+4. Use null for tstat if not reported.
+5. Do NOT judge importance here — that happens in the next layer.
+
+Output ONLY valid JSON."""
+
+# ═══════════════════════════════════════════════════════════════
+# Layer 3: Target selection (judgment — pick TOP 3)
+# ═══════════════════════════════════════════════════════════════
+
+L3_TARGET_SELECTION_PROMPT = """Select the TOP 3 results that define whether this paper has been successfully replicated.
+
+PAPER TITLE: {title}
+STRATEGY: {strategy_name}
+
+CANDIDATE TABLES (from table scan):
+{candidates}
+
+SELECTION RULES:
+
+1. PRIORITY ORDER — extract in this order, stop at 3:
+   a. Portfolio sort spread (decile/quintile D1-D10 or Q1-Q5, EW or VW)
+   b. Cross-sectional regression coefficient on the main signal (Fama-MacBeth)
+   c. Risk-adjusted alpha (factor-model alpha on the L/S portfolio)
+
+2. SKIP these table types:
+   - Summary statistics (Table I — descriptive, not a claim)
+   - Subperiod analysis (robustness, not headline)
+   - Double sorts (robustness, not headline)
+   - International evidence (robustness, not headline)
+   - Alternative signal definitions (robustness, not headline)
+   - Correlation matrices (descriptive, not a claim)
+
+3. If the paper does not have one of the priority targets, skip it.
+   Fewer than 3 is fine — do NOT pad with low-priority targets.
+
+4. For each selected target, set a TOLERANCE — how close the
+   replication needs to be to count as a match. Base this on the
+   paper's standard errors or conventional replication practice:
+   - Monthly return spreads: tolerance 0.30 (percentage points)
+   - Regression coefficients: tolerance 0.002
+   - Factor alphas: tolerance 0.50 (percentage points)
+
+Return JSON:
+{{
+    "replication_targets": [
+        {{
+            "id": "short_snake_case_id",
+            "description": "Table ref + what it measures",
+            "table_ref": "Table III, Panel A",
+            "metric": "decile_spread",
+            "paper_value": -0.80,
+            "paper_tstat": null,
+            "unit": "percent_per_month",
+            "tolerance": 0.30,
+            "rationale": "Why this target defines successful replication",
+            "variable": "",
+            "factors": [],
+            "weighting": "VW"
+        }}
+    ]
+}}
+
+FIELDS:
+- id: short snake_case identifier (e.g., "decile_spread_vw", "fm_max_coef")
+- variable: for fama_macbeth_coef, the variable name (e.g., "MAX")
+- factors: for factor_alpha, the factor names (e.g., ["mkt_rf","smb","hml","mom"])
+- weighting: for decile_spread, "EW" or "VW"
+
+Output ONLY valid JSON."""
+
+# ═══════════════════════════════════════════════════════════════
+# Layer 4: Data (thin — database, sample period, frequency)
+# ═══════════════════════════════════════════════════════════════
+
+L4_DATA_PROMPT = """Extract data requirements from this research paper.
+
+STRATEGY: {strategy_name}
+TYPE: {strategy_type}
+{strategy_focus}
+
+FULL PAPER CONTENT:
+{content}
+
+Extract ONLY these fields as JSON:
+{{
+    "data_source": "e.g., CRSP, Compustat, Yahoo Finance",
+    "sample_start": "YYYY-MM-DD",
+    "sample_end": "YYYY-MM-DD",
+    "data_frequency": "daily|weekly|monthly",
+    "price_data": true,
+    "volume_data": false,
+    "fundamental_data": ["P/E", "ROE", "Book-to-Market"],
+    "alternative_data": ["macro factors", "sentiment"],
+    "lookback_period": 21,
+    "universe_assets": ["US equities"]
+}}
+
+RULES:
+1. sample_start/sample_end: ISO date strings. If the paper says "July 1962 to December 2005", use "1962-07-01" and "2005-12-31".
+2. lookback_period: number of TRADING DAYS for signal computation. "One month" = 21, "12 months" = 252.
+3. fundamental_data: list ALL accounting metrics explicitly used (not just mentioned).
+4. If a field is not mentioned, use null or empty — do NOT guess.
+
+Output ONLY valid JSON."""
+
+# ═══════════════════════════════════════════════════════════════
+# Layer 5: Universe (structured filter — machine-readable)
+# ═══════════════════════════════════════════════════════════════
+
+L5_UNIVERSE_PROMPT = """Extract the stock universe filter criteria from this paper.
+
+STRATEGY: {strategy_name}
+DATA SOURCE: {data_source}
+
+FULL PAPER CONTENT:
+{content}
+
+Extract the universe filter as STRUCTURED fields (not free text):
+{{
+    "share_codes": [10, 11],
+    "exchanges": [1, 2, 3],
+    "price_filter": 5.0,
+    "delisting_adjustment": true,
+    "breakpoint_universe": "NYSE",
+    "rebalancing_frequency": "monthly"
+}}
+
+FIELD DEFINITIONS:
+- share_codes: CRSP share codes to keep. 10/11 = ordinary common shares.
+- exchanges: CRSP exchange codes. 1=NYSE, 2=AMEX, 3=NASDAQ.
+- price_filter: minimum stock price in dollars (e.g., 5.0 for $5 floor). null if none.
+- delisting_adjustment: true if the paper says "after adjusting for delistings".
+- breakpoint_universe: "NYSE" if breakpoints computed from NYSE stocks only (Fama-French convention). "all" if using all stocks. "" if not applicable.
+- rebalancing_frequency: "monthly", "quarterly", "annual".
+
+RULES:
+1. If the paper explicitly states a value, use it.
+2. If the paper is SILENT on a field, use null (not a default). The convention defaults from references/paper_conventions.md will fill in later.
+3. Do NOT guess — null is better than a wrong value.
+
+Output ONLY valid JSON."""
+
+# ═══════════════════════════════════════════════════════════════
+# Layer 6: Signal (indicators + formulas — renamed from L2)
+# ═══════════════════════════════════════════════════════════════
+
+L6_SIGNAL_PROMPT = """Extract ALL indicators, factors, and computed signals used in this trading strategy — including primary signals, controls, and any auxiliary inputs referenced in robustness/subsidiary analyses.
 
 **Do not stop at the headline signal.** A paper using MAX as the primary signal also typically references SIZE, BM, MOM, IVOL, TURNOVER, and similar factors as controls — extract these too, even if only mentioned in tables or robustness checks.
 
@@ -175,7 +355,11 @@ INSTRUCTIONS:
 
 Output ONLY valid JSON."""
 
-LAYER3_LOGIC_PIPELINE_PROMPT = """Extract the logic pipeline that transforms indicators into final trade signals.
+# ═══════════════════════════════════════════════════════════════
+# Layer 7: Portfolio (logic pipeline — renamed from L3)
+# ═══════════════════════════════════════════════════════════════
+
+L7_PORTFOLIO_PROMPT = """Extract the logic pipeline that transforms indicators into final trade signals.
 
 STRATEGY: {strategy_name}
 TYPE: {strategy_type}
@@ -221,9 +405,9 @@ FUNCTION TAXONOMY:
 - **z_score**: Standardize indicator values across assets at each time point
 
 ## Time-series Operations (per asset over time):
-- **condition**: Boolean or categorical check (e.g., "if close > SMA_200") → output_type: boolean or label
-- **threshold**: Classify into categories based on numeric thresholds → output_type: label
-- **crossover**: Detect signal crossovers (e.g., "SMA_50 crosses above SMA_200") → output_type: boolean
+- **condition**: Boolean or categorical check (e.g., "if close > SMA_200") -> output_type: boolean or label
+- **threshold**: Classify into categories based on numeric thresholds -> output_type: label
+- **crossover**: Detect signal crossovers (e.g., "SMA_50 crosses above SMA_200") -> output_type: boolean
 
 ## General Operations:
 - **arithmetic**: Mathematical combination of indicators (e.g., "indicator_A - indicator_B")
@@ -251,14 +435,14 @@ CANONICAL SPEC CONTRACT:
 
 MULTI-DIMENSIONAL STRATEGIES (Double/Triple Sort):
 For strategies with multiple sorting dimensions:
-1. Step N-2: First sort (quantile_sort → factor_a_quintile)
+1. Step N-2: First sort (quantile_sort -> factor_a_quintile)
 2. Step N-1: Second sort WITHIN groups (group_quantile_sort, group_by: factor_a_quintile)
 3. Step N (FINAL): Combine into trade signal using condition function
 
 Example double-sort:
-  step1: quantile_sort by book_to_market → value_quintile (Q1..Q5)
-  step2: group_quantile_sort by momentum WITHIN value_quintile → momentum_decile (D1..D10)
-  step3: condition → IF value_quintile='Q1' AND momentum_decile='D10' THEN 'long_target'
+  step1: quantile_sort by book_to_market -> value_quintile (Q1..Q5)
+  step2: group_quantile_sort by momentum WITHIN value_quintile -> momentum_decile (D1..D10)
+  step3: condition -> IF value_quintile='Q1' AND momentum_decile='D10' THEN 'long_target'
 
 CRITICAL RULES:
 1. The FINAL step must produce an actionable trade signal (long/short/hold), not an intermediate classification
@@ -273,7 +457,11 @@ CRITICAL RULES:
 
 Output ONLY valid JSON."""
 
-LAYER4_EXECUTION_PROMPT = """Extract the execution plan and risk management rules.
+# ═══════════════════════════════════════════════════════════════
+# Layer 8: Execution (informed by targets + logic — renamed from L4)
+# ═══════════════════════════════════════════════════════════════
+
+L8_EXECUTION_PROMPT = """Extract the execution plan and risk management rules.
 
 STRATEGY: {strategy_name}
 TYPE: {strategy_type}
@@ -283,6 +471,9 @@ INSTRUCTION / CLARIFICATION CONTEXT (authoritative fallback when paper is incomp
 
 LOGIC PIPELINE (available signals):
 {logic_summary}
+
+REPLICATION TARGETS (what the execution must produce):
+{targets_summary}
 
 The paper content below is in markdown format with HTML tables and LaTeX equations.
 Focus on the rebalancing frequency, execution timing, and risk management rules.

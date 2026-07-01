@@ -201,7 +201,7 @@ Use one workflow for all tasks. Do not choose between competing routers.
 1. **Setup** — verify `.env`, replications path, API key if needed, Python environment, and user-selected scope.
 2. **Input confirmation** — identify the paper/spec/data/instruction files or search results; ask whether to add clarification, constraints, selected-plan preferences, known pitfalls, or reference files.
 3. **paper2spec: PDF/text to content** — parse the selected document into grounded content artifacts.
-4. **paper2spec: extract** — extract candidate strategy specs/plans from the content plus user instructions.
+ 4. **paper2spec: extract** — extract candidate strategy specs/plans from the content plus user instructions. Uses a 9-layer pipeline: L0 (detection) → L1 (metadata) → L2 (table scan) → L3 (target selection: top 3 replication targets) → L4 (data) → L5 (universe) → L6 (signal) → L7 (portfolio) → L8 (execution).
 5. **paper2spec: repair/review** — read `references/extraction_quality.md`, retrieve relevant operator pitfalls when high-risk formulas are present, and repair only the selected plan/spec with grounded evidence.
  6. **HITL review** — after repair, inspect `needs_human_review`. **Convention decisions** (price filter, weighting, breakpoints, delisting adjustment, factor model) are resolved autonomously from `references/paper_conventions.md` — do NOT ask the user about these. Apply the default, emit a `[CONVENTION-APPLIED]` log line, and document in `results/diagnosis.md`. Ask the user **only** for genuinely ambiguous decisions that the paper does not resolve and that have no standard default (e.g. which strategy to extract from a multi-strategy paper, or a methodology with two materially different interpretations). If the user is not reachable, apply the most common interpretation and emit `[HITL-AUTO-RESOLVED]`.
  7. **Data verification** — read `inputs/spec.json` + `content.md` + `paper2spec/resources/clickhouse_catalog.json`. The catalog is a **20 MB JSON file** — too large to Read directly. Use the **Grep tool** to search it (e.g. grep for `four_factor` or `dsfhdr`); use a `python -c` one-liner only to list database/table names matching a pattern. Its top-level keys are `generated_at`, `host`, `databases`, `database_families`. Use `database_families` to pick the default vintage (e.g. `crsp` → `crsp_202601`, `comp` → `comp_202601`) unless the paper specifies otherwise. Map the spec's abstract data needs to concrete ClickHouse columns (e.g. "Book-to-Market" → `bkvlps, ceq, seq, at` from `comp.funda`; daily CRSP → `permno, date, prc, ret, vol, shrout` from `crsp.dsf`). Write `diagnostics/data_requirements.json` with **exactly** this shape (validated by `schemas/data_requirements.schema.json`):
@@ -228,7 +228,7 @@ Use one workflow for all tasks. Do not choose between competing routers.
     1. Read `references/data/crsp.md` §Gotchas (dsenames date-filter, `prc` abs(), `ret` sentinels, `dsfhdr` vs `dsenames`)
     2. Read `utils/INDEX.md` — find the canonical pipeline for your strategy type and the primitives you'll call
     3. Confirm `data_match_report.json` has ≥75% coverage; resolve gaps before coding
-9. **Validation/backtest/diagnosis** — validate generated code, run available checks/backtests, compare against expected or reference outputs, summarize mismatches, then ask what to do next.
+ 9. **Validation/backtest/diagnosis** — validate generated code, run available checks/backtests, then run `scripts/validate_replication.py <slug>` to compare the backtest output against the paper-claimed replication targets (from L3). The validator produces `results/validation.json` with a per-target diff + hit-rate. Compare against expected or reference outputs, summarize mismatches, then ask what to do next.
 
 No bypass: never silently chain extraction → repair → implementation. User-provided papers, instructions, data files, existing specs, or reference outputs are evidence, not permission to skip review or HITL. Never generate code that uses yfinance or hardcoded ticker lists — always read `data_match_report.json` and query ClickHouse.
 
@@ -482,7 +482,7 @@ For US equity strategies, SPY must be included as the market baseline in any ass
 6. HITL: resolve convention decisions autonomously from paper_conventions.md; ask user only for genuinely ambiguous selections
 7. Data verification: Grep the 20MB clickhouse_catalog.json (not Read). Map abstract spec fields to concrete ClickHouse columns, write data_requirements.json with the {requirements: [{id, fields, ...}]} shape, run extract_requirements.py to verify and produce data_match_report.json
 8. spec2code: generate code using matched tables, validate, run backtest
-9. Diagnose results and ask next action
+9. Diagnose: run backtest, then validate_replication.py for per-target hit-rate
 ```
 
 For code generation patterns: [references/spec2code.md](references/spec2code.md)

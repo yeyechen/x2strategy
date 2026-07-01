@@ -1,18 +1,22 @@
 """Specification extractor — PaperContent → List[StrategySpec].
 
-Multi-layer extraction architecture (inspired by production QSA pipeline):
-  Layer 0: Strategy Detection (how many independent strategies in the paper?)
-  Layer 1: Metadata + Data Requirements + Performance Metrics
-  Layer 2: Indicators / Factors / Computed Signals
-  Layer 3: Logic Pipeline (signal generation → trade signals)
-  Layer 4: Execution Plan + Risk Management
+9-layer extraction architecture:
+  Layer 0: Strategy Detection (how many independent strategies?)
+  Layer 1: Metadata (name, type, asset class, description)
+  Layer 2: Table scan (list ALL results tables with claimed values)
+  Layer 3: Target selection (pick TOP 3 that define successful replication)
+  Layer 4: Data (database, sample period, frequency)
+  Layer 5: Universe (structured share codes, exchanges, price filter)
+  Layer 6: Signal (indicators + formulas)
+  Layer 7: Portfolio (logic pipeline — sorting, binning, portfolio formation)
+  Layer 8: Execution (rebalancing, timing — informed by targets + logic)
 
-Each layer is a focused LLM call with targeted prompts, producing
+Each layer is a focused LLM call with a targeted prompt, producing
 higher-quality structured output than a single monolithic call would.
 
 Multi-strategy support:
   When a paper contains N>1 independent strategies, Layer 0 detects them
-  and Layers 1-4 run once per strategy with focused context injection.
+  and Layers 1-8 run once per strategy with focused context injection.
 """
 
 import asyncio
@@ -29,18 +33,24 @@ from paper2spec.models import (
     ExecutionTrigger,
     Indicator,
     LogicStep,
+    Methodology,
     PaperContent,
     PositionSizing,
+    ReplicationTarget,
     SizingStep,
     StrategyBrief,
     StrategySpec,
 )
 from paper2spec.prompts import (
     LAYER0_STRATEGY_DETECTION_PROMPT,
-    LAYER1_METADATA_AND_DATA_PROMPT,
-    LAYER2_INDICATORS_PROMPT,
-    LAYER3_LOGIC_PIPELINE_PROMPT,
-    LAYER4_EXECUTION_PROMPT,
+    L1_METADATA_PROMPT,
+    L2_TABLE_SCAN_PROMPT,
+    L3_TARGET_SELECTION_PROMPT,
+    L4_DATA_PROMPT,
+    L5_UNIVERSE_PROMPT,
+    L6_SIGNAL_PROMPT,
+    L7_PORTFOLIO_PROMPT,
+    L8_EXECUTION_PROMPT,
     SYSTEM_PROMPT,
 )
 
@@ -265,90 +275,174 @@ async def _extract_multilayer(
     strategy_focus: str = "",
     instruction_context: str = "",
 ) -> StrategySpec:
-    """4-layer extraction pipeline.
+    """9-layer extraction pipeline (L1-L8, L0 runs separately).
 
-    Layer 1: Metadata + data requirements (fills spec basics)
-    Layer 2: Indicators (what to compute)
-    Layer 3: Logic pipeline (how to use indicators → trade signals)
-    Layer 4: Execution plan + risk management (when/how to trade)
+    L1: Metadata (name, type, asset class, description)
+    L2: Table scan (list ALL results tables with claimed values)
+    L3: Target selection (pick TOP 3 that define successful replication)
+    L4: Data (database, sample period, frequency)
+    L5: Universe (structured share codes, exchanges, price filter)
+    L6: Signal (indicators + formulas)
+    L7: Portfolio (logic pipeline — sorting, binning, portfolio formation)
+    L8: Execution (rebalancing, timing — informed by targets + logic)
     """
     spec = StrategySpec()
 
-    # ── Layer 1: Metadata + Data + Performance ──
-    logger.info("Layer 1: Extracting metadata and data requirements...")
-    prompt = LAYER1_METADATA_AND_DATA_PROMPT.format(
-        title=pc.title,
-        content=pc.full_text,
-        strategy_focus=strategy_focus,
-        instruction_context=instruction_context,
+    # ── L1: Metadata (thin — 4 fields) ──
+    logger.info("L1: Extracting metadata...")
+    l1 = await _call_llm_json(
+        L1_METADATA_PROMPT.format(
+            title=pc.title,
+            content=pc.full_text,
+            strategy_focus=strategy_focus,
+            instruction_context=instruction_context,
+        ),
+        model=model,
     )
-    l1 = await _call_llm_json(prompt, model=model)
     if l1:
         spec.strategy_name = l1.get("strategy_name", pc.title)
         spec.strategy_type = l1.get("strategy_type", "technical")
         spec.asset_class = l1.get("asset_class", ["equity"])
         spec.description = l1.get("description", "")
-        spec.price_data = l1.get("price_data", True)
-        spec.volume_data = l1.get("volume_data", False)
-        spec.fundamental_data = l1.get("fundamental_data", [])
-        spec.alternative_data = l1.get("alternative_data", [])
-        spec.lookback_period = l1.get("lookback_period")
-        spec.data_frequency = l1.get("data_frequency", "daily")
-        spec.data_source = l1.get("data_source", "")
-        spec.time_period = l1.get("time_period", "")
-        spec.universe_assets = l1.get("universe_assets", [])
-        spec.universe_selection_criteria = l1.get("universe_selection_criteria", "")
-        spec.expected_sharpe = l1.get("expected_sharpe")
-        spec.expected_return = l1.get("expected_return")
-        spec.max_drawdown = l1.get("max_drawdown")
-        spec.expected_performance = l1.get("expected_performance", {})
-        spec.needs_human_review = l1.get("needs_human_review", spec.needs_human_review)
-        logger.info("  → %s (%s)", spec.strategy_name, spec.strategy_type)
+        logger.info("  -> %s (%s)", spec.strategy_name, spec.strategy_type)
 
-    # ── Layer 2: Indicators ──
-    logger.info("Layer 2: Extracting indicators...")
-    prompt = LAYER2_INDICATORS_PROMPT.format(
-        strategy_name=spec.strategy_name,
-        strategy_type=spec.strategy_type,
-        description=spec.description,
-        content=pc.full_text,
-        strategy_focus=strategy_focus,
-        instruction_context=instruction_context,
+    # ── L2: Table scan (comprehensive — all results tables) ──
+    logger.info("L2: Scanning results tables...")
+    l2 = await _call_llm_json(
+        L2_TABLE_SCAN_PROMPT.format(
+            title=pc.title,
+            content=pc.full_text,
+            strategy_focus=strategy_focus,
+        ),
+        model=model,
     )
-    l2 = await _call_llm_json(prompt, model=model)
+    candidates_json = []
     if l2:
-        # Defensive: LLM may return a list directly or a dict with "indicators"
-        if isinstance(l2, list):
-            raw_indicators = l2
-        else:
-            raw_indicators = l2.get("indicators", [])
+        candidates_json = l2.get("candidates", []) if isinstance(l2, dict) else (l2 if isinstance(l2, list) else [])
+        logger.info("  -> %d candidate tables", len(candidates_json))
+
+    # ── L3: Target selection (top 3 from L2 candidates) ──
+    logger.info("L3: Selecting replication targets...")
+    candidates_str = json.dumps(candidates_json, indent=2, ensure_ascii=False) if candidates_json else "[]"
+    l3 = await _call_llm_json(
+        L3_TARGET_SELECTION_PROMPT.format(
+            title=pc.title,
+            strategy_name=spec.strategy_name,
+            candidates=candidates_str,
+        ),
+        model=model,
+    )
+    if l3:
+        raw_targets = l3.get("replication_targets", []) if isinstance(l3, dict) else (l3 if isinstance(l3, list) else [])
+        spec.replication_targets = [
+            ReplicationTarget(**{k: v for k, v in t.items() if k in ReplicationTarget.__dataclass_fields__})
+            for t in raw_targets
+            if isinstance(t, dict)
+        ]
+        logger.info("  -> %d replication targets", len(spec.replication_targets))
+
+    # ── L4: Data (database, sample, frequency) ──
+    logger.info("L4: Extracting data requirements...")
+    l4 = await _call_llm_json(
+        L4_DATA_PROMPT.format(
+            strategy_name=spec.strategy_name,
+            strategy_type=spec.strategy_type,
+            content=pc.full_text,
+            strategy_focus=strategy_focus,
+        ),
+        model=model,
+    )
+    if l4:
+        spec.data_source = l4.get("data_source", "")
+        spec.data_frequency = l4.get("data_frequency", "daily")
+        spec.price_data = l4.get("price_data", True)
+        spec.volume_data = l4.get("volume_data", False)
+        spec.fundamental_data = l4.get("fundamental_data", [])
+        spec.alternative_data = l4.get("alternative_data", [])
+        spec.lookback_period = l4.get("lookback_period")
+        spec.universe_assets = l4.get("universe_assets", [])
+        sample_start = l4.get("sample_start", "")
+        sample_end = l4.get("sample_end", "")
+        if sample_start or sample_end:
+            spec.time_period = f"{sample_start} to {sample_end}"
+        logger.info("  -> %s, %s", spec.data_source, spec.time_period or "(no period)")
+
+    # ── L5: Universe (structured filter) ──
+    logger.info("L5: Extracting universe filter...")
+    l5 = await _call_llm_json(
+        L5_UNIVERSE_PROMPT.format(
+            strategy_name=spec.strategy_name,
+            data_source=spec.data_source,
+            content=pc.full_text,
+        ),
+        model=model,
+    )
+    if l5:
+        spec.methodology = Methodology(
+            share_codes=l5.get("share_codes", []),
+            exchanges=l5.get("exchanges", []),
+            price_filter=l5.get("price_filter"),
+            delisting_adjustment=l5.get("delisting_adjustment"),
+            breakpoint_universe=l5.get("breakpoint_universe", ""),
+            sample_start=sample_start if l4 else "",
+            sample_end=sample_end if l4 else "",
+            data_frequency=spec.data_frequency,
+            rebalancing_frequency=l5.get("rebalancing_frequency", ""),
+        )
+        # Also fill legacy free-text field for backward compat
+        parts = []
+        if spec.methodology.share_codes:
+            parts.append(f"shrcd in {spec.methodology.share_codes}")
+        if spec.methodology.exchanges:
+            parts.append(f"exchcd in {spec.methodology.exchanges}")
+        if spec.methodology.price_filter:
+            parts.append(f"price >= ${spec.methodology.price_filter}")
+        spec.universe_selection_criteria = ", ".join(parts)
+        logger.info("  -> shrcd=%s, exchcd=%s, price_filter=%s",
+                     spec.methodology.share_codes, spec.methodology.exchanges,
+                     spec.methodology.price_filter)
+
+    # ── L6: Signal (indicators + formulas) ──
+    logger.info("L6: Extracting indicators...")
+    l6 = await _call_llm_json(
+        L6_SIGNAL_PROMPT.format(
+            strategy_name=spec.strategy_name,
+            strategy_type=spec.strategy_type,
+            description=spec.description,
+            content=pc.full_text,
+            strategy_focus=strategy_focus,
+            instruction_context=instruction_context,
+        ),
+        model=model,
+    )
+    if l6:
+        raw_indicators = l6.get("indicators", []) if isinstance(l6, dict) else (l6 if isinstance(l6, list) else [])
         spec.indicators = [
             Indicator(**{k: v for k, v in ind.items() if k in Indicator.__dataclass_fields__})
             for ind in raw_indicators
             if isinstance(ind, dict)
         ]
-        logger.info("  → %d indicators", len(spec.indicators))
+        logger.info("  -> %d indicators", len(spec.indicators))
 
-    # ── Layer 3: Logic Pipeline ──
-    logger.info("Layer 3: Extracting logic pipeline...")
+    # ── L7: Portfolio (logic pipeline) ──
+    logger.info("L7: Extracting logic pipeline...")
     indicators_summary = "\n".join(
         f"  - {ind.indicator_id}: {ind.name} ({ind.category}, {ind.scope}, output={ind.output_type})"
         for ind in spec.indicators
     ) or "  (no indicators extracted)"
-    prompt = LAYER3_LOGIC_PIPELINE_PROMPT.format(
-        strategy_name=spec.strategy_name,
-        strategy_type=spec.strategy_type,
-        indicators_summary=indicators_summary,
-        content=pc.full_text,
-        strategy_focus=strategy_focus,
-        instruction_context=instruction_context,
+    l7 = await _call_llm_json(
+        L7_PORTFOLIO_PROMPT.format(
+            strategy_name=spec.strategy_name,
+            strategy_type=spec.strategy_type,
+            indicators_summary=indicators_summary,
+            content=pc.full_text,
+            strategy_focus=strategy_focus,
+            instruction_context=instruction_context,
+        ),
+        model=model,
     )
-    l3 = await _call_llm_json(prompt, model=model)
-    if l3:
-        if isinstance(l3, list):
-            raw_steps = l3
-        else:
-            raw_steps = l3.get("logic_pipeline", [])
+    if l7:
+        raw_steps = l7.get("logic_pipeline", []) if isinstance(l7, dict) else (l7 if isinstance(l7, list) else [])
         spec.logic_pipeline = [
             LogicStep(**{k: v for k, v in step.items() if k in LogicStep.__dataclass_fields__})
             for step in raw_steps
@@ -357,38 +451,43 @@ async def _extract_multilayer(
         for step in spec.logic_pipeline:
             step.output_type = _infer_output_type(step.output, step.output_type)
         _canonicalize_portfolio_weight_outputs(spec)
-        logger.info("  → %d logic steps", len(spec.logic_pipeline))
+        logger.info("  -> %d logic steps", len(spec.logic_pipeline))
 
-    # ── Layer 4: Execution Plan + Risk ──
-    logger.info("Layer 4: Extracting execution plan...")
+    # ── L8: Execution (informed by targets + logic) ──
+    logger.info("L8: Extracting execution plan...")
     logic_summary = "\n".join(
-        f"  - {step.step_id}: {step.description} → output={step.output} ({step.output_type})"
+        f"  - {step.step_id}: {step.description} -> output={step.output} ({step.output_type})"
         for step in spec.logic_pipeline
     ) or "  (no logic pipeline extracted)"
-    prompt = LAYER4_EXECUTION_PROMPT.format(
-        strategy_name=spec.strategy_name,
-        strategy_type=spec.strategy_type,
-        logic_summary=logic_summary,
-        content=pc.full_text,
-        strategy_focus=strategy_focus,
-        instruction_context=instruction_context,
+    targets_summary = "\n".join(
+        f"  - [{t.id}] {t.description} (paper: {t.paper_value}, tolerance: {t.tolerance})"
+        for t in spec.replication_targets
+    ) or "  (no replication targets)"
+    l8 = await _call_llm_json(
+        L8_EXECUTION_PROMPT.format(
+            strategy_name=spec.strategy_name,
+            strategy_type=spec.strategy_type,
+            logic_summary=logic_summary,
+            targets_summary=targets_summary,
+            content=pc.full_text,
+            strategy_focus=strategy_focus,
+            instruction_context=instruction_context,
+        ),
+        model=model,
     )
-    l4 = await _call_llm_json(prompt, model=model)
-    if l4:
-        if isinstance(l4, list):
-            raw_plans = l4
-        else:
-            raw_plans = l4.get("execution_plan", [])
+    if l8:
+        raw_plans = l8.get("execution_plan", []) if isinstance(l8, dict) else (l8 if isinstance(l8, list) else [])
         spec.execution_plan = [_parse_execution_plan(p) for p in raw_plans if isinstance(p, dict)]
-        spec.risk_management = l4.get("risk_management", [])
-        spec.executable_explanation = l4.get("executable_explanation")
-        spec.risk_management_executable_explanation = l4.get("risk_management_executable_explanation")
-        spec.needs_human_review = l4.get("needs_human_review", spec.needs_human_review)
-        logger.info("  → %d execution plans, %d risk rules", len(spec.execution_plan), len(spec.risk_management))
+        spec.risk_management = l8.get("risk_management", [])
+        spec.executable_explanation = l8.get("executable_explanation")
+        spec.risk_management_executable_explanation = l8.get("risk_management_executable_explanation")
+        spec.needs_human_review = l8.get("needs_human_review", spec.needs_human_review)
+        logger.info("  -> %d execution plans, %d risk rules", len(spec.execution_plan), len(spec.risk_management))
 
     logger.info(
-        "Extraction complete: %s — %d indicators, %d logic steps, %d exec plans",
+        "Extraction complete: %s — %d targets, %d indicators, %d logic steps, %d exec plans",
         spec.strategy_name,
+        len(spec.replication_targets),
         len(spec.indicators),
         len(spec.logic_pipeline),
         len(spec.execution_plan),

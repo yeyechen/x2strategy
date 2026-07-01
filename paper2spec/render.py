@@ -9,6 +9,8 @@ from paper2spec.models import (
     ExtractionResult,
     Indicator,
     LogicStep,
+    Methodology,
+    ReplicationTarget,
     ExecutionPlan,
     PaperContent,
     StrategySpec,
@@ -84,6 +86,17 @@ def _render_strategy(spec: StrategySpec) -> list[str]:
         lines += ["", spec.description]
     lines.append("")
 
+    # ── Replication Targets ──
+    if spec.replication_targets:
+        lines += [f"### Replication Targets ({len(spec.replication_targets)})", ""]
+        lines.append("| ID | Metric | Paper Value | Tolerance | Table Ref |")
+        lines.append("|:---|:-------|:------------|:----------|:----------|")
+        for t in spec.replication_targets:
+            val = f"{t.paper_value}" if t.paper_value is not None else "?"
+            tol = f"±{t.tolerance}" if t.tolerance is not None else "?"
+            lines.append(f"| `{t.id}` | {t.metric} | {val} | {tol} | {t.table_ref} |")
+        lines.append("")
+
     # ── Data Requirements ──
     data_items: list[str] = []
     if spec.data_source:
@@ -93,7 +106,21 @@ def _render_strategy(spec: StrategySpec) -> list[str]:
     data_items.append(f"**Frequency**: {spec.data_frequency}")
     if spec.universe_assets:
         data_items.append(f"**Universe**: {', '.join(spec.universe_assets)}")
-    if spec.universe_selection_criteria:
+
+    # Structured methodology (L5) takes precedence over legacy free-text
+    if spec.methodology:
+        m = spec.methodology
+        if m.share_codes:
+            data_items.append(f"**Share codes**: {m.share_codes}")
+        if m.exchanges:
+            data_items.append(f"**Exchanges**: {m.exchanges}")
+        if m.price_filter is not None:
+            data_items.append(f"**Price filter**: ${m.price_filter}")
+        if m.delisting_adjustment is not None:
+            data_items.append(f"**Delisting adj.**: {m.delisting_adjustment}")
+        if m.breakpoint_universe:
+            data_items.append(f"**Breakpoints**: {m.breakpoint_universe}")
+    elif spec.universe_selection_criteria:
         data_items.append(f"**Filters**: {spec.universe_selection_criteria}")
 
     data_fields: list[str] = []

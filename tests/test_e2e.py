@@ -1,8 +1,8 @@
-"""End-to-end tests: parse → extract.
+"""End-to-end tests: parse -> extract.
 
 Coverage plan:
   1. Extractor (Layer 0): multi-strategy detection with mock LLM
-  2. Extractor (Layers 1-4): full multilayer pipeline with mock LLM
+  2. Extractor (Layers 1-8): full 9-layer pipeline with mock LLM
   3. Extractor (multi-strategy): multiple strategies with mock LLM
 
 All tests in this file are deterministic: mocked LLM, synthetic
@@ -25,7 +25,7 @@ from paper2spec.models import (
 
 # ── Constants ────────────────────────────────────────────────
 
-# Realistic mock LLM responses for each layer
+# Realistic mock LLM responses for each layer (9-layer structure)
 _MOCK_LAYER0_SINGLE = json.dumps({
     "num_strategies": 1,
     "strategies": [
@@ -66,28 +66,94 @@ _MOCK_LAYER0_MULTI = json.dumps({
     ],
 })
 
-_MOCK_LAYER1 = json.dumps({
+_MOCK_L1_METADATA = json.dumps({
     "strategy_name": "Time-Series Momentum",
     "strategy_type": "technical",
     "asset_class": ["equity"],
     "description": "Go long winners and short losers based on past 12-month return.",
+})
+
+_MOCK_L2_TABLE_SCAN = json.dumps({
+    "candidates": [
+        {
+            "table_ref": "Table III",
+            "description": "Q5-Q1 VW monthly spread",
+            "metric": "decile_spread",
+            "value": 1.2,
+            "tstat": 3.5,
+            "unit": "percent_per_month",
+        },
+        {
+            "table_ref": "Table I",
+            "description": "Summary statistics",
+            "metric": "summary_stat",
+            "value": 0.5,
+            "tstat": None,
+            "unit": "count",
+        },
+        {
+            "table_ref": "Table V",
+            "description": "FM regression momentum coefficient",
+            "metric": "fama_macbeth_coef",
+            "value": 0.008,
+            "tstat": 2.1,
+            "unit": "coefficient",
+        },
+    ]
+})
+
+_MOCK_L3_TARGETS = json.dumps({
+    "replication_targets": [
+        {
+            "id": "q5_q1_spread_vw",
+            "description": "Table III: Q5-Q1 VW monthly spread",
+            "table_ref": "Table III",
+            "metric": "decile_spread",
+            "paper_value": 1.2,
+            "paper_tstat": 3.5,
+            "unit": "percent_per_month",
+            "tolerance": 0.30,
+            "rationale": "Headline portfolio result",
+            "weighting": "VW",
+        },
+        {
+            "id": "fm_mom_coef",
+            "description": "Table V: FM regression momentum coefficient",
+            "table_ref": "Table V",
+            "metric": "fama_macbeth_coef",
+            "paper_value": 0.008,
+            "paper_tstat": 2.1,
+            "unit": "coefficient",
+            "tolerance": 0.002,
+            "rationale": "Headline cross-sectional result",
+            "variable": "MOM_12_1",
+        },
+    ]
+})
+
+_MOCK_L4_DATA = json.dumps({
+    "data_source": "CRSP",
+    "sample_start": "1963-01-01",
+    "sample_end": "2020-12-31",
+    "data_frequency": "daily",
     "price_data": True,
     "volume_data": False,
     "fundamental_data": [],
     "alternative_data": [],
     "lookback_period": 252,
-    "data_frequency": "daily",
-    "data_source": "CRSP",
-    "time_period": "1963-2020",
     "universe_assets": ["NYSE", "AMEX", "NASDAQ"],
-    "universe_selection_criteria": "Price > $5, Market cap > 20th NYSE pctile",
-    "expected_sharpe": 0.85,
-    "expected_return": 0.12,
-    "max_drawdown": -0.35,
-    "expected_performance": {"monthly_alpha": 0.008},
 })
 
-_MOCK_LAYER2 = json.dumps({
+_MOCK_L5_UNIVERSE = json.dumps({
+    "share_codes": [10, 11],
+    "exchanges": [1, 2, 3],
+    "price_filter": 5.0,
+    "delisting_adjustment": True,
+    "breakpoint_universe": "NYSE",
+    "rebalancing_frequency": "monthly",
+})
+
+_MOCK_L6_SIGNAL = json.dumps({
     "indicators": [
         {
             "indicator_id": "MOM_12_1",
@@ -114,7 +180,7 @@ _MOCK_LAYER2 = json.dumps({
     ]
 })
 
-_MOCK_LAYER3 = json.dumps({
+_MOCK_L7_PORTFOLIO = json.dumps({
     "logic_pipeline": [
         {
             "step_id": "S1",
@@ -155,7 +221,7 @@ _MOCK_LAYER3 = json.dumps({
     ]
 })
 
-_MOCK_LAYER4 = json.dumps({
+_MOCK_L8_EXECUTION = json.dumps({
     "execution_plan": [
         {
             "plan_id": "EP1",
@@ -193,30 +259,39 @@ _MOCK_LAYER4 = json.dumps({
 def _make_layer_router(layer0_response: str = _MOCK_LAYER0_SINGLE):
     """Create an async LLM mock that returns the appropriate layer response.
 
-    Matches prompts by unique keywords from the actual prompt templates in prompts.py.
+    Matches prompts by unique first-line phrases from each prompt template.
     """
 
     async def router(prompt: str, *, system: str = "", model=None, **kwargs) -> str:
         p = prompt.lower()
 
-        # Layer 0: "how many independent trading strategies"
+        # L0: Strategy detection
         if "how many independent" in p or "num_strategies" in p[:800]:
             return layer0_response
-        # Layer 4: "execution plan and risk management" — must check BEFORE Layer 3
-        if "execution plan and risk management" in p or "position_sizing" in p[:800]:
-            return _MOCK_LAYER4
-        # Layer 3: "logic pipeline that transforms indicators"
-        if "logic pipeline" in p[:500] and "transforms" in p[:500]:
-            return _MOCK_LAYER3
-        # Layer 2: "all indicators, factors, and computed signals"
-        if "indicators, factors" in p[:500] or "indicator_id" in p[:800]:
-            return _MOCK_LAYER2
-        # Layer 1: "strategy metadata and data requirements"
-        if "metadata and data" in p[:500] or "asset_class" in p[:800]:
-            return _MOCK_LAYER1
-        # Legacy single-call: "executable strategy specification"
-        if "executable strategy specification" in p[:500] or "convert the extracted" in p[:500]:
-            return _MOCK_LAYER1
+        # L8: Execution (check before L7)
+        if "extract the execution plan" in p[:500] or "position_sizing" in p[:800]:
+            return _MOCK_L8_EXECUTION
+        # L7: Portfolio (logic pipeline)
+        if "extract the logic pipeline" in p[:500]:
+            return _MOCK_L7_PORTFOLIO
+        # L6: Signal (indicators)
+        if "extract all indicators" in p[:500] or "indicator_id" in p[:800]:
+            return _MOCK_L6_SIGNAL
+        # L5: Universe
+        if "extract the stock universe filter" in p[:500] or "breakpoint_universe" in p[:800]:
+            return _MOCK_L5_UNIVERSE
+        # L4: Data
+        if "data requirements from this research" in p[:500] or "sample_start" in p[:800]:
+            return _MOCK_L4_DATA
+        # L3: Target selection
+        if "top 3 results" in p[:500] or "replication_targets" in p[:800]:
+            return _MOCK_L3_TARGETS
+        # L2: Table scan
+        if "results tables" in p[:500] or "candidates" in p[:800]:
+            return _MOCK_L2_TABLE_SCAN
+        # L1: Metadata
+        if "basic strategy metadata" in p[:500] or "asset_class" in p[:800]:
+            return _MOCK_L1_METADATA
         # Parser prompts (from parser.py templates)
         if "synthesize the trading strategy methodology" in p[:500]:
             return "The strategy uses 12-1 month momentum sorted into quintiles."
@@ -462,15 +537,22 @@ class TestExtractorMultilayer:
 
     @pytest.mark.asyncio
     @patch("paper2spec.extractor.achat", new_callable=AsyncMock)
-    async def test_performance_metrics_extracted(self, mock_achat, momentum_paper_content):
+    async def test_replication_targets_extracted(self, mock_achat, momentum_paper_content):
+        """Replication targets should be extracted by L3."""
         mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_SINGLE)
         from paper2spec.extractor import aextract_spec
         result = await aextract_spec(momentum_paper_content)
 
         spec = result.strategies[0]
-        assert spec.expected_sharpe == 0.85
-        assert spec.expected_return == 0.12
-        assert spec.max_drawdown == -0.35
+        assert len(spec.replication_targets) == 2
+        ids = [t.id for t in spec.replication_targets]
+        assert "q5_q1_spread_vw" in ids
+        assert "fm_mom_coef" in ids
+        # Check values
+        spread = [t for t in spec.replication_targets if t.id == "q5_q1_spread_vw"][0]
+        assert spread.paper_value == 1.2
+        assert spread.tolerance == 0.30
+        assert spread.metric == "decile_spread"
 
 
 class TestExtractorMultiStrategy:
@@ -497,7 +579,7 @@ class TestExtractorMultiStrategy:
         """Each strategy should retain its Layer 0 name when L1 returns paper title."""
         # Override logic triggers when L1 returns strategy_name == paper title.
         # Create a Layer 1 mock that returns the paper title to trigger override.
-        l1_data = json.loads(_MOCK_LAYER1)
+        l1_data = json.loads(_MOCK_L1_METADATA)
         l1_data["strategy_name"] = pairs_paper_content.title
         l1_with_paper_title = json.dumps(l1_data)
 
@@ -505,7 +587,7 @@ class TestExtractorMultiStrategy:
 
         async def router_with_title_override(prompt, *, system="", model=None, **kwargs):
             p = prompt.lower()
-            if "metadata and data" in p[:500] or "asset_class" in p[:800]:
+            if "basic strategy metadata" in p[:500] or "asset_class" in p[:800]:
                 return l1_with_paper_title
             return await base_router(prompt, system=system, model=model, **kwargs)
 
@@ -520,10 +602,10 @@ class TestExtractorMultiStrategy:
     @pytest.mark.asyncio
     @patch("paper2spec.extractor.achat", new_callable=AsyncMock)
     async def test_multi_strategy_llm_call_count(self, mock_achat, pairs_paper_content):
-        """3 strategies × 4 layers + 1 Layer 0 = 13 LLM calls."""
+        """3 strategies x 8 layers + 1 Layer 0 = 25 LLM calls."""
         mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_MULTI)
         from paper2spec.extractor import aextract_spec
         await aextract_spec(pairs_paper_content)
-        # Layer 0 (1) + 3 strategies × 4 layers (12) = 13
+        # Layer 0 (1) + 3 strategies x 8 layers (24) = 25
         # But _call_llm_json may retry on failures, so check minimum
-        assert mock_achat.call_count >= 13
+        assert mock_achat.call_count >= 25
