@@ -82,7 +82,7 @@ class TestExtractSpecSingleStrategy:
             strategy_type="technical",
         )
 
-        result = extract_spec(paper_content, mode="multilayer")
+        result = extract_spec(paper_content)
 
         assert isinstance(result, ExtractionResult)
         assert result.num_detected == 1
@@ -110,7 +110,7 @@ class TestExtractSpecMultiStrategy:
             StrategySpec(strategy_name="Strategy B", strategy_type="fundamental"),
         ]
 
-        result = extract_spec(paper_content, mode="multilayer")
+        result = extract_spec(paper_content)
 
         assert result.num_detected == 2
         assert len(result.strategies) == 2
@@ -136,7 +136,7 @@ class TestExtractSpecMultiStrategy:
             StrategySpec(strategy_name=""),  # empty
         ]
 
-        result = extract_spec(paper_content, mode="multilayer")
+        result = extract_spec(paper_content)
 
         assert result.strategies[0].strategy_name == "Real Name A"
         assert result.strategies[1].strategy_name == "Real Name B"

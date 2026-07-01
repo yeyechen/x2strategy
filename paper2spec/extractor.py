@@ -8,7 +8,7 @@ Multi-layer extraction architecture (inspired by production QSA pipeline):
   Layer 4: Execution Plan + Risk Management
 
 Each layer is a focused LLM call with targeted prompts, producing
-higher-quality structured output than a single monolithic call.
+higher-quality structured output than a single monolithic call would.
 
 Multi-strategy support:
   When a paper contains N>1 independent strategies, Layer 0 detects them
@@ -41,7 +41,6 @@ from paper2spec.prompts import (
     LAYER2_INDICATORS_PROMPT,
     LAYER3_LOGIC_PIPELINE_PROMPT,
     LAYER4_EXECUTION_PROMPT,
-    SPECIFICATION_PROMPT,
     SYSTEM_PROMPT,
 )
 
@@ -57,27 +56,24 @@ def extract_spec(
     paper_content: "str | PaperContent",
     *,
     model: Optional[str] = None,
-    mode: str = "multilayer",
     instruction_context: str = "",
 ) -> ExtractionResult:
-    """Synchronous: content.md string or PaperContent → ExtractionResult.
+    """Synchronous: content.md string or PaperContent -> ExtractionResult.
 
     Args:
         paper_content: Full markdown string (content.md) or PaperContent.
         model: Override LLM model string.
-        mode: "multilayer" (4 focused calls, recommended) or "single" (1 call, legacy).
     """
-    return asyncio.run(aextract_spec(paper_content, model=model, mode=mode, instruction_context=instruction_context))
+    return asyncio.run(aextract_spec(paper_content, model=model, instruction_context=instruction_context))
 
 
 async def aextract_spec(
     paper_content: "str | PaperContent",
     *,
     model: Optional[str] = None,
-    mode: str = "multilayer",
     instruction_context: str = "",
 ) -> ExtractionResult:
-    """Async: content.md string or PaperContent → ExtractionResult."""
+    """Async: content.md string or PaperContent -> ExtractionResult."""
     # Accept both str (new content.md) and PaperContent (backward compat)
     if isinstance(paper_content, str):
         pc = PaperContent(full_text=paper_content)
@@ -85,14 +81,6 @@ async def aextract_spec(
         pc.abstract = _extract_abstract_from_md(paper_content)
     else:
         pc = paper_content
-    if mode == "single":
-        spec = await _extract_single_call(pc, model=model, instruction_context=instruction_context)
-        _postprocess_spec(spec)
-        return ExtractionResult(
-            strategies=[spec],
-            paper_title=pc.title,
-            num_detected=1,
-        )
 
     # Layer 0: Detect strategies
     briefs = await _detect_strategies(pc, model=model)
@@ -406,23 +394,6 @@ async def _extract_multilayer(
         len(spec.execution_plan),
     )
     return spec
-
-
-# ── Single-call extraction (legacy, simpler) ─────────────────
-
-
-async def _extract_single_call(
-    pc: PaperContent, *, model: Optional[str] = None, instruction_context: str = ""
-) -> StrategySpec:
-    """Original single-prompt extraction (kept for comparison / fallback)."""
-    prompt = SPECIFICATION_PROMPT.format(
-        title=pc.title,
-        content=pc.full_text,
-        instruction_context=instruction_context,
-    )
-    raw = await achat(prompt, system=SYSTEM_PROMPT, model=model, max_tokens=8192)
-    spec_dict = _parse_json_response(raw)
-    return StrategySpec.from_dict(spec_dict)
 
 
 # ── LLM call with retry + JSON extraction ────────────────────

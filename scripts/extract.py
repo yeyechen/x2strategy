@@ -84,12 +84,6 @@ def main():
         help="Override LLM model",
     )
     parser.add_argument(
-        "--mode",
-        choices=["multilayer", "single"],
-        default="multilayer",
-        help="Extraction mode: 'multilayer' (4 focused LLM calls, default) or 'single' (1 call, legacy)",
-    )
-    parser.add_argument(
         "--instruction",
         action="append",
         default=[],
@@ -128,7 +122,7 @@ def main():
         logging.info("Loaded %d chars of instruction/clarification context", len(instruction_context))
 
     # Extract (returns ExtractionResult with list of specs)
-    result = extract_spec(pc, model=args.model, mode=args.mode, instruction_context=instruction_context)
+    result = extract_spec(pc, model=args.model, instruction_context=instruction_context)
 
     # Output path
     if args.output:

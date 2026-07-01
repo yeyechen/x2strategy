@@ -76,12 +76,6 @@ def main():
         help="Override the auto-derived paper slug (filesystem-safe identifier)",
     )
     parser.add_argument(
-        "--extractor-mode",
-        choices=["multilayer", "single"],
-        default="multilayer",
-        help="Extractor mode: 'multilayer' (recommended) or 'single' (legacy)",
-    )
-    parser.add_argument(
         "--instruction",
         action="append",
         default=[],
@@ -135,7 +129,7 @@ def main():
     instruction_context = _load_instruction_context(args.instruction, args.instructions_dir)
     if instruction_context:
         print(f"   Loaded instruction/clarification context ({len(instruction_context):,} chars)")
-    result = extract_spec(pc, model=args.model, mode=args.extractor_mode, instruction_context=instruction_context)
+    result = extract_spec(pc, model=args.model, instruction_context=instruction_context)
 
     # Write ExtractionResult JSON + Markdown to inputs/
     spec_json_path = layout.input_path("spec.json")
@@ -165,7 +159,6 @@ def main():
         "source_filename": src_basename,
         "source_format": os.path.splitext(src_basename)[1].lower(),
         "paper_title": pc.title,
-        "extractor_mode": args.extractor_mode,
         "instruction_files": args.instruction,
         "instructions_dir": args.instructions_dir or "",
         "instruction_context_chars": len(instruction_context),

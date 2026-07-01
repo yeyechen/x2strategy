@@ -384,7 +384,7 @@ class TestExtractorMultilayer:
     async def test_single_strategy_full_pipeline(self, mock_achat, momentum_paper_content):
         mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_SINGLE)
         from paper2spec.extractor import aextract_spec
-        result = await aextract_spec(momentum_paper_content, mode="multilayer")
+        result = await aextract_spec(momentum_paper_content)
 
         assert isinstance(result, ExtractionResult)
         assert result.num_detected == 1
@@ -403,7 +403,7 @@ class TestExtractorMultilayer:
     async def test_indicators_extracted(self, mock_achat, momentum_paper_content):
         mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_SINGLE)
         from paper2spec.extractor import aextract_spec
-        result = await aextract_spec(momentum_paper_content, mode="multilayer")
+        result = await aextract_spec(momentum_paper_content)
 
         spec = result.strategies[0]
         assert len(spec.indicators) == 2
@@ -422,7 +422,7 @@ class TestExtractorMultilayer:
     async def test_logic_pipeline_extracted(self, mock_achat, momentum_paper_content):
         mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_SINGLE)
         from paper2spec.extractor import aextract_spec
-        result = await aextract_spec(momentum_paper_content, mode="multilayer")
+        result = await aextract_spec(momentum_paper_content)
 
         spec = result.strategies[0]
         assert len(spec.logic_pipeline) == 3
@@ -438,7 +438,7 @@ class TestExtractorMultilayer:
     async def test_execution_plan_extracted(self, mock_achat, momentum_paper_content):
         mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_SINGLE)
         from paper2spec.extractor import aextract_spec
-        result = await aextract_spec(momentum_paper_content, mode="multilayer")
+        result = await aextract_spec(momentum_paper_content)
 
         spec = result.strategies[0]
         assert len(spec.execution_plan) == 1
@@ -454,7 +454,7 @@ class TestExtractorMultilayer:
     async def test_risk_management_extracted(self, mock_achat, momentum_paper_content):
         mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_SINGLE)
         from paper2spec.extractor import aextract_spec
-        result = await aextract_spec(momentum_paper_content, mode="multilayer")
+        result = await aextract_spec(momentum_paper_content)
 
         spec = result.strategies[0]
         assert len(spec.risk_management) == 2
@@ -465,7 +465,7 @@ class TestExtractorMultilayer:
     async def test_performance_metrics_extracted(self, mock_achat, momentum_paper_content):
         mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_SINGLE)
         from paper2spec.extractor import aextract_spec
-        result = await aextract_spec(momentum_paper_content, mode="multilayer")
+        result = await aextract_spec(momentum_paper_content)
 
         spec = result.strategies[0]
         assert spec.expected_sharpe == 0.85
@@ -481,7 +481,7 @@ class TestExtractorMultiStrategy:
     async def test_multi_strategy_extraction(self, mock_achat, pairs_paper_content):
         mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_MULTI)
         from paper2spec.extractor import aextract_spec
-        result = await aextract_spec(pairs_paper_content, mode="multilayer")
+        result = await aextract_spec(pairs_paper_content)
 
         assert result.num_detected == 3
         assert len(result.strategies) == 3
@@ -511,7 +511,7 @@ class TestExtractorMultiStrategy:
 
         mock_achat.side_effect = router_with_title_override
         from paper2spec.extractor import aextract_spec
-        result = await aextract_spec(pairs_paper_content, mode="multilayer")
+        result = await aextract_spec(pairs_paper_content)
 
         names = [s.strategy_name for s in result.strategies]
         brief_names = {"Distance Method Pairs Trading", "Cointegration Pairs Trading", "Copula Pairs Trading"}
@@ -523,7 +523,7 @@ class TestExtractorMultiStrategy:
         """3 strategies × 4 layers + 1 Layer 0 = 13 LLM calls."""
         mock_achat.side_effect = _make_layer_router(_MOCK_LAYER0_MULTI)
         from paper2spec.extractor import aextract_spec
-        await aextract_spec(pairs_paper_content, mode="multilayer")
+        await aextract_spec(pairs_paper_content)
         # Layer 0 (1) + 3 strategies × 4 layers (12) = 13
         # But _call_llm_json may retry on failures, so check minimum
         assert mock_achat.call_count >= 13
