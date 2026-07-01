@@ -463,7 +463,7 @@ For US equity strategies, SPY must be included as the market baseline in any ass
 4. paper2spec: extract candidate specs/plans
 5. paper2spec: select target plan/spec and repair with extraction_quality + matched pitfalls
 6. HITL: inspect needs_human_review and resolve through interactive dialog
-7. Data bridge: extract requirements, match against ClickHouse catalog
+7. Data verification: map abstract spec fields to concrete ClickHouse columns, write data_requirements.json, run extract_requirements.py to verify and produce data_match_report.json
 8. spec2code: generate code using matched tables, validate, run backtest
 9. Diagnose results and ask next action
 ```
