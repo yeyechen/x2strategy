@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DataRequirements",
+  "description": "Agent-produced map of abstract spec data needs to concrete ClickHouse columns. Verified by scripts/extract_requirements.py against clickhouse_catalog.json.",
+  "type": "object",
+  "required": ["requirements"],
+  "properties": {
+    "paper": {
+      "type": "string",
+      "description": "Paper title / identifier."
+    },
+    "slug": {
+      "type": "string",
+      "description": "Replication slug."
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "fields"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Short identifier for this data need (e.g. 'daily_stock_returns')."
+          },
+          "description": {
+            "type": "string",
+            "description": "Human-readable purpose."
+          },
+          "fields": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 1,
+            "description": "Concrete ClickHouse column names the agent chose."
+          },
+          "date_range": {
+            "type": "array",
+            "items": {"type": "string"},
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "[start, end] ISO dates."
+          },
+          "frequency": {
+            "type": "string",
+            "enum": ["daily", "monthly", "quarterly", "annual", "irregular"],
+            "description": "Data frequency."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

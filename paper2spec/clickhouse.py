@@ -133,7 +133,7 @@ def discover_schema(output_path: str | None = None) -> dict[str, Any]:
     ``resources/clickhouse_catalog.json``) and also returned as a dict.
     """
     cfg = get_clickhouse_config()
-    base_url = f"http://{cfg['host']}:{cfg['port']}/"
+    base_url = f"http://{cfg['host']}:{cfg['http_port']}/"
     # Build auth WITHOUT locking to a single database
     auth = _build_auth(cfg, include_database=False)
 

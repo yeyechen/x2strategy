@@ -196,6 +196,8 @@ Just tell me what you want to do, and I will handle the rest.
 
 Use one workflow for all tasks. Do not choose between competing routers.
 
+**Default: start fresh.** Do not read prior `replications/<slug>` iterations (e.g. `max_v7`, `fip_v3`) unless the user explicitly asks you to. Each replication runs the pipeline from scratch — prior runs bias the agent toward inherited (possibly buggy) choices and waste turns on exploration the user didn't request.
+
 1. **Setup** — verify `.env`, replications path, API key if needed, Python environment, and user-selected scope.
 2. **Input confirmation** — identify the paper/spec/data/instruction files or search results; ask whether to add clarification, constraints, selected-plan preferences, known pitfalls, or reference files.
 3. **paper2spec: PDF/text to content** — parse the selected document into grounded content artifacts.
@@ -209,7 +211,24 @@ Use one workflow for all tasks. Do not choose between competing routers.
      3. Continue with code generation
      4. Document the auto-decisions in `results/diagnosis.md` so the user can see them after the run
    - If none exists, still report that review found no open items and ask for implementation approval (only when interactive).
-7. **Data verification** — read `inputs/spec.json` + `content.md` + `paper2spec/resources/clickhouse_catalog.json`. Map the spec's abstract data needs to concrete ClickHouse columns (e.g. "Book-to-Market" → `bkvlps, ceq, seq, at` from `comp.funda`; daily CRSP → `permno, date, prc, ret, vol, shrout` from `crsp.dsf`). Write `diagnostics/data_requirements.json` with your field choices. Then run `scripts/extract_requirements.py <slug>/diagnostics/data_requirements.json` to verify those fields exist in the catalog and produce `diagnostics/data_match_report.json`. If gaps appear, adjust your field choices or report to the user. This report is the single source of truth for code generation — never fall back to yfinance or hardcoded ticker lists. **Do not attempt to connect to ClickHouse during code generation** — the host is on a private network. Use the catalog JSON and match report for schema info; the generated code connects at runtime via ``os.getenv()``.
+ 7. **Data verification** — read `inputs/spec.json` + `content.md` + `paper2spec/resources/clickhouse_catalog.json`. The catalog is a JSON file on disk — use the Read tool to inspect it directly (its top-level keys are `generated_at`, `host`, `databases`); do NOT shell out to `python -c` to explore it. Map the spec's abstract data needs to concrete ClickHouse columns (e.g. "Book-to-Market" → `bkvlps, ceq, seq, at` from `comp.funda`; daily CRSP → `permno, date, prc, ret, vol, shrout` from `crsp.dsf`). Write `diagnostics/data_requirements.json` with **exactly** this shape (validated by `schemas/data_requirements.schema.json`):
+
+     ```json
+     {
+       "paper": "Bali, Cakici & Whitelaw (2011) — MAX Effect",
+       "requirements": [
+         {
+           "id": "daily_stock_returns",
+           "description": "CRSP daily stock file: returns, price, shares for MAX signal",
+           "fields": ["date", "permno", "ret", "prc", "shrout"],
+           "date_range": ["1962-01-01", "2006-01-01"],
+           "frequency": "daily"
+         }
+       ]
+     }
+     ```
+
+     The top-level key MUST be `requirements` (a list); each entry needs `id` + `fields`. Other keys (`paper`, `slug`) are optional metadata. Then run `scripts/extract_requirements.py <slug>/diagnostics/data_requirements.json` to verify those fields exist in the catalog and produce `diagnostics/data_match_report.json` — the script fails loudly (exit 2) if the shape is wrong. If gaps appear, adjust your field choices or report to the user. This report is the single source of truth for code generation — never fall back to yfinance or hardcoded ticker lists. **Do not attempt to connect to ClickHouse during code generation** — the host is on a private network. Use the catalog JSON and match report for schema info; the generated code connects at runtime via ``os.getenv()``.
 8. **spec2code** — after data verification, read `data_match_report.json` and generate code that queries ClickHouse via HTTP for all data. See `references/spec2code.md` §Data Source for the required pattern. Do not use yfinance or any other external API for data.
 9. **Validation/backtest/diagnosis** — validate generated code, run available checks/backtests, compare against expected or reference outputs, summarize mismatches, then ask what to do next.
 
@@ -463,7 +482,7 @@ For US equity strategies, SPY must be included as the market baseline in any ass
 4. paper2spec: extract candidate specs/plans
 5. paper2spec: select target plan/spec and repair with extraction_quality + matched pitfalls
 6. HITL: inspect needs_human_review and resolve through interactive dialog
-7. Data verification: map abstract spec fields to concrete ClickHouse columns, write data_requirements.json, run extract_requirements.py to verify and produce data_match_report.json
+7. Data verification: Read clickhouse_catalog.json directly (Read tool, not python -c). Map abstract spec fields to concrete ClickHouse columns, write data_requirements.json with the {requirements: [{id, fields, ...}]} shape, run extract_requirements.py to verify and produce data_match_report.json
 8. spec2code: generate code using matched tables, validate, run backtest
 9. Diagnose results and ask next action
 ```

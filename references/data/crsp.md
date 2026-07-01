@@ -163,6 +163,26 @@ can be done against `dsfhdr` (cheaper). Use `dsenames` when you need
 point-in-time SIC codes, ticker history, or the explicit validity
 windows.
 
+#### Gotcha: do NOT date-filter `dsenames` by your paper's sample window
+
+`namedt` is the *name-start* date (when this name record became valid),
+not a trading date. Filtering `namedt >= '1962-01-01'` silently excludes
+every stock that was already listed before your sample start — the
+opposite of what you want. Correct patterns:
+
+- **Fetch the full `dsenames` history** (no date filter, or a very wide
+  range like `1900-01-01 .. 2100-01-01`) and merge onto `dsf` on
+  `permno`, then apply `nameendt >= date >= namedt` to pick the
+  right name record per stock-day.
+- **Or use `dsfhdr`** for a cheaper point-in-time share/exchange code
+  lookup — it carries `hshrcd` / `hexcd` valid as of each header
+  snapshot, keyed by `permno`.
+
+Also: when calling `fetch_data_cached(..., date_col="namedt")`, the
+`date_col` column **must** be included in the `columns` list — the
+helper sets the DataFrame index from it and will raise a `KeyError`
+otherwise.
+
 ## Other useful tables in `crsp_202601`
 
 These are all in the same `crsp_202601` database — not separate

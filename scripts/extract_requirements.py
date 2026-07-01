@@ -77,7 +77,36 @@ def main():
     with open(requirements_path, encoding="utf-8") as f:
         requirements = json.load(f)
 
-    reqs = requirements.get("requirements", [])
+    # Validate top-level shape — fail loudly instead of silently producing
+    # an empty match report (the agent must use the "requirements" key).
+    if "requirements" not in requirements:
+        top_keys = list(requirements.keys())
+        print(
+            f"ERROR: {requirements_path.name} is missing the 'requirements' key.\n"
+            f"  Found top-level keys: {top_keys}\n"
+            f"  Expected shape:\n"
+            f"    {{\n"
+            f"      \"paper\": \"...\",\n"
+            f"      \"requirements\": [\n"
+            f"        {{\"id\": \"...\", \"description\": \"...\", "
+            f"\"fields\": [\"col1\", \"col2\"], \"date_range\": [\"...\", \"...\"], "
+            f"\"frequency\": \"daily|monthly\"}}\n"
+            f"      ]\n"
+            f"    }}\n"
+            f"  Rewrite the file with this shape and re-run.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+    reqs = requirements["requirements"]
+    if not reqs:
+        print(
+            f"ERROR: {requirements_path.name} has an empty 'requirements' list.\n"
+            f"  At least one requirement entry is expected.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     print(f"📄 Loaded {len(reqs)} data requirement(s) from {requirements_path}")
     for r in reqs:
         print(f"   [{r['id']}] {r.get('description', '')[:80]}...")

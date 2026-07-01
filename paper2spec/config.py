@@ -41,11 +41,19 @@ def get_replications_path(default: str = "./replications") -> str:
 
 
 def get_clickhouse_config() -> dict[str, str]:
-    """Return ClickHouse connection parameters from environment."""
+    """Return ClickHouse connection parameters from environment.
+
+    Two ports are returned because the project uses two protocols:
+      * ``port``      — native TCP (9000), used by the generated strategy
+        code via ``clickhouse_driver.Client``.
+      * ``http_port`` — HTTP (8123), used by ``paper2spec.clickhouse``
+        schema discovery (``urllib.request``).
+    """
     load_project_env()
     return {
         "host": os.getenv("CLICKHOUSE_HOST", "localhost"),
         "port": os.getenv("CLICKHOUSE_PORT", "9000"),
+        "http_port": os.getenv("CLICKHOUSE_HTTP_PORT", "8123"),
         "user": os.getenv("CLICKHOUSE_USER", "default"),
         "password": os.getenv("CLICKHOUSE_PASSWORD", ""),
         "database": os.getenv("CLICKHOUSE_DATABASE", "default"),

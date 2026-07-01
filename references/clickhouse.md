@@ -19,7 +19,14 @@ connection will work when the user runs ``strategy.py`` from their terminal.
 ## Connection
 
 Credentials are read from ``.env`` via ``paper2spec.config.get_clickhouse_config()``.
-Use the native TCP driver (port 9000):
+Two ports are used because the project uses two protocols:
+
+| Protocol | Port | Env var | Used by |
+|----------|------|---------|---------|
+| native TCP | 9000 | `CLICKHOUSE_PORT` | generated strategy code (`clickhouse_driver.Client`) |
+| HTTP | 8123 | `CLICKHOUSE_HTTP_PORT` | schema discovery (`paper2spec.clickhouse.discover_schema`) |
+
+Use the native TCP driver (port 9000) in generated strategy code:
 
 ```python
 from clickhouse_driver import Client
@@ -28,8 +35,8 @@ rows = client.execute("SELECT 1")
 ```
 
 The native driver returns proper Python ``None`` for NULL values — no ``\\N``
-workaround needed.  For HTTP fallback, use port 8123 with
-``urllib.request`` + ``FORMAT TabSeparatedWithNames``.
+workaround needed.  HTTP (port 8123) is only used by the catalog discovery
+script (`scripts/discover_clickhouse.py`), not by generated strategies.
 
 ---
 

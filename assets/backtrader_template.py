@@ -147,7 +147,11 @@ def fetch_data_cached(table: str, columns: list[str], start: str,
     ``columns`` are the SQL column names to select.
     ``extra_where`` is an optional additional WHERE clause (e.g. share codes).
     """
-    cols_str = ", ".join(columns)
+    # Ensure date_col is selected — it's needed for the index and WHERE clause.
+    select_cols = list(columns)
+    if date_col not in select_cols:
+        select_cols = [date_col, *select_cols]
+    cols_str = ", ".join(select_cols)
     cache_key = f"{table.replace('.', '_')}_{start}_{end}"
     if extra_where:
         cache_key += "_filtered"
@@ -167,11 +171,11 @@ def fetch_data_cached(table: str, columns: list[str], start: str,
         f"ORDER BY {date_col}"
     )
     rows = _clickhouse_query(query)
-    df = pd.DataFrame(rows, columns=columns)
+    if not rows:
+        raise ValueError(f"No data returned for {table} ({start}..{end})")
+    df = pd.DataFrame(rows, columns=select_cols)
     if extra_where:
         pass  # filters applied in WHERE clause above
-    if df is None or df.empty:
-        raise ValueError(f"No data returned for {table} ({start}..{end})")
     df[date_col] = pd.to_datetime(df[date_col])
     df = df.set_index(date_col)
     df.to_parquet(cache_path)
