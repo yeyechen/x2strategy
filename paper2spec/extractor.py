@@ -482,6 +482,7 @@ async def _extract_multilayer(
         spec.executable_explanation = l8.get("executable_explanation")
         spec.risk_management_executable_explanation = l8.get("risk_management_executable_explanation")
         spec.needs_human_review = l8.get("needs_human_review", spec.needs_human_review)
+        spec.convention_resolutions = l8.get("convention_resolutions", spec.convention_resolutions)
         logger.info("  -> %d execution plans, %d risk rules", len(spec.execution_plan), len(spec.risk_management))
 
     logger.info(

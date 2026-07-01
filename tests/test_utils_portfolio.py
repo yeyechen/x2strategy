@@ -129,6 +129,21 @@ class TestLongShort:
         with pytest.raises(PortfolioError, match="missing columns"):
             long_short(df, "month", "EW")
 
+    def test_flip_sign(self):
+        """flip_sign=True negates the return (paper D10-D1 convention)."""
+        bins_df = pd.DataFrame({
+            "month": pd.to_datetime(["2020-01-31", "2020-01-31"]),
+            "bin": [1, 10],
+            "VW": [0.02, -0.01],
+        })
+        # Without flip: long(1) - short(10) = 0.02 - (-0.01) = 0.03
+        out_normal = long_short(bins_df, "month", "VW", long_bin=1, short_bin=10)
+        assert out_normal["ret"].iloc[0] == pytest.approx(0.03)
+
+        # With flip: -(0.03) = -0.03 (paper D10-D1 convention)
+        out_flip = long_short(bins_df, "month", "VW", long_bin=1, short_bin=10, flip_sign=True)
+        assert out_flip["ret"].iloc[0] == pytest.approx(-0.03)
+
 
 # ── forward_returns ──────────────────────────────────────────
 

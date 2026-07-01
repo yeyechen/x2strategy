@@ -68,18 +68,50 @@ def _find_metrics_json(slug_or_path: str) -> Path:
 def _extract_replicated_value(metrics: dict, target: dict) -> float | None:
     """Find the replicated value for a target in metrics.json.
 
-    Tries the target's 'id' as a key in metrics, then falls back to
-    common naming patterns.
+    Searches recursively through nested dicts. Tries the target's 'id'
+    as a key at any level, then falls back to common naming patterns.
     """
     target_id = target.get("id", "")
-    # Direct match
-    if target_id in metrics:
-        return _to_float(metrics[target_id])
+
+    def _search_nested(obj, key):
+        """Recursively search for key in nested dicts."""
+        if isinstance(obj, dict):
+            if key in obj:
+                return _to_float(obj[key])
+            for v in obj.values():
+                result = _search_nested(v, key)
+                if result is not None:
+                    return result
+        elif isinstance(obj, list):
+            for item in obj:
+                result = _search_nested(item, key)
+                if result is not None:
+                    return result
+        return None
+
+    # Direct match (recursive)
+    if target_id:
+        result = _search_nested(metrics, target_id)
+        if result is not None:
+            return result
     # Try common suffixes/prefixes
-    for key in metrics:
+    for key in _flatten_keys(metrics):
         if target_id in key or key in target_id:
-            return _to_float(metrics[key])
+            result = _search_nested(metrics, key)
+            if result is not None:
+                return result
     return None
+
+
+def _flatten_keys(obj, prefix=""):
+    """Yield all keys in a nested dict structure."""
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            yield k
+            yield from _flatten_keys(v, k)
+    elif isinstance(obj, list):
+        for item in obj:
+            yield from _flatten_keys(item, prefix)
 
 
 def _to_float(val) -> float | None:

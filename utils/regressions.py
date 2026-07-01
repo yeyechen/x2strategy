@@ -142,12 +142,12 @@ def fama_macbeth(
       1. Drop inf / NaN rows.
       2. Winsorize each independent variable to (pct, 1-pct) within each
          time period — controls for outliers.
-      3. Standardize each independent variable to z-score within each
-         time period — so coefficients are comparable across periods.
-      4. Per time period, fit cross-sectional OLS of
-         ``dependent_var ~ const + independent_vars``.
-      5. Time-series average the coefficients.
-      6. Newey-West HAC standard errors (default 2 lags) on the
+      3. Per time period, fit cross-sectional OLS of
+         ``dependent_var ~ const + independent_vars`` on RAW (unstandardized)
+         variables. Coefficients are directly comparable to paper-reported
+         raw coefficients — do NOT z-score.
+      4. Time-series average the coefficients.
+      5. Newey-West HAC standard errors (default 2 lags) on the
          coefficient time series.
 
     Args:
@@ -230,36 +230,21 @@ def fama_macbeth(
     if clean_df.empty:
         raise RegressionError("fama_macbeth: no rows after dropping inf/NaN")
 
-    # 2 + 3. Winsorize then standardize within each time period.
+    # 2. Winsorize independent variables within each time period.
     # We use `transform` instead of `apply` because apply drops the group
     # key column from the result, which breaks subsequent groupbys.
     def _winsorize_col(s: pd.Series) -> pd.Series:
         lo, hi = s.quantile([winsorize_pct, 1 - winsorize_pct])
         return s.clip(lower=lo, upper=hi)
 
-    def _standardize_col(s: pd.Series) -> pd.Series:
-        std = s.std()
-        if std > 0:
-            return (s - s.mean()) / std
-        # Zero-variance regressor within this period — keep at 0 so the
-        # OLS doesn't blow up. The corresponding coefficient will be
-        # NaN or zero and gets filtered below.
-        return pd.Series(0.0, index=s.index)
-
-    winsorized = clean_df.copy()
+    reg_df = clean_df.copy()
     for var in independent_vars:
-        winsorized[var] = (
+        reg_df[var] = (
             clean_df.groupby(time_col)[var].transform(_winsorize_col)
         )
 
-    standardized = winsorized.copy()
-    for var in independent_vars:
-        standardized[var] = (
-            winsorized.groupby(time_col)[var].transform(_standardize_col)
-        )
-
-    # 4. Per-period OLS (parallelized)
-    grouped = list(standardized.groupby(time_col))
+    # 3. Per-period OLS on RAW (unstandardized) variables (parallelized)
+    grouped = list(reg_df.groupby(time_col))
 
     def _fit_one(time_val: object, group: pd.DataFrame):
         return time_val, _run_ols(

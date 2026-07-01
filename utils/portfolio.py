@@ -106,6 +106,7 @@ def long_short(
     short_bin: Optional[int] = None,
     bin_col: str = "bin",
     ret_col: Optional[str] = None,
+    flip_sign: bool = False,
 ) -> pd.DataFrame:
     """Construct a long-short portfolio by subtracting two bins.
 
@@ -138,10 +139,15 @@ def long_short(
         ret_col: DEPRECATED. Use ``weighting=`` instead. If provided,
             overrides ``weighting`` for backward compatibility. Emits a
             :class:`DeprecationWarning`.
+        flip_sign: If True, multiply the return by -1. Use this when
+            the paper reports the spread as "high minus low" (e.g.,
+            D10-D1) but you are long the low bin (long_bin=1,
+            short_bin=10). Default False (ret = long - short).
 
     Returns:
         DataFrame with one row per date, columns ``date_col`` and ``"ret"``
-        where ``ret`` is ``long_minus_short`` of the chosen return column.
+        where ``ret`` is ``long_minus_short`` of the chosen return column
+        (or the negation if ``flip_sign=True``).
 
     Raises:
         PortfolioError: if columns are missing, if either bin is empty, or
@@ -205,6 +211,8 @@ def long_short(
 
     merged = pd.merge(long_data, short_data, on=date_col, how="inner")
     merged["ret"] = merged[f"{actual_ret_col}_long"] - merged[f"{actual_ret_col}_short"]
+    if flip_sign:
+        merged["ret"] = -merged["ret"]
     return merged[[date_col, "ret"]].reset_index(drop=True)
 
 

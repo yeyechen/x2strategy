@@ -282,9 +282,16 @@ FIELD DEFINITIONS:
 - rebalancing_frequency: "monthly", "quarterly", "annual".
 
 RULES:
-1. If the paper explicitly states a value, use it.
-2. If the paper is SILENT on a field, use null (not a default). The convention defaults from references/paper_conventions.md will fill in later.
-3. Do NOT guess — null is better than a wrong value.
+ 1. If the paper explicitly states a value, use it.
+ 2. If the paper is SILENT on a field, apply the standard convention default from references/paper_conventions.md:
+    - share_codes: [10, 11] (ordinary common shares) for US equity papers
+    - exchanges: [1, 2, 3] (NYSE, AMEX, NASDAQ) for US equity papers
+    - price_filter: 5.0 (minimum $5 price floor) for US equity papers
+    - delisting_adjustment: true if the paper mentions "delisting" or "survivorship"
+    - breakpoint_universe: "NYSE" for US equity papers (Fama-French convention)
+    - rebalancing_frequency: "monthly" for most academic papers
+ 3. Only use null if the field is genuinely not applicable (e.g., share_codes for a futures strategy).
+ 4. Do NOT leave fields null when a convention default exists — the convention defaults are the standard practice and should be applied automatically.
 
 Output ONLY valid JSON."""
 
@@ -540,18 +547,23 @@ ACTION LOGIC FORMAT (pseudo-code):
     "WHEN long_signal=True: LONG; WHEN long_signal=False: EXIT"
     "WHEN spread_zscore < -2: LONG stock_A, SHORT stock_B; WHEN |zscore| < 0.5: CLOSE ALL"
 
-INSTRUCTIONS:
-1. trigger_type: "time_driven" for calendar-based rebalancing, "signal_driven" for indicator-triggered
-2. frequency: Match the paper's rebalancing frequency (most academic papers use monthly or quarterly)
-3. delay_bars: Set to 1 for lookahead bias prevention (execute next bar after signal)
-4. signal_source: Reference the tradable output from logic_pipeline. If final return series exists after portfolio_weights, use portfolio_weights for orders and the return series only for metrics/reporting.
-5. logic: Use pseudo-code describing which signal values trigger which actions
-6. method: Use direct_weight when final output is portfolio_weights; equal_weight/quantile_based/signal_based only for categorical signals; volatility_scaled only when paper explicitly changes traded order weights.
-7. long_short: "long_only" if paper only tests long positions, "long_short" if both
-8. risk_management: Extract any stop-loss, position limits, drawdown constraints mentioned
-9. If the paper doesn't specify a rule, use null or omit — don't fabricate constraints, fully invested assumptions, leverage caps, position caps, stop-losses, or drawdown limits.
-10. For direct_weight, state portfolio_weights are target-exposure fractions for order_target_percent, not shares/contracts/order sizes.
-11. If paper reports/evaluates returns scaled to annual volatility, separate raw order path from reported/evaluation path. Add a sizing step only when needed for reporting, with parameters target_annualized_volatility, annualization_factor, ddof=1, scale_type="ex_post_reported_evaluation_scale", not_live_risk_rule=true. Do not overwrite raw order_weights unless explicitly live-traded.
-12. needs_human_review items must be structured: {{"field_path":"...","label":"...","reason":"...","questions":["..."]}}.
+ INSTRUCTIONS:
+ 1. trigger_type: "time_driven" for calendar-based rebalancing, "signal_driven" for indicator-triggered
+ 2. frequency: Match the paper's rebalancing frequency (most academic papers use monthly or quarterly)
+ 3. delay_bars: Set to 1 for lookahead bias prevention (execute next bar after signal)
+ 4. signal_source: Reference the tradable output from logic_pipeline. If final return series exists after portfolio_weights, use portfolio_weights for orders and the return series only for metrics/reporting.
+ 5. logic: Use pseudo-code describing which signal values trigger which actions
+ 6. method: Use direct_weight when final output is portfolio_weights; equal_weight/quantile_based/signal_based only for categorical signals; volatility_scaled only when paper explicitly changes traded order weights.
+ 7. long_short: "long_only" if paper only tests long positions, "long_short" if both
+ 8. risk_management: Extract any stop-loss, position limits, drawdown constraints mentioned
+ 9. If the paper doesn't specify a rule, use null or omit — don't fabricate constraints, fully invested assumptions, leverage caps, position caps, stop-losses, or drawdown limits.
+ 10. For direct_weight, state portfolio_weights are target-exposure fractions for order_target_percent, not shares/contracts/order sizes.
+ 11. If paper reports/evaluates returns scaled to annual volatility, separate raw order path from reported/evaluation path. Add a sizing step only when needed for reporting, with parameters target_annualized_volatility, annualization_factor, ddof=1, scale_type="ex_post_reported_evaluation_scale", not_live_risk_rule=true. Do not overwrite raw order_weights unless explicitly live-traded.
+ 12. needs_human_review items must be structured: {{"field_path":"...","label":"...","reason":"...","questions":["..."]}}.
+ 13. REPLICATION TARGET ALIGNMENT — The execution plan MUST compute every replication target listed above. For each target:
+     - If metric is "decile_spread": ensure the portfolio sorts into the correct number of bins and computes the long-short spread.
+     - If metric is "fama_macbeth_coef": ensure the code runs a Fama-MacBeth regression with the target's "variable" as a regressor. If the target's "factors" list is EMPTY, run a UNIVARI regression (variable alone, no controls). If "factors" is non-empty, include those factors as controls.
+     - If metric is "factor_alpha": ensure the code runs a time-series factor regression with the listed "factors" on the long-short portfolio.
+ 14. Each target's "id" must appear as a top-level key in metrics.json with the replicated value, so validate_replication.py can find it.
 
 Output ONLY valid JSON."""

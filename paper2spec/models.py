@@ -292,6 +292,7 @@ class StrategySpec:
     executable_explanation: Optional[str] = None
     risk_management_executable_explanation: Optional[str] = None
     needs_human_review: List[Dict[str, Any]] = field(default_factory=list)
+    convention_resolutions: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return asdict(self)

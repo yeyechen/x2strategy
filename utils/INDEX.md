@@ -84,6 +84,16 @@ uv run pytest tests/test_utils_canonical_usage.py -x
   betas. Use `factor_alpha` when the paper reports a factor-model
   alpha on a portfolio (Carhart 4-factor, FF3, FF5); use `fama_macbeth`
   when the paper runs cross-sectional regressions of returns on signals.
+- **`fama_macbeth` returns RAW coefficients** (not z-scored / standardized).
+  The coefficients are directly comparable to paper-reported values.
+  Access them via `result.summary["mean"]` and `result.summary["t_stat"]`
+  — there is NO `.coefficients` or `.t_stats` attribute on the result.
+- **`factor_alpha` parameter names:** use `portfolio_returns=` (not
+  `port_rets=`), `factor_returns=`, `factors=`, `rf_col=` (not `rf=`).
+- **`long_short` returns `long - short`** by default. If the paper
+  reports `high - low` (e.g., D10-D1) and you're long the low bin
+  (long_bin=1, short_bin=10), pass `flip_sign=True`.
+- **`plot_decile_spread` has NO `title=` parameter.** Don't pass one.
 
 ---
 

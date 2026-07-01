@@ -24,7 +24,9 @@ def synthetic_cross_section():
     The true model is:
         ret = 0.02 + 0.5 * signal + 0.1 * z + noise
     so the Fama-MacBeth average coefficient on `signal` should be ~0.5
-    and on `z` should be ~0.1.
+    and on `z` should be ~0.1. signal and z are N(0,1), so raw and
+    standardized coefficients are similar — but the test checks RAW
+    coefficients (no z-scoring in fama_macbeth).
     """
     rng = np.random.default_rng(0)
     rows = []
@@ -121,6 +123,37 @@ class TestFamaMacbeth:
         # Should run on the 8 valid rows after dropping nan/inf
         result = fama_macbeth(df, "y", ["x"], time_col="month")
         assert result.summary["n_valid_periods"] == 1
+
+    def test_raw_coefficients_not_standardized(self):
+        """fama_macbeth must return RAW coefficients, not z-scored.
+
+        If signal has std=0.1 (not 1.0), the raw coefficient is 10x
+        the standardized coefficient. Verify we get the raw one.
+        """
+        rng = np.random.default_rng(42)
+        rows = []
+        for m in range(80):
+            date = pd.Timestamp("2015-01-31") + pd.DateOffset(months=m)
+            for s in range(100):
+                # Signal with std=0.1, true raw coef = 2.0
+                signal = rng.normal(0, 0.1)
+                noise = rng.normal(0, 0.01)
+                ret = 0.01 + 2.0 * signal + noise
+                rows.append({"month": date, "permno": s,
+                             "signal": signal, "ret": ret})
+        df = pd.DataFrame(rows)
+
+        result = fama_macbeth(df, "ret", ["signal"], time_col="month")
+        mean = result.summary["mean"]
+
+        # Raw coefficient should be ~2.0. If standardized, it would be ~0.2.
+        assert mean["signal"] == pytest.approx(2.0, abs=0.3)
+        # Explicitly check it's NOT the standardized value
+        assert abs(mean["signal"]) > 1.0, (
+            "fama_macbeth appears to be standardizing — coefficient "
+            f"{mean['signal']:.4f} is too small for raw coef=2.0 with "
+            "signal std=0.1 (standardized would be ~0.2)"
+        )
 
 
 # ── summarize_fama_macbeth ───────────────────────────────────
