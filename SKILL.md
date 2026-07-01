@@ -211,7 +211,7 @@ Use one workflow for all tasks. Do not choose between competing routers.
      3. Continue with code generation
      4. Document the auto-decisions in `results/diagnosis.md` so the user can see them after the run
    - If none exists, still report that review found no open items and ask for implementation approval (only when interactive).
- 7. **Data verification** — read `inputs/spec.json` + `content.md` + `paper2spec/resources/clickhouse_catalog.json`. The catalog is a JSON file on disk — use the Read tool to inspect it directly (its top-level keys are `generated_at`, `host`, `databases`, `database_families`); do NOT shell out to `python -c` to explore it. Use `database_families` to pick the default vintage (e.g. `crsp` → `crsp_202601`, `comp` → `comp_202509`) unless the paper specifies otherwise. Map the spec's abstract data needs to concrete ClickHouse columns (e.g. "Book-to-Market" → `bkvlps, ceq, seq, at` from `comp.funda`; daily CRSP → `permno, date, prc, ret, vol, shrout` from `crsp.dsf`). Write `diagnostics/data_requirements.json` with **exactly** this shape (validated by `schemas/data_requirements.schema.json`):
+ 7. **Data verification** — read `inputs/spec.json` + `content.md` + `paper2spec/resources/clickhouse_catalog.json`. The catalog is a **20 MB JSON file** — too large to Read directly. Use the **Grep tool** to search it (e.g. grep for `four_factor` or `dsfhdr`); use a `python -c` one-liner only to list database/table names matching a pattern. Its top-level keys are `generated_at`, `host`, `databases`, `database_families`. Use `database_families` to pick the default vintage (e.g. `crsp` → `crsp_202601`, `comp` → `comp_202601`) unless the paper specifies otherwise. Map the spec's abstract data needs to concrete ClickHouse columns (e.g. "Book-to-Market" → `bkvlps, ceq, seq, at` from `comp.funda`; daily CRSP → `permno, date, prc, ret, vol, shrout` from `crsp.dsf`). Write `diagnostics/data_requirements.json` with **exactly** this shape (validated by `schemas/data_requirements.schema.json`):
 
      ```json
      {
@@ -229,7 +229,12 @@ Use one workflow for all tasks. Do not choose between competing routers.
      ```
 
      The top-level key MUST be `requirements` (a list); each entry needs `id` + `fields`. Other keys (`paper`, `slug`) are optional metadata. Then run `scripts/extract_requirements.py <slug>/diagnostics/data_requirements.json` to verify those fields exist in the catalog and produce `diagnostics/data_match_report.json` — the script fails loudly (exit 2) if the shape is wrong. If gaps appear, adjust your field choices or report to the user. This report is the single source of truth for code generation — never fall back to yfinance or hardcoded ticker lists. **Do not attempt to connect to ClickHouse during code generation** — the host is on a private network. Use the catalog JSON and match report for schema info; the generated code connects at runtime via ``os.getenv()``.
- 8. **spec2code** — after data verification, read `data_match_report.json` and generate code that queries ClickHouse via HTTP for all data. See `references/spec2code.md` §Data Source for the required pattern. Do not use yfinance or any other external API for data. **For CRSP universe filtering** (share codes / exchange codes), use `utils.fetch_universe_filter(fetch_data_cached, ...)` instead of calling `fetch_data_cached` directly on `dsenames` — the primitive bakes in the correct wide-date-range query pattern (see `utils/INDEX.md`).
+ 8. **spec2code** — after data verification, read `data_match_report.json` and generate code that queries ClickHouse via HTTP for all data. See `references/spec2code.md` §Data Source for the required pattern. Do not use yfinance or any other external API for data. **For CRSP universe filtering** (share codes / exchange codes), use `utils.apply_universe_filter(daily, fetch_data_cached, ...)` instead of calling `fetch_data_cached` directly on `dsenames` or `dsfhdr` — the primitive does a point-in-time merge so a stock is included only for dates when it was actually a common stock (see `utils/INDEX.md`).
+
+    **Pre-generation checklist** (do this BEFORE writing `strategy.py`):
+    1. Read `references/data/crsp.md` §Gotchas (dsenames date-filter, `prc` abs(), `ret` sentinels, `dsfhdr` vs `dsenames`)
+    2. Read `utils/INDEX.md` — find the canonical pipeline for your strategy type and the primitives you'll call
+    3. Confirm `data_match_report.json` has ≥75% coverage; resolve gaps before coding
 9. **Validation/backtest/diagnosis** — validate generated code, run available checks/backtests, compare against expected or reference outputs, summarize mismatches, then ask what to do next.
 
 No bypass: never silently chain extraction → repair → implementation. User-provided papers, instructions, data files, existing specs, or reference outputs are evidence, not permission to skip review or HITL. Never generate code that uses yfinance or hardcoded ticker lists — always read `data_match_report.json` and query ClickHouse.
@@ -482,7 +487,7 @@ For US equity strategies, SPY must be included as the market baseline in any ass
 4. paper2spec: extract candidate specs/plans
 5. paper2spec: select target plan/spec and repair with extraction_quality + matched pitfalls
 6. HITL: inspect needs_human_review and resolve through interactive dialog
-7. Data verification: Read clickhouse_catalog.json directly (Read tool, not python -c). Map abstract spec fields to concrete ClickHouse columns, write data_requirements.json with the {requirements: [{id, fields, ...}]} shape, run extract_requirements.py to verify and produce data_match_report.json
+7. Data verification: Grep the 20MB clickhouse_catalog.json (not Read). Map abstract spec fields to concrete ClickHouse columns, write data_requirements.json with the {requirements: [{id, fields, ...}]} shape, run extract_requirements.py to verify and produce data_match_report.json
 8. spec2code: generate code using matched tables, validate, run backtest
 9. Diagnose results and ask next action
 ```

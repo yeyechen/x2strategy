@@ -85,11 +85,13 @@ from .regressions import (
     run_ols,
     fama_macbeth,
     summarize_fama_macbeth,
+    factor_alpha,
+    summarize_factor_alpha,
     RegressionError,
 )
 
 from .data import (
-    fetch_universe_filter,
+    apply_universe_filter,
     DataError,
 )
 
@@ -127,8 +129,10 @@ __all__ = [
     "run_ols",
     "fama_macbeth",
     "summarize_fama_macbeth",
+    "factor_alpha",
+    "summarize_factor_alpha",
     "RegressionError",
     # data access
-    "fetch_universe_filter",
+    "apply_universe_filter",
     "DataError",
 ]

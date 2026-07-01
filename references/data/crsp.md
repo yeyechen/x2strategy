@@ -69,6 +69,18 @@ editing an existing `strategy_*.py` to point at `crsp_202601`, don't —
 the file is generated, and the next regeneration will use the right
 vintage automatically once this doc is the source of truth.
 
+### Recommended tables for common tasks
+
+| Task | Use this table | Why not the other one |
+|------|---------------|----------------------|
+| Daily stock returns / prices | `crsp_202601.dsf` | The workhorse — one row per permno per day |
+| Monthly stock returns | `crsp_202601.msf` | Pre-aggregated monthly; cheaper than `dsf` for monthly-rebalanced strategies |
+| Market index (VW / EW) | `crsp_202601.dsi` (daily) or `crsp_202601.msi` (monthly) | `vwretd` = value-weighted return with dividends |
+| Universe filter (share/exchange code) | `crsp_202601.dsfhdr` (point-in-time) | `dsenames` works but is larger and the `namedt` date filter is a foot-gun (see §Gotchas). `dsfhdr` has `hshrcd`/`hexcd` with `begdat`/`enddat` validity windows — use `utils.apply_universe_filter()` which bakes in the correct pattern. |
+| Delisting returns | `crsp_202601.dsedelist` | Has `dlstcd` (delisting code) + `dlret` (delisting return). Critical for paper replications that "adjust for delistings." |
+| Company name / ticker history | `crsp_202601.dsenames` | Use when you need ticker/name changes over time, NOT for universe filtering |
+| Compustat link | `crsp_202601.ccmxpf_linktable` | Links CRSP `permno` to Compustat `gvkey` for fundamentals signals (B/M, ROE, profitability) |
+
 ## Tables
 
 ### `crsp_202601.dsf` — Daily Stock File

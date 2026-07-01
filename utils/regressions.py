@@ -395,5 +395,204 @@ def summarize_fama_macbeth(result: FamaMacBethResult) -> str:
     return "\n".join(lines)
 
 
+def factor_alpha(
+    portfolio_returns: pd.Series | pd.DataFrame,
+    factor_returns: pd.DataFrame,
+    factors: list[str],
+    rf_col: str = "rf",
+    ret_col: str = "ret",
+    n_lags: int = 0,
+    freq: str = "M",
+) -> dict[str, object]:
+    """Time-series regression of portfolio excess returns on factor returns.
+
+    This is the **time-series complement** to :func:`fama_macbeth`:
+    ``fama_macbeth`` runs cross-sectional regressions per period and
+    averages the coefficients; ``factor_alpha`` runs a single
+    time-series regression of the portfolio's excess returns on the
+    factor returns and reports the intercept (alpha) + factor loadings.
+
+    Used for any paper that reports a factor-model alpha (Carhart
+    4-factor, Fama-French 3-factor, 5-factor) on a long-short portfolio.
+
+    Args:
+        portfolio_returns: Portfolio return series. If a DataFrame, must
+            contain ``ret_col``; the index (or a ``date``/``month``
+            column) is used to align with ``factor_returns``. If a
+            Series, its index is used directly.
+        factor_returns: Factor returns DataFrame. Must contain all names
+            in ``factors`` plus ``rf_col``. Index must be alignable with
+            ``portfolio_returns`` (both PeriodIndex or both DatetimeIndex).
+        factors: List of factor column names in ``factor_returns``
+            (e.g. ``["mkt_rf", "smb", "hml", "mom"]`` for Carhart 4-factor).
+        rf_col: Risk-free rate column name in ``factor_returns``.
+        ret_col: Portfolio return column name if ``portfolio_returns``
+            is a DataFrame.
+        n_lags: Newey-West HAC lags for the alpha t-stat. Default 0
+            (= iid t-stat, appropriate for non-overlapping monthly
+            returns). Set to ``H-1`` for H-month overlapping cohorts.
+        freq: Return frequency for annualization (``"M"`` -> x12,
+            ``"D"`` -> x252, ``"Q"`` -> x4).
+
+    Returns:
+        Dict with keys (LITERALLY these names):
+
+            - ``"alpha_monthly"`` (float) -- regression intercept
+              (per-period, not annualized)
+            - ``"alpha_annualized_pct"`` (float) -- intercept x
+              annualization factor x 100
+            - ``"t_alpha_newey_west"`` (float) -- HAC t-stat on the
+              intercept
+            - ``"p_alpha"`` (float) -- two-sided p-value
+            - ``"betas"`` (pd.Series) -- factor loadings, indexed by
+              factor name
+            - ``"r_squared"`` (float) -- regression R-squared
+            - ``"n_obs"`` (int) -- number of observations used
+
+    Raises:
+        RegressionError: if statsmodels is not installed, if the merged
+            data is empty, or if there are insufficient observations.
+    """
+    try:
+        import statsmodels.api as sm
+        from statsmodels.stats.sandwich_covariance import cov_hac
+    except ImportError as e:
+        raise RegressionError(
+            "factor_alpha requires statsmodels -- "
+            "install with `uv pip install statsmodels`"
+        ) from e
+
+    # 1. Extract portfolio return as a Series
+    if isinstance(portfolio_returns, pd.DataFrame):
+        if ret_col not in portfolio_returns.columns:
+            raise RegressionError(
+                f"factor_alpha: '{ret_col}' not in portfolio_returns columns "
+                f"{list(portfolio_returns.columns)}"
+            )
+        port_ret = portfolio_returns[ret_col].copy()
+    else:
+        port_ret = portfolio_returns.copy()
+
+    # 2. Align portfolio returns with factor returns
+    if not isinstance(port_ret.index, type(factor_returns.index)):
+        try:
+            if not isinstance(port_ret.index, pd.PeriodIndex):
+                port_ret.index = pd.PeriodIndex(port_ret.index, freq=freq)
+            if not isinstance(factor_returns.index, pd.PeriodIndex):
+                factor_returns = factor_returns.copy()
+                factor_returns.index = pd.PeriodIndex(
+                    factor_returns.index, freq=freq
+                )
+        except Exception as e:
+            raise RegressionError(
+                f"factor_alpha: cannot align portfolio and factor indices "
+                f"({type(port_ret.index).__name__} vs "
+                f"{type(factor_returns.index).__name__}): {e}"
+            )
+
+    merged = port_ret.to_frame(name="__ret").join(factor_returns, how="inner").dropna()
+
+    if merged.empty:
+        raise RegressionError(
+            "factor_alpha: no overlapping observations after merging "
+            "portfolio and factor returns"
+        )
+
+    missing_factors = [f for f in factors if f not in merged.columns]
+    if missing_factors:
+        raise RegressionError(
+            f"factor_alpha: factors not in factor_returns: {missing_factors}"
+        )
+    if rf_col not in merged.columns:
+        raise RegressionError(
+            f"factor_alpha: risk-free column '{rf_col}' not in factor_returns"
+        )
+
+    # 3. OLS: excess return ~ const + factors
+    y = merged["__ret"].astype(float) - merged[rf_col].astype(float)
+    X = merged[factors].astype(float)
+    X = sm.add_constant(X)
+    model = sm.OLS(y, X).fit()
+
+    alpha = float(model.params["const"])
+    betas = model.params.drop("const")
+
+    # 4. Newey-West HAC t-stat on the intercept
+    n_obs = int(model.nobs)
+    if n_lags > 0 and n_obs > 2:
+        try:
+            cov = cov_hac(model, nlags=n_lags)
+            se_alpha = float(np.sqrt(cov[0, 0]))
+        except Exception:
+            se_alpha = float(model.bse["const"])
+    else:
+        se_alpha = float(model.bse["const"])
+
+    t_alpha = alpha / se_alpha if se_alpha > 0 else float("nan")
+
+    from scipy import stats as sp_stats
+    p_alpha = float(
+        2 * (1 - sp_stats.t.cdf(abs(t_alpha), df=n_obs - len(factors) - 1))
+    )
+
+    ann_factor = {"M": 12, "D": 252, "Q": 4, "W": 52, "A": 1}.get(freq, 12)
+    alpha_annualized_pct = alpha * ann_factor * 100
+
+    return {
+        "alpha_monthly": alpha,
+        "alpha_annualized_pct": alpha_annualized_pct,
+        "t_alpha_newey_west": t_alpha,
+        "p_alpha": p_alpha,
+        "betas": betas,
+        "r_squared": float(model.rsquared),
+        "n_obs": n_obs,
+    }
+
+
+def summarize_factor_alpha(
+    result: dict[str, object], model_name: str = "Factor"
+) -> str:
+    """Format a :func:`factor_alpha` result as a human-readable table.
+
+    Args:
+        result: dict returned by :func:`factor_alpha`.
+        model_name: header label (e.g. ``"Carhart 4-Factor"``).
+
+    Returns:
+        Multi-line string with the alpha, t-stat, betas, and R-squared.
+    """
+    lines = []
+    sep = "=" * 60
+    lines.append(sep)
+    lines.append(f"{model_name.upper()} TIME-SERIES REGRESSION")
+    lines.append(sep)
+    lines.append(f"N observations: {result['n_obs']}")
+    lines.append(f"R-squared:       {result['r_squared']:.4f}")
+    lines.append("-" * 60)
+    lines.append(f"Alpha (monthly):     {result['alpha_monthly']:.6f}")
+    lines.append(f"Alpha (annualized):  {result['alpha_annualized_pct']:.4f}%")
+    lines.append(f"t-stat (Newey-West): {result['t_alpha_newey_west']:.3f}")
+    p = result["p_alpha"]
+    if p < 0.001:
+        sig = "***"
+    elif p < 0.01:
+        sig = "**"
+    elif p < 0.05:
+        sig = "*"
+    else:
+        sig = ""
+    lines.append(f"p-value:             {p:.6f}{sig}")
+    lines.append("-" * 60)
+    lines.append(f"{'Factor':<20} {'Beta':<15}")
+    lines.append("-" * 60)
+    for factor, beta in result["betas"].items():
+        lines.append(f"{factor:<20} {beta:.6f}")
+    lines.append("-" * 60)
+    lines.append("Significance: *** p<0.001, ** p<0.01, * p<0.05")
+    lines.append(sep)
+    return "\n".join(lines)
+
+
 __all__ = ["run_ols", "fama_macbeth", "summarize_fama_macbeth",
+           "factor_alpha", "summarize_factor_alpha",
            "FamaMacBethResult", "RegressionError"]

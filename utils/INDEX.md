@@ -40,7 +40,8 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 | Run monthly cross-sectional regression | `fama_macbeth(panel, dependent_var, independent_vars, time_col)` | `FamaMacBethResult` (use `summarize_fama_macbeth` for text) |
 | Single OLS | `run_ols(df, dependent_var, independent_vars)` | dict with keys `params`, `rsquared`, `nobs` |
 | Load per-paper runtime config | `load_run_config(slug)` | dict |
-| Filter CRSP stocks by share/exchange code | `fetch_universe_filter(fetch_data_cached, shrcd_filter=[10,11], exchcd_filter=[1,2,3])` | `set[int]` of valid permnos |
+| Filter CRSP stocks by share/exchange code (point-in-time) | `apply_universe_filter(daily, fetch_data_cached, shrcd_filter=[10,11], exchcd_filter=[1,2,3])` | filtered `pd.DataFrame` (same structure as `daily`) |
+| Factor-model alpha (Carhart / FF3 / FF5) on a L/S portfolio | `factor_alpha(port_rets, factor_rets, factors=["mkt_rf","smb","hml","mom"])` | dict `{alpha_monthly, alpha_annualized_pct, t_alpha_newey_west, betas, r_squared, n_obs}` |
 
 ### Watch out
 
@@ -67,12 +68,22 @@ uv run pytest tests/test_utils_canonical_usage.py -x
   `ret_col_lst` (a LIST, not a single column name).
 - **`run_ols` returns only `params`, `rsquared`, `nobs`** — no
   `bse` or `pvalues`. Use statsmodels directly if you need those.
-- **`fetch_universe_filter` takes a callable, not a DataFrame.** Pass
-  the strategy's own `fetch_data_cached` as the first arg. It enforces
-  the correct `dsenames` query pattern (wide date range 1900-2100) —
-  do NOT call `fetch_data_cached` directly for share/exchange code
-  lookups or you'll silently exclude stocks listed before your sample
-  start.
+- **`apply_universe_filter` takes the daily DataFrame + a callable.** Pass
+  the strategy's own `fetch_data_cached` as the second arg. It uses
+  `dsfhdr` (point-in-time header records with validity windows) to do
+  a proper date-range merge — a stock is included for a given date
+  ONLY if its header record on that date passes the share/exchange code
+  filter. Do NOT call `fetch_data_cached` directly on `dsenames` or
+  `dsfhdr` for universe filtering, and do NOT filter by a set of
+  "ever-valid" permnos — that includes stocks that were REITs during
+  your sample period but became common stocks later.
+- **`factor_alpha` is the time-series complement to `fama_macbeth`.**
+  `fama_macbeth` runs cross-sectional regressions per period and
+  averages; `factor_alpha` runs one time-series regression of portfolio
+  excess returns on factor returns and reports the intercept (alpha) +
+  betas. Use `factor_alpha` when the paper reports a factor-model
+  alpha on a portfolio (Carhart 4-factor, FF3, FF5); use `fama_macbeth`
+  when the paper runs cross-sectional regressions of returns on signals.
 
 ---
 
