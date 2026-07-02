@@ -167,7 +167,8 @@ def run_backtest():
     cerebro.addstrategy(MyStrategy, period=20)
 
     cerebro.broker.setcash(100000)
-    cerebro.broker.setcommission(commission=0.001)
+    # NOTE: do NOT call setcommission() — academic papers report gross
+    # returns. See spec2code.md rule 16.
 
     # Standard analyzers — see "Analyzer Return Structures" below
     cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name='sharpe',

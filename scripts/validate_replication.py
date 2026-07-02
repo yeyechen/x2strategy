@@ -266,15 +266,16 @@ def main():
     with open(metrics_path, encoding="utf-8") as f:
         raw_metrics = json.load(f)
 
-    # metrics.json may be a list (one entry per commission rate) or a dict
-    if isinstance(raw_metrics, list):
-        # Use the first entry (0% commission — the academic standard)
-        metrics = raw_metrics[0] if raw_metrics else {}
-    elif isinstance(raw_metrics, dict):
-        metrics = raw_metrics
-    else:
-        print(f"ERROR: metrics.json is not a dict or list (got {type(raw_metrics).__name__})", file=sys.stderr)
+    # metrics.json is always a dict at the top level. (The old commission-
+    # sweep shape was a list of per-rate dicts; that machinery was removed
+    # in TODO #7 because academic papers report gross returns.)
+    if not isinstance(raw_metrics, dict):
+        print(
+            f"ERROR: metrics.json is not a dict (got {type(raw_metrics).__name__})",
+            file=sys.stderr,
+        )
         sys.exit(2)
+    metrics = raw_metrics
 
     # Compare each target
     results = []
