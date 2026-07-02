@@ -196,6 +196,22 @@ Just tell me what you want to do, and I will handle the rest.
 
 Use one workflow for all tasks. Do not choose between competing routers.
 
+**When uncertain, grep the paper's prose.** `inputs/content.md` is the
+ground truth for the paper's claims — long-leg direction, weighting
+convention, formation/holding period, FM regression setup, delisting
+adjustment, etc. `spec.json` is the LLM's structured extraction and can
+be wrong. Before guessing a methodology default, before blaming the
+primitives, before patching a runtime error that might be a spec
+error: grep `inputs/content.md` with specific keywords (e.g.
+`Fama-MacBeth`, `formation period`, `delisting`, `equal-weighted`).
+The file is 4,000+ lines; use the **Grep tool**, not Read. This
+applies throughout the workflow, not just one step. **No spec
+field, primitive, or convention should be invented without first
+verifying the paper text.** The four callouts below
+(`Default: start fresh`, `Self-cap on iterations`, `Read the
+per-signal direction`, `Always compute both EW and VW`) are
+specific applications of this rule.
+
 **Default: start fresh.** Do not read prior `replications/<slug>` iterations (e.g. `max_v7`, `fip_v3`) unless the user explicitly asks you to. Each replication runs the pipeline from scratch — prior runs bias the agent toward inherited (possibly buggy) choices and waste turns on exploration the user didn't request.
 
 **Self-cap on iterations.** `scripts/run_iteration_agent.sh` refuses to spawn a 6th agent for the same slug (5 max). If you are in agent #5 and the strategy is still failing, **stop patching runtime errors and report to the user**. The next iteration is the maintainer's job — they will inspect `replications/<slug>/results/metrics.json` and `logs/run.log`, then fix the skill (primitive, reference doc, or SKILL.md). Whack-a-mole iteration on a single broken strategy does not produce new information.
