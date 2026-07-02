@@ -174,8 +174,30 @@ def fama_macbeth(
         min_obs: minimum observations per period to fit. Default 5.
 
     Returns:
-        :class:`FamaMacBethResult` with the time-series of coefficients
-        and the summary dict.
+        :class:`FamaMacBethResult` (a dataclass) with these fields:
+
+        - ``coefficients`` (pd.DataFrame) — time-series of per-period
+          coefficients, one row per time period, one column per
+          independent variable. Index is the time_col values.
+        - ``summary`` (dict[str, pd.Series]) — **this is a dict, not a
+          DataFrame.** Keys: ``"mean"``, ``"std_error"``, ``"t_stat"``,
+          ``"p_value"``, ``"n_obs"``, ``"n_periods"``, ``"avg_r_squared"``.
+          Each value is a :class:`pd.Series` indexed by variable name.
+          **Do not call** ``summary.set_index("variable")`` — it is
+          already indexed. Access via ``summary["mean"]["pret"]``,
+          ``summary["t_stat"]["pret"]``, etc.
+        - ``n_periods`` (int) — number of periods with enough obs.
+        - ``avg_r_squared`` (float) — average cross-sectional R².
+
+        Example::
+
+            fm = fama_macbeth(panel, dependent_var="ret",
+                               independent_vars=["pret", "id", "pret_id"],
+                               time_col="month", n_lags=2)
+            print(fm.summary["mean"]["pret_id"])       # mean coefficient
+            print(fm.summary["t_stat"]["pret_id"])     # NW t-stat
+
+        Use :func:`summarize_fama_macbeth` for a formatted text table.
 
     Raises:
         RegressionError: if statsmodels is not installed, if neither
@@ -446,6 +468,25 @@ def factor_alpha(
             "factor_alpha requires statsmodels -- "
             "install with `uv pip install statsmodels`"
         ) from e
+
+    # 0. Validate inputs. The fip_v4 agent passed factor_returns as a
+    #    numpy array (factor_df.values), which silently produced NaN
+    #    because the column-name lookups inside the merge failed. Catch
+    #    that up front.
+    if not isinstance(factor_returns, pd.DataFrame):
+        raise RegressionError(
+            f"factor_alpha: factor_returns must be a pandas DataFrame "
+            f"with the listed 'factors' and '{rf_col}' as columns; "
+            f"got {type(factor_returns).__name__}. Pass the DataFrame "
+            f"itself, not .values (which strips the column names)."
+        )
+    missing_cols = [c for c in list(factors) + [rf_col] if c not in factor_returns.columns]
+    if missing_cols:
+        raise RegressionError(
+            f"factor_alpha: factor_returns is missing required columns "
+            f"{missing_cols}. Available columns: "
+            f"{list(factor_returns.columns)}"
+        )
 
     # 1. Extract portfolio return as a Series
     if isinstance(portfolio_returns, pd.DataFrame):

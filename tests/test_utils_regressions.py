@@ -285,14 +285,35 @@ class TestFactorAlpha:
 
     def test_missing_factor_raises(self, synthetic_factor_data):
         port, factors = synthetic_factor_data
-        with pytest.raises(RegressionError, match="factors not in"):
+        with pytest.raises(RegressionError, match="missing required columns"):
             factor_alpha(port, factors, factors=["nonexistent_factor"])
 
     def test_missing_rf_raises(self, synthetic_factor_data):
         port, factors = synthetic_factor_data
         factors_no_rf = factors.drop(columns=["rf"])
-        with pytest.raises(RegressionError, match="risk-free"):
+        with pytest.raises(RegressionError, match="missing required columns"):
             factor_alpha(port, factors_no_rf, factors=["mkt_rf"])
+
+    def test_factor_returns_ndarray_raises(self, synthetic_factor_data):
+        """fip_v4 bug: passing factor_returns as a numpy array (instead of
+        a DataFrame with named columns) silently produced NaN. The check
+        must raise a clear RegressionError before any attribute access.
+        """
+        port, factors = synthetic_factor_data
+        with pytest.raises(RegressionError, match="must be a pandas DataFrame"):
+            factor_alpha(
+                port, factors.values,  # numpy array, no .columns
+                factors=["mkt_rf"],
+            )
+
+    def test_factor_returns_missing_columns_raises(self, synthetic_factor_data):
+        """factor_returns is a DataFrame but missing required columns.
+        Catches the case where the agent drops a column before passing.
+        """
+        port, factors = synthetic_factor_data
+        factors_partial = factors.drop(columns=["rf"])
+        with pytest.raises(RegressionError, match="missing required columns"):
+            factor_alpha(port, factors_partial, factors=["mkt_rf"])
 
     def test_three_factor_model(self, synthetic_factor_data):
         """Works with 3-factor (FF) as well as 4-factor (Carhart)."""
