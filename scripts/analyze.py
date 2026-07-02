@@ -33,6 +33,7 @@ from paper2spec.models import PaperContent
 from paper2spec.parser import parse_document
 from paper2spec.paths import paper_layout
 from paper2spec.render import content_to_markdown, spec_to_markdown
+from utils.config import render_run_config, RunConfigError
 
 
 def _load_instruction_context(paths: list[str], instructions_dir: str | None) -> str:
@@ -143,6 +144,25 @@ def main():
     print(f"   → {spec_json_path} ({os.path.getsize(spec_json_path):,} bytes)")
     print(f"   → {spec_md_path}")
 
+    # ── Generate run_config.yaml from the spec ───────────────
+    # This is automatic so the agent can never forget to run
+    # `scripts/render_run_config.py` between spec extraction and
+    # strategy.py generation. The config is the single source of
+    # truth for run parameters — strategy.py should call
+    # `load_run_config(slug)` instead of hardcoding constants.
+    try:
+        spec_dict = json.loads(result.to_json())
+        run_config_yaml = render_run_config(spec_dict)
+        run_config_path = layout.config_path("run_config.yaml")
+        run_config_path.parent.mkdir(parents=True, exist_ok=True)
+        run_config_path.write_text(run_config_yaml, encoding="utf-8")
+        print(f"   → {run_config_path} (auto-generated from spec.json)")
+    except (RunConfigError, ValueError) as exc:
+        # Non-fatal: the agent can still generate the config manually
+        # via `scripts/render_run_config.py`. Log and continue.
+        logging.warning("Could not auto-generate run_config.yaml: %s", exc)
+        print(f"   ⚠  run_config.yaml not generated: {exc}")
+
     # Copy original source file into paper/ as original.pdf (per layout contract).
     # Skip if paper/original.pdf already exists — don't overwrite or duplicate.
     src_dest = layout.paper_pdf_path()  # default: original.pdf
@@ -185,6 +205,7 @@ def main():
     print(f"     inputs/spec.json             — StrategySpec (machine-readable)")
     print(f"     inputs/spec.md               — StrategySpec (human-readable)")
     print(f"     inputs/metadata.json         — Analysis metadata")
+    print(f"     config/run_config.yaml       — Per-paper run config (auto-generated from spec.json)")
 
 
 if __name__ == "__main__":
