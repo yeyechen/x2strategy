@@ -537,7 +537,10 @@ Extract as JSON:
         "Maximum sector exposure 25%"
     ],
     "risk_management_executable_explanation": "Single line: explicit risk rules present; if none, state none are specified.",
-    "needs_human_review": []
+    "needs_human_review": [],
+    "signals": [
+        {{"name": "<signal_name>", "long_leg": "high" | "low"}}
+    ]
 }}
 
 ACTION LOGIC FORMAT (pseudo-code):
@@ -565,5 +568,15 @@ ACTION LOGIC FORMAT (pseudo-code):
      - If metric is "fama_macbeth_coef": ensure the code runs a Fama-MacBeth regression with the target's "variable" as a regressor. If the target's "factors" list is EMPTY, run a UNIVARI regression (variable alone, no controls). If "factors" is non-empty, include those factors as controls.
      - If metric is "factor_alpha": ensure the code runs a time-series factor regression with the listed "factors" on the long-short portfolio.
  14. Each target's "id" must appear as a top-level key in metrics.json with the replicated value, so validate_replication.py can find it.
+ 15. SIGNALS / LONG-LEG DIRECTION — for each cross-sectional signal used by this strategy, declare which end of the signal's distribution is the long leg. This is what `render_run_config.py` reads to populate `run_config.yaml`'s `signals:` field; the strategy code reads `cfg["signals"][i]["long_leg"]` to construct the L/S portfolio. Encoded as:
+        "signals": [
+            {{"name": "<signal_name>", "long_leg": "high" | "low"}}
+        ]
+     Examples:
+       - Momentum / past-return signal: {{"name": "pret",   "long_leg": "high"}}   # winners = high past return
+       - FIP information discreteness: {{"name": "id",     "long_leg": "low"}}    # continuous info = low ID
+       - Value (book-to-market):       {{"name": "bm",     "long_leg": "high"}}   # high B/M = value
+       - Size:                         {{"name": "mcap",   "long_leg": "low"}}    # small-cap anomaly
+     Include EVERY signal that drives a long/short leg. If a signal is only a control (used in a regression, not in portfolio construction), you may omit it.
 
 Output ONLY valid JSON."""

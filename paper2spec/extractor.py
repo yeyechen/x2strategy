@@ -522,9 +522,9 @@ async def _call_llm_json(
 
 def _parse_execution_plan(d: dict) -> ExecutionPlan:
     """Parse a raw dict into an ExecutionPlan with nested dataclasses."""
-    trigger_d = d.get("trigger", {})
-    action_d = d.get("action", {})
-    sizing_d = d.get("position_sizing", {})
+    trigger_d = d.get("trigger") or {}
+    action_d = d.get("action") or {}
+    sizing_d = d.get("position_sizing") or {}
     sizing_steps = []
     for step in sizing_d.get("steps", []) or []:
         if isinstance(step, dict):

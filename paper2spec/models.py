@@ -294,6 +294,13 @@ class StrategySpec:
     needs_human_review: List[Dict[str, Any]] = field(default_factory=list)
     convention_resolutions: List[Dict[str, Any]] = field(default_factory=list)
 
+    # ── L8: Signal long-leg directions ──
+    # Each entry: {"name": "<signal_name>", "long_leg": "high" | "low"}.
+    # Tells the strategy code which end of each signal's distribution
+    # is the long leg. Encoded in run_config.yaml so the strategy
+    # reads it instead of guessing.
+    signals: List[Dict[str, Any]] = field(default_factory=list)
+
     def to_dict(self) -> dict:
         return asdict(self)
 

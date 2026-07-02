@@ -108,6 +108,13 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 - **`long_short` returns `long - short`** by default. If the paper
   reports `high - low` (e.g., D10-D1) and you're long the low bin
   (long_bin=1, short_bin=10), pass `flip_sign=True`.
+- **Don't hardcode the L/S bin numbers from the paper's prose.** The
+  paper says "buy winners, sell losers" — you don't know whether
+  that's `Q5-Q1` or `Q1-Q5` until you check the spec's
+  `signals[i].long_leg` field. Read it from `run_config.yaml` and
+  build the L/S with `top_q` / `bottom_q` from the long_leg, not
+  from a guessed bin number. (The fip_v3 agent got this wrong by
+  guessing the ID direction without checking the spec.)
 - **`plot_decile_spread` has NO `title=` parameter.** Don't pass one.
 
 ---

@@ -153,6 +153,68 @@ class TestRenderRunConfig:
         yaml_text = render_run_config(spec)
         assert "ff_controls" not in yaml_text
 
+    def test_signals_long_leg_emitted_to_yaml(self):
+        """Per-signal `long_leg` direction is emitted to run_config.yaml.
+
+        Prevents the v3 bug where the agent guessed the ID direction
+        instead of reading it from the spec. The spec lists each
+        signal with ``long_leg: high | low``; the renderer passes it
+        through unchanged so strategy.py can build the L/S portfolio
+        from a known direction.
+        """
+        spec = {
+            "strategies": [
+                {
+                    "strategy_name": "fip_test",
+                    "strategy_type": "equity_long_short",
+                    "asset_class": ["equity"],
+                    "time_period": {"start_date": "1976-01-01", "end_date": "2007-12-31"},
+                    "signals": [
+                        {"name": "pret", "long_leg": "high"},
+                        {"name": "id",   "long_leg": "low"},
+                    ],
+                }
+            ]
+        }
+        yaml_text = render_run_config(spec)
+        # Both signals are emitted with their direction
+        assert "name: pret" in yaml_text
+        assert "long_leg: high" in yaml_text
+        assert "name: id" in yaml_text
+        assert "long_leg: low" in yaml_text
+        # signals: section header present
+        assert "signals:" in yaml_text
+
+    def test_signals_long_leg_validates_values(self):
+        """Invalid long_leg values (not 'high' or 'low') are dropped silently.
+
+        The renderer is best-effort: a bad value in the spec should
+        not crash the YAML emission. The strategy code falls back to
+        a sensible default when the signals list is empty.
+        """
+        spec = {
+            "strategies": [
+                {
+                    "strategy_name": "test",
+                    "strategy_type": "equity_long_short",
+                    "asset_class": ["equity"],
+                    "signals": [
+                        {"name": "good", "long_leg": "high"},
+                        {"name": "bad_typo", "long_leg": "hi"},   # invalid
+                        {"name": "bad_null", "long_leg": None},   # invalid
+                        {"name": "no_long_leg"},                   # missing
+                    ],
+                }
+            ]
+        }
+        yaml_text = render_run_config(spec)
+        # The valid signal is present
+        assert "name: good" in yaml_text
+        # The invalid ones are absent
+        assert "bad_typo" not in yaml_text
+        assert "bad_null" not in yaml_text
+        assert "no_long_leg" not in yaml_text
+
     def test_universe_filter_built_correctly(self):
         spec = {
             "strategies": [

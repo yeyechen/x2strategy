@@ -198,6 +198,10 @@ Use one workflow for all tasks. Do not choose between competing routers.
 
 **Default: start fresh.** Do not read prior `replications/<slug>` iterations (e.g. `max_v7`, `fip_v3`) unless the user explicitly asks you to. Each replication runs the pipeline from scratch — prior runs bias the agent toward inherited (possibly buggy) choices and waste turns on exploration the user didn't request.
 
+**Self-cap on iterations.** `scripts/run_iteration_agent.sh` refuses to spawn a 6th agent for the same slug (5 max). If you are in agent #5 and the strategy is still failing, **stop patching runtime errors and report to the user**. The next iteration is the maintainer's job — they will inspect `replications/<slug>/results/metrics.json` and `logs/run.log`, then fix the skill (primitive, reference doc, or SKILL.md). Whack-a-mole iteration on a single broken strategy does not produce new information.
+
+**Read the per-signal direction from the spec, do not guess.** The spec's `signals` field (populated by the L8 extractor from the paper) gives each signal's long-leg direction as `high` or `low`. For FIP, ID has `long_leg: low` (continuous info is the long leg); for momentum, PRET has `long_leg: high` (winners). The renderer emits these to `run_config.yaml` under `signals:`. The strategy code reads `cfg["signals"]` and builds the L/S portfolio from the declared direction. **Do not** infer the direction from the paper's prose — v3 guessed and produced a sign-flipped spread.
+
 1. **Setup** — verify `.env`, replications path, API key if needed, Python environment, and user-selected scope.
 2. **Input confirmation** — identify the paper/spec/data/instruction files or search results; ask whether to add clarification, constraints, selected-plan preferences, known pitfalls, or reference files.
 3. **paper2spec: PDF/text to content** — parse the selected document into grounded content artifacts.

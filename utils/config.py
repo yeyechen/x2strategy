@@ -188,6 +188,32 @@ def render_run_config(
     if not signal_column:
         signal_column = "signal"
 
+    # ── Signal directions (long_leg) ─────────────────────────
+    # Each signal has a direction: "high" means top-quintile is the long
+    # leg (e.g. momentum — winners), "low" means bottom-quintile is the
+    # long leg (e.g. FIP ID — continuous info). The spec extraction
+    # prompt asks the LLM to fill this in based on the paper. If the
+    # spec has no `signals` field, leave it empty and the strategy
+    # must fall back to a sensible default (e.g. high for momentum).
+    raw_signals = spec.get("signals") or []
+    signals_cfg: list[dict] = []
+    if isinstance(raw_signals, list):
+        for sig in raw_signals:
+            if not isinstance(sig, dict):
+                continue
+            name = sig.get("name") or sig.get("indicator_id")
+            long_leg = sig.get("long_leg")
+            if isinstance(long_leg, str):
+                long_leg = long_leg.strip().lower()
+                if long_leg in ("high", "low"):
+                    if name:
+                        signals_cfg.append({
+                            "name": str(name),
+                            "long_leg": long_leg,
+                        })
+                # else: invalid value — silently skip; the renderer is
+                # best-effort and the strategy can default.
+
     # ── Execution plan ────────────────────────────────────────
     execution_plans = spec.get("execution_plan") or []
     weighting = "VW"
@@ -255,6 +281,7 @@ def render_run_config(
         "forward_returns_lag": 1,
         "initial_cash": 100000.0,
         "trading_frequency": "M",
+        "signals": signals_cfg,
         "outputs": outputs,
     }
     if ff_controls is not None:
