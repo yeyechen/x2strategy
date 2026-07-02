@@ -539,8 +539,10 @@ Extract as JSON:
     "risk_management_executable_explanation": "Single line: explicit risk rules present; if none, state none are specified.",
     "needs_human_review": [],
     "signals": [
-        {{"name": "<signal_name>", "long_leg": "high" | "low"}}
-    ]
+        {{"name": "pret", "long_leg": "high"}},        # REQUIRED — non-empty
+        {{"name": "id",   "long_leg": "low"}}          # long_leg is "high" or "low"
+    ],
+    "weightings_reported": ["EW", "VW"]                # REQUIRED — non-empty
 }}
 
 ACTION LOGIC FORMAT (pseudo-code):
@@ -568,18 +570,18 @@ ACTION LOGIC FORMAT (pseudo-code):
      - If metric is "fama_macbeth_coef": ensure the code runs a Fama-MacBeth regression with the target's "variable" as a regressor. If the target's "factors" list is EMPTY, run a UNIVARI regression (variable alone, no controls). If "factors" is non-empty, include those factors as controls.
      - If metric is "factor_alpha": ensure the code runs a time-series factor regression with the listed "factors" on the long-short portfolio.
  14. Each target's "id" must appear as a top-level key in metrics.json with the replicated value, so validate_replication.py can find it.
- 15. SIGNALS / LONG-LEG DIRECTION — for each cross-sectional signal used by this strategy, declare which end of the signal's distribution is the long leg. This is what `render_run_config.py` reads to populate `run_config.yaml`'s `signals:` field; the strategy code reads `cfg["signals"][i]["long_leg"]` to construct the L/S portfolio. Encoded as:
+ 15. SIGNALS / LONG-LEG DIRECTION — **REQUIRED, must be a non-empty array** for any cross-sectional strategy. For each signal used in portfolio construction, declare which end of the signal's distribution is the long leg. `render_run_config.py` reads this and emits it to `run_config.yaml` under `signals:`; the strategy code reads `cfg["signals"][i]["long_leg"]` to construct the L/S portfolio. Encoding:
         "signals": [
             {{"name": "<signal_name>", "long_leg": "high" | "low"}}
         ]
-     Examples:
-       - Momentum / past-return signal: {{"name": "pret",   "long_leg": "high"}}   # winners = high past return
-       - FIP information discreteness: {{"name": "id",     "long_leg": "low"}}    # continuous info = low ID
-       - Value (book-to-market):       {{"name": "bm",     "long_leg": "high"}}   # high B/M = value
-       - Size:                         {{"name": "mcap",   "long_leg": "low"}}    # small-cap anomaly
-     Include EVERY signal that drives a long/short leg. If a signal is only a control (used in a regression, not in portfolio construction), you may omit it.
- 16. WEIGHTINGS — list every weighting scheme the paper actually reports for the L/S spread and factor alpha. Most cross-sectional academic papers report BOTH equal-weighted (EW) and value-weighted (VW) side-by-side in the same table; the strategy code must compute both, plot both, and write both to metrics.json with the bare key for the spec's primary weighting and suffixed `_ew` / `_vw` for the alternative. The single `weighting` field above is the primary used for the headline hit-rate. Encoded as:
+     Examples (paper-driven):
+       - Momentum / past-return:        {{"name": "pret",   "long_leg": "high"}}   # winners = high past return
+       - FIP information discreteness:  {{"name": "id",     "long_leg": "low"}}    # continuous info = low ID
+       - Value (book-to-market):         {{"name": "bm",     "long_leg": "high"}}   # high B/M = value
+       - Size:                           {{"name": "mcap",   "long_leg": "low"}}    # small-cap anomaly
+     Include EVERY signal that drives a long/short leg. If a signal is only a control (used in a regression, not in portfolio construction), you may omit it. If you cannot determine the direction from the paper, default to "high" for cross-sectional "rank-by-signal" strategies and document the choice in `convention_resolutions`.
+ 16. WEIGHTINGS — **REQUIRED, must be a non-empty array** for any cross-sectional strategy. List every weighting scheme the paper actually reports for the L/S spread and factor alpha. Most cross-sectional academic papers report BOTH equal-weighted (EW) and value-weighted (VW) side-by-side in the same table; the strategy code must compute both, plot both, and write both to metrics.json with the bare key for the spec's primary weighting and suffixed `_ew` / `_vw` for the alternative. Encoding:
         "weightings_reported": ["EW", "VW"]
-     If the paper only reports one weighting, list it alone: ["VW"] or ["EW"]. Do not invent alternative weightings the paper doesn't report.
+     If the paper only reports one weighting, list it alone: ["VW"] or ["EW"]. Default to ["EW", "VW"] for cross-sectional academic papers unless the paper explicitly states otherwise — the dual-weighting is the academic convention.
 
 Output ONLY valid JSON."""
