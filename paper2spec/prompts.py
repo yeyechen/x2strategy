@@ -578,5 +578,8 @@ ACTION LOGIC FORMAT (pseudo-code):
        - Value (book-to-market):       {{"name": "bm",     "long_leg": "high"}}   # high B/M = value
        - Size:                         {{"name": "mcap",   "long_leg": "low"}}    # small-cap anomaly
      Include EVERY signal that drives a long/short leg. If a signal is only a control (used in a regression, not in portfolio construction), you may omit it.
+ 16. WEIGHTINGS — list every weighting scheme the paper actually reports for the L/S spread and factor alpha. Most cross-sectional academic papers report BOTH equal-weighted (EW) and value-weighted (VW) side-by-side in the same table; the strategy code must compute both, plot both, and write both to metrics.json with the bare key for the spec's primary weighting and suffixed `_ew` / `_vw` for the alternative. The single `weighting` field above is the primary used for the headline hit-rate. Encoded as:
+        "weightings_reported": ["EW", "VW"]
+     If the paper only reports one weighting, list it alone: ["VW"] or ["EW"]. Do not invent alternative weightings the paper doesn't report.
 
 Output ONLY valid JSON."""

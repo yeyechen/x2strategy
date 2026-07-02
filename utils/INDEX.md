@@ -115,6 +115,14 @@ uv run pytest tests/test_utils_canonical_usage.py -x
   build the L/S with `top_q` / `bottom_q` from the long_leg, not
   from a guessed bin number. (The fip_v3 agent got this wrong by
   guessing the ID direction without checking the spec.)
+- **Always compute both EW and VW unless the paper only reports one.**
+  The spec's `weightings_reported` field (typically `["EW", "VW"]`)
+  tells the strategy which weightings the paper actually reports.
+  The single `weighting` field is the primary used for the headline
+  hit-rate; the alternative is for robustness. Write `metrics.json`
+  with the bare key for the primary and suffixed `_ew` / `_vw` keys
+  for the alternative. Show both rows in `SUMMARY.md`. Do not pick
+  just one weighting — most academic papers report both.
 - **`plot_decile_spread` has NO `title=` parameter.** Don't pass one.
 
 ---

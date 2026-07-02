@@ -214,6 +214,22 @@ def render_run_config(
                 # else: invalid value — silently skip; the renderer is
                 # best-effort and the strategy can default.
 
+    # ── Weightings reported by the paper ─────────────────────
+    # Most academic cross-sectional papers report BOTH EW and VW spreads
+    # side-by-side. The spec's `weightings_reported` lists all that the
+    # paper actually reports (typically ["EW", "VW"]). The single
+    # `weighting` field above is the primary used for the headline
+    # hit-rate; the strategy code should still compute all of them.
+    # We normalize to uppercase and validate against {"EW", "VW"}.
+    raw_weightings = spec.get("weightings_reported") or []
+    weightings_reported_cfg: list[str] = []
+    if isinstance(raw_weightings, list):
+        for w in raw_weightings:
+            if isinstance(w, str):
+                wn = w.strip().upper()
+                if wn in ("EW", "VW") and wn not in weightings_reported_cfg:
+                    weightings_reported_cfg.append(wn)
+
     # ── Execution plan ────────────────────────────────────────
     execution_plans = spec.get("execution_plan") or []
     weighting = "VW"
@@ -282,6 +298,7 @@ def render_run_config(
         "initial_cash": 100000.0,
         "trading_frequency": "M",
         "signals": signals_cfg,
+        "weightings_reported": weightings_reported_cfg,
         "outputs": outputs,
     }
     if ff_controls is not None:

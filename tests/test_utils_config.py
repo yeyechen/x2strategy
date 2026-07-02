@@ -215,6 +215,39 @@ class TestRenderRunConfig:
         assert "bad_null" not in yaml_text
         assert "no_long_leg" not in yaml_text
 
+    def test_weightings_reported_emitted(self):
+        """weightings_reported from the spec is passed through to YAML.
+
+        Most cross-sectional academic papers report BOTH EW and VW
+        spreads in the same table. The renderer normalizes to
+        uppercase, drops invalid entries, and dedupes — the strategy
+        code uses this to compute both numbers and report them as
+        bare + suffixed keys in metrics.json (see SKILL.md).
+        """
+        spec = {
+            "strategies": [
+                {
+                    "strategy_name": "fip_test",
+                    "strategy_type": "equity_long_short",
+                    "asset_class": ["equity"],
+                    "weightings_reported": ["EW", "VW", "vw", "MV", "EW"],
+                }
+            ]
+        }
+        yaml_text = render_run_config(spec)
+        # Both valid values present, deduped, normalized to uppercase.
+        # PyYAML emits lists in block style by default, not inline.
+        assert "weightings_reported:" in yaml_text
+        assert "\n- EW\n- VW\n" in yaml_text or "\n- VW\n- EW\n" in yaml_text
+        # The invalid "MV" entry is dropped
+        assert "MV" not in yaml_text
+        # "EW" appears only once (deduped)
+        assert yaml_text.count("- EW") == 1
+        # Missing field → empty list
+        spec2 = {"strategies": [{"strategy_name": "x", "asset_class": ["equity"]}]}
+        yaml_text2 = render_run_config(spec2)
+        assert "weightings_reported: []" in yaml_text2
+
     def test_universe_filter_built_correctly(self):
         spec = {
             "strategies": [

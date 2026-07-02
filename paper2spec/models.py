@@ -301,6 +301,16 @@ class StrategySpec:
     # reads it instead of guessing.
     signals: List[Dict[str, Any]] = field(default_factory=list)
 
+    # ── L8: Weightings reported by the paper ──
+    # Most academic cross-sectional papers report BOTH equal-weighted (EW)
+    # and value-weighted (VW) spreads side-by-side. The strategy code
+    # should always compute both unless the paper only reports one.
+    # `weighting` below is the primary used for the headline hit-rate;
+    # `weightings_reported` is the full set the paper reports (typically
+    # ["EW", "VW"]). Emitted to run_config.yaml so the strategy can
+    # compute all of them.
+    weightings_reported: List[str] = field(default_factory=list)
+
     def to_dict(self) -> dict:
         return asdict(self)
 
