@@ -29,8 +29,8 @@ the default. Document the deviation in `SUMMARY.md`.
 | Weighting | VW (value-weighted) | Standard for decile/quintile portfolios. EW is used only when the paper explicitly says "equal-weighted" or when the paper's tables show EW results. |
 | Number of bins | 10 (deciles) | Standard for cross-sectional sorting. Some papers use 5 (quintiles) — use what the paper specifies. |
 | Rebalancing frequency | Monthly | Standard for cross-sectional equity. Weekly/daily only if the paper specifies. |
-| Holding period | 1 month | Default for non-overlapping strategies. For momentum (Jegadeesh-Titman), use the paper's J-month holding period with overlapping cohorts (`forward_returns_h`). |
-| Signal timing | Month-end signal → next-month return | Signal computed at month-end t, paired with return at t+1. Use `utils.forward_returns(n_lags=1)` for 1-month, `utils.forward_returns_h(n_lags=H)` for H-month. |
+| Holding period | 1 month | Default for non-overlapping strategies. For momentum (Jegadeesh-Titman), use the paper's J-month holding period with overlapping cohorts (`forward_returns(..., n_lags=J, aggregate="per_month")`). |
+| Signal timing | Month-end signal → next-month return | Signal computed at month-end t, paired with return at t+1. Use `utils.forward_returns(n_lags=1)` for 1-month, `utils.forward_returns(n_lags=H, aggregate="cumulative")` for H-month cumulative, `aggregate="per_month"` for per-month equivalent. |
 
 ## Risk adjustment
 

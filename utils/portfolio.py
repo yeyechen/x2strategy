@@ -222,76 +222,110 @@ def forward_returns(
     date_col: str,
     ret_col: str = "ret",
     n_lags: int = 1,
+    *,
+    aggregate: str = "raw",
+    out_col: Optional[str] = None,
 ) -> pd.DataFrame:
-    """Shift the return column forward by `n_lags` periods per stock.
+    """Shift the return window forward by ``n_lags`` periods, with optional aggregation.
+
+    **Unified function for all forward-return patterns.** Replaces the
+    older ``forward_returns`` (raw shift) and ``forward_returns_h``
+    (H-period aggregation) — they were two functions doing the same
+    thing, with the only real difference being whether to aggregate
+    across periods.
 
     **Use this to avoid look-ahead bias in cross-sectional strategies.**
+    The signal at time ``t`` is paired with the return realized over
+    months ``t+1 ... t+n_lags``. The signal is observed at end of ``t``;
+    the paired return is realized strictly after. There is no
+    look-ahead — the signal could not have used the future return
+    because the return has not happened yet at the time the signal
+    is observed.
 
-    The convention for monthly-rebalanced long-short strategies:
-      - Signal is computed at the *end* of month t (e.g. MAX of daily
-        returns in month t).
-      - Portfolio is *formed* at end of month t.
-      - Portfolio is *held* during month t+1.
-      - Return we measure is therefore month t+1's return, not t's.
+    Three ``aggregate`` modes cover the cross-sectional literature:
 
-    If you bin stocks at end of month t and then group by (month, bin)
-    using month t's return, you're implicitly assuming the signal can
-    be observed before the month's close — look-ahead bias. The fix is
-    to shift the return forward by one period within each stock's
-    history before binning.
+    - ``"raw"`` — no aggregation, just shift by ``n_lags`` periods.
+      The output is the per-period return at month ``t+n_lags``.
+      Best for 1-month holding (MAX, value, B/M): ``ret[t+1]`` is
+      exactly the next-month return. Replaces ``ret_col`` in place.
 
-    Example::
+    - ``"per_month"`` (default) — per-month geometric mean of the
+      H-month compounded return: ``exp(mean(log(1+ret))) - 1``. This
+      is the per-month equivalent used in academic momentum papers
+      (Jegadeesh-Titman 1993): 6-month return ÷ 6, in log space.
+      Adds a new column (default ``f"{ret_col}_fwd{n_lags}"``);
+      ``ret_col`` is preserved for cohort computation.
 
-        # WRONG — bins at end of month t, return is also month t (look-ahead):
-        df["bin"] = assign_quantiles(df, "month", "max_signal", n_bins=10)
-        # ... uses month t's return to evaluate month t's bin
-
-        # RIGHT — shift the return forward first:
-        df = forward_returns(df, signal_col="max_signal", date_col="month", n_lags=1)
-        # Now df["ret"] is month t+1's return, paired with month t's bin
-        df["bin"] = assign_quantiles(df, "month", "max_signal", n_bins=10)
-        # ... bin formed at month t, return is month t+1
+    - ``"cumulative"`` — H-month cumulative return: ``prod(1+ret) - 1``.
+      Use when the paper reports H-month holding-period returns
+      directly (e.g. FIP Table 2 "6-month return"). Same column
+      handling as ``"per_month"``.
 
     Args:
-        panel: per-(stock, date) DataFrame. Must contain ``signal_col``
-            (the column whose values are observed at the END of ``date_col``)
-            and ``ret_col`` (the column whose values accrue DURING
-            ``date_col``).
-        signal_col: name of the signal column (e.g. ``"max_signal"``).
-            Used only as a sanity check — its values are not shifted.
+        panel: per-(stock, date) DataFrame. Must contain
+            ``signal_col``, ``date_col``, ``ret_col``, and a per-stock
+            grouping column (``permno`` / ``ticker`` / ``stock_id`` / ``id``).
+        signal_col: name of the signal column. Sanity check only —
+            its values are not shifted.
         date_col: name of the date column.
-        ret_col: name of the return column to shift forward. Default ``"ret"``.
-        n_lags: how many periods to shift. Default 1 (matches the
-            end-of-month formation → next-month holding convention).
+        ret_col: name of the per-period return column. Default ``"ret"``.
+        n_lags: how many periods to forward-shift (default 1).
+            1 for bin-and-evaluate (MAX / value / B/M); 6 for momentum.
+        aggregate: one of ``"raw"``, ``"per_month"``, ``"cumulative"``.
+            See the docstring above for the per-mode behavior.
+        out_col: name of the output column. If ``None`` (default):
+            for ``aggregate="raw"`` the output is written back into
+            ``ret_col`` (replaces in place); for ``"per_month"`` or
+            ``"cumulative"`` the output is added as
+            ``f"{ret_col}_fwd{n_lags}"`` and ``ret_col`` is preserved.
 
     Returns:
-        A new DataFrame with ``ret_col`` replaced by the forward-shifted
-        values per stock. Rows where the shift produces NaN (i.e. the
-        last ``n_lags`` periods of each stock's history) are dropped.
-
-        **The shifted return is written back into the SAME column
-        (``ret_col``) — NOT into a new column named e.g.
-        ``ret_fwd1``.** After calling this, ``df["ret"]`` is the
-        next-period return paired with the current-period signal.
-
-        The per-stock grouping key is auto-detected in this priority
-        order: ``permno``, ``ticker``, ``stock_id``, ``id``. If none of
-        those columns exist, raises :class:`PortfolioError`.
+        A new DataFrame with the output column written. The last
+        ``n_lags`` periods per stock are dropped (their forward
+        window is incomplete).
 
     Raises:
-        PortfolioError: if ``date_col``, ``signal_col``, or ``ret_col``
-            are missing, or if no recognized stock-id column is found.
+        PortfolioError: if required columns are missing, ``n_lags < 1``,
+            ``aggregate`` is not one of the three allowed values, or no
+            per-stock grouping column is found.
+
+    Examples::
+
+        # MAX / value / B/M: 1-month holding, raw shift, replace ret
+        df = forward_returns(df, signal_col="max_signal", date_col="month")
+        # df["ret"] is now ret[t+1] — next-month return
+
+        # FIP / momentum: 6-month cumulative, add new column
+        df = forward_returns(
+            df, signal_col="pret", date_col="month",
+            n_lags=6, aggregate="cumulative",
+        )
+        # df["ret_fwd6"] = prod(1+ret[t+1..t+6]) - 1
+        # df["ret"] is preserved for cohort computation
+
+        # 6-month per-month equivalent (also Jegadeesh-Titman style)
+        df = forward_returns(
+            df, signal_col="pret", date_col="month",
+            n_lags=6, aggregate="per_month",
+        )
+        # df["ret_fwd6"] = exp(mean(log(1+ret[t+1..t+6]))) - 1
     """
     required = [date_col, signal_col, ret_col]
     missing = [c for c in required if c not in panel.columns]
     if missing:
         raise PortfolioError(f"forward_returns: missing columns {missing}")
     if n_lags < 1:
-        raise PortfolioError(f"forward_returns: n_lags must be >= 1, got {n_lags}")
+        raise PortfolioError(
+            f"forward_returns: n_lags must be >= 1, got {n_lags}"
+        )
+    valid_aggregates = ("raw", "per_month", "cumulative")
+    if aggregate not in valid_aggregates:
+        raise PortfolioError(
+            f"forward_returns: aggregate must be one of {valid_aggregates}, "
+            f"got {aggregate!r}"
+        )
 
-    # We need a per-stock grouping key. Convention: prefer `permno`, fall back
-    # to `ticker`, otherwise ask the caller to specify. Most CRSP-based
-    # strategies will have `permno`.
+    # Per-stock grouping key — prefer permno, fall back to other names.
     stock_col = None
     for candidate in ("permno", "ticker", "stock_id", "id"):
         if candidate in panel.columns:
@@ -300,164 +334,67 @@ def forward_returns(
     if stock_col is None:
         raise PortfolioError(
             "forward_returns: no per-stock grouping column found. "
-            "Need one of: permno, ticker, stock_id, id. "
-            "Or pre-group via groupby + transform."
-        )
-
-    if n_lags < 1:
-        raise PortfolioError(f"forward_returns: n_lags must be >= 1, got {n_lags}")
-
-    df = panel.sort_values([stock_col, date_col]).copy()
-    df[ret_col] = df.groupby(stock_col)[ret_col].shift(-n_lags)
-    before = len(df)
-    df = df.dropna(subset=[ret_col])
-    after = len(df)
-    if before != after:
-        # Last `n_lags` periods per stock drop out. Expected.
-        pass
-    return df.reset_index(drop=True)
-
-
-def forward_returns_h(
-    panel: pd.DataFrame,
-    signal_col: str,
-    date_col: str,
-    ret_col: str = "ret",
-    n_lags: int = 6,
-    out_col=None,
-    cumulative: bool = False,
-) -> pd.DataFrame:
-    """Add a forward H-month return column.
-
-    Overlapping-cohort (Jegadeesh-Titman) convention: for each (stock, t),
-    the output column is the forward return realized over months t+1 ... t+H.
-
-    For H=1, equivalent to forward_returns (single-period shift). For H>1,
-    standard momentum-overlapping-cohort return.
-
-    The output column is ADDED (ret_col is preserved). Different from
-    forward_returns which REPLACES the column.
-
-    Per-stock grouping auto-detected from {permno, ticker, stock_id, id}.
-
-    Args:
-        panel: per-(stock, date) DataFrame.
-        signal_col: signal column (sanity check only).
-        date_col: date column.
-        ret_col: per-period return column. Default "ret".
-        n_lags: how many periods to forward-aggregate. Default 6.
-        out_col: output column name. Default f"{ret_col}_fwd{n_lags}".
-        cumulative: if False (default), output the per-month geometric
-            mean: ``exp(mean(log(1+ret))) - 1``. If True, output the
-            H-month cumulative return: ``prod(1+ret) - 1``. Use
-            ``cumulative=True`` when the paper reports cumulative
-            holding-period returns (e.g. FIP Table 2: "6-month return").
-
-    Returns:
-        New DataFrame with out_col added. Last n_lags periods per stock
-        dropped.
-
-    Example::
-
-        # FIP: 6-month cumulative forward return
-        monthly = forward_returns_h(
-            monthly, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=6, cumulative=True,
-        )
-    """
-    required = [date_col, signal_col, ret_col]
-    missing = [c for c in required if c not in panel.columns]
-    if missing:
-        raise PortfolioError(f"forward_returns_h: missing columns {missing}")
-    if n_lags < 1:
-        raise PortfolioError(f"forward_returns_h: n_lags must be >= 1, got {n_lags}")
-
-    stock_col = None
-    for candidate in ("permno", "ticker", "stock_id", "id"):
-        if candidate in panel.columns:
-            stock_col = candidate
-            break
-    if stock_col is None:
-        raise PortfolioError(
-            "forward_returns_h: no per-stock grouping column found. "
             "Need one of: permno, ticker, stock_id, id."
         )
 
+    df = panel.sort_values([stock_col, date_col]).copy()
+
+    if aggregate == "raw":
+        # Pure shift: ret[t] becomes ret[t+n_lags]. Replace in place.
+        df[ret_col] = df.groupby(stock_col)[ret_col].shift(-n_lags)
+        df = df.dropna(subset=[ret_col])
+        return df.reset_index(drop=True)
+
+    # aggregate == "per_month" or "cumulative": aggregate H periods,
+    # then exp() back to return space. ADDS a new column; ret_col preserved.
     if out_col is None:
         out_col = f"{ret_col}_fwd{n_lags}"
 
-    df = panel.sort_values([stock_col, date_col]).copy()
-    # Vectorized rolling-sum per stock via NumPy strided views.
-    # The previous implementation used groupby().transform(lambda s: s.rolling(...))
-    # which is O(n_stocks) Python-level apply calls — the bottleneck on
-    # large panels (30M+ rows). This version does the same math with
-    # one cumulative-sum pass and one strided window view, fully in C.
-    #
-    # Algorithm:
+    # Vectorized rolling-sum per stock via NumPy strided views:
     #   1. log_ret = log1p(ret) (per row)
-    #   2. group-starts: find index where each stock begins (after sort).
-    #   3. cumsum of log_ret, but reset to 0 at each group boundary so
-    #      cumsum within a group is independent.
-    #   4. rolling-H sum at position i = cumsum[i] - cumsum[i-H] (if i>=H else NaN)
-    #      -- this gives sum over [i-H+1, i].
-    #   5. shift the result by -H within each group to get sum over [i+1, i+H]
-    #      (the forward window the caller wants).
-    #   6. exp(sum/H) - 1 = per-month equivalent.
+    #   2. reset cumulative sum at each group boundary
+    #   3. rolling-H sum at position i = cumsum[i] - cumsum[i-H]
+    #      (sum over [i-H+1, i] within the stock)
+    #   4. shift by -H to get sum over [i+1, i+H] (the forward window)
+    #   5. exp(sum/H) - 1  (per-month equivalent)
+    #   OR exp(sum) - 1    (H-month cumulative)
     log_ret = np.log1p(df[ret_col].to_numpy())
     n = len(df)
-    # Group boundaries: positions where stock_col changes.
     stock_vals = df[stock_col].to_numpy()
     is_group_start = np.empty(n, dtype=bool)
     is_group_start[0] = True
     is_group_start[1:] = stock_vals[1:] != stock_vals[:-1]
-    group_ids = np.cumsum(is_group_start)  # 1..n_groups
+    group_ids = np.cumsum(is_group_start)
     n_groups = int(group_ids[-1])
 
-    # Reset cumulative sum at each group boundary.
     raw_cumsum = np.cumsum(log_ret)
-    group_start_cumsum = np.zeros(n_groups + 1)
-    # At each group's first index, subtract the running cumsum so the
-    # group-local cumsum starts at 0.
     group_start_indices = np.where(is_group_start)[0]
-    # The "offset" at group g is raw_cumsum at the LAST index before the
-    # group's first row (i.e. raw_cumsum[group_start_indices[g] - 1] or 0).
     offsets = np.empty(n_groups)
     offsets[0] = 0.0
     offsets[1:] = raw_cumsum[group_start_indices[1:] - 1]
-    # Local cumsum = raw_cumsum - offsets[group_id - 1]
     local_cumsum = raw_cumsum - offsets[group_ids - 1]
 
-    # Rolling H sum at position i: sum over [i-H+1, i] within the group.
-    # local_cumsum[i] - local_cumsum[i-H] (for i >= H AND group_ids[i] == group_ids[i-H]).
-    # NaN where i < H or the group boundary falls within the window.
     rolling_log = np.full(n, np.nan)
     if n >= n_lags:
         rolling_log[n_lags:] = local_cumsum[n_lags:] - local_cumsum[:-n_lags]
-        # Mask windows that cross a group boundary.
         same_group = group_ids[n_lags:] == group_ids[:-n_lags]
-        # (Within a group, positions [i-H+1, i] are guaranteed contiguous
-        # because the data was sorted by (stock_col, date_col). So this
-        # check is sufficient.)
         rolling_log[n_lags:] = np.where(same_group, rolling_log[n_lags:], np.nan)
 
-    # Forward-shift by H within each group: rolling_log[i] becomes the
-    # sum over [i+1, i+H]. Build a per-group offset array.
     fwd_log_sum = np.full(n, np.nan)
     if n > n_lags:
-        # For each i, fwd_log_sum[i] = rolling_log[i+n_lags] IF they're in
-        # the same group; NaN otherwise (or if i+n_lags >= n).
         same_group = group_ids[: n - n_lags] == group_ids[n_lags:]
         fwd_log_sum[: n - n_lags] = np.where(same_group, rolling_log[n_lags:], np.nan)
 
-    if cumulative:
-        # H-month cumulative return: prod(1+ret) - 1 = exp(sum(log(1+ret))) - 1
+    if aggregate == "cumulative":
+        # H-month cumulative: prod(1+ret) - 1 = exp(sum) - 1
         df[out_col] = np.expm1(fwd_log_sum)
     else:
-        # Per-month geometric mean: exp(mean(log(1+ret))) - 1
+        # Per-month equivalent: exp(mean(log(1+ret))) - 1
         df[out_col] = np.expm1(fwd_log_sum / n_lags)
     df = df.dropna(subset=[out_col])
     df = df[np.isfinite(df[out_col])]
     return df.reset_index(drop=True)
+
 
 
 def rolling_cumret(
@@ -468,55 +405,9 @@ def rolling_cumret(
     skip: int = 1,
     min_periods: int = None,
 ) -> pd.Series:
-    """Rolling cumulative return: ``prod(1+ret)`` over the past ``window``
-    months, skipping the most recent ``skip`` months.
-
-    **Use this for momentum signal formation** — it encodes the
-    Jegadeesh-Titman skip convention correctly so the agent doesn't
-    have to reason about ``shift(skip+1)`` manually.
-
-    For JT 12-2 momentum: ``window=11, skip=1`` → formation period is
-    months t-12 to t-2 (11 months, skipping the most recent month t-1).
-
-    The current month t is always excluded (it hasn't ended yet).
-    ``skip`` controls how many *additional* months to exclude:
-
-    ====== ========== =========================
-    skip   shift      formation window
-    ====== ========== =========================
-    0      1          t-window to t-1
-    1      2          t-(window+1) to t-2  (JT 12-2)
-    2      3          t-(window+2) to t-3
-    ====== ========== =========================
-
-    Args:
-        panel: per-(stock, date) DataFrame. Must contain ``date_col``,
-            ``ret_col``, and a per-stock grouping column.
-        date_col: name of the date column.
-        ret_col: name of the return column (e.g. ``"ret"``).
-        window: number of months in the formation period.
-        skip: months to skip between the current month and the most
-            recent formation month. Default 1 (JT 12-2 convention).
-        min_periods: minimum non-NaN months required. Default
-            ``window`` (require full window).
-
-    Returns:
-        pandas Series aligned to ``panel`` — the rolling cumulative
-        return ``prod(1+ret) - 1``. NaN where insufficient data.
-
-    Raises:
-        PortfolioError: if columns are missing or no stock-id column
-            is found.
-
-    Example::
-
-        # JT 12-2 momentum: 11-month formation, skip 1
-        monthly["pret"] = rolling_cumret(
-            monthly, date_col="month", ret_col="ret",
-            window=11, skip=1,
-        )
-        # At month t: prod(1+ret[t-12..t-2]) - 1
-    """
+    """Rolling cumulative return: prod(1+ret) over the past window
+    months, skipping the most recent skip months. See the canonical
+    JT 12-2 momentum signal-formation pattern."""
     required = [date_col, ret_col]
     missing = [c for c in required if c not in panel.columns]
     if missing:
@@ -541,12 +432,6 @@ def rolling_cumret(
 
     shift_amt = skip + 1
     df = panel.sort_values([stock_col, date_col]).copy()
-    # Compute prod(1+r) - 1 = exp(sum(log(1+r))) - 1 in two stages:
-    #   1. log1p + shift within each stock
-    #   2. rolling SUM (built-in, respects min_periods) within each stock
-    #   3. expm1 of the rolling sum
-    # Note: ``rolling.apply(raw=True)`` ignores min_periods in pandas, so we
-    # cannot use it here. Built-in ``.sum()`` is required for min_periods.
     df["_logret"] = np.log1p(df[ret_col])
     df["_logret_shifted"] = df.groupby(stock_col)["_logret"].shift(shift_amt)
     df["_logcum"] = (
@@ -558,11 +443,12 @@ def rolling_cumret(
     return np.expm1(df["_logcum"])
 
 
+
 __all__ = [
     "bin_returns",
     "long_short",
     "forward_returns",
-    "forward_returns_h",
+
     "rolling_cumret",
     "PortfolioError",
 ]

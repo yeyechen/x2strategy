@@ -51,7 +51,7 @@ import pytest
 
 # IMPORTANT: import via the package path ('from utils import X'), NOT
 # the module path ('from utils.module import X'). This mirrors how
-# agents write 'from utils import forward_returns_h' in strategy.py
+# agents write 'from utils import forward_returns' in strategy.py
 # and catches re-export drift in utils/__init__.py — iter 9 added 3
 # primitives to their modules but missed __init__.py, crashing the
 # FIP refactor at 'from utils import double_sort'.
@@ -62,7 +62,7 @@ from utils import (
     bin_returns,
     long_short,
     forward_returns,
-    forward_returns_h,
+    forward_returns,
     rolling_cumret,
     performance_metrics,
     format_metrics,
@@ -400,51 +400,44 @@ def test_canonical_pipeline_end_to_end(tiny_panel: pd.DataFrame, tmp_path) -> No
     )
     assert fm.summary["n_periods"] >= 1
 
-# ── forward_returns_h (Jegadeesh-Titman overlapping cohorts) ─────────────────
+# ── forward_returns (merged: raw / per_month / cumulative) ─────────────
 
 
-def test_canonical_forward_returns_h(tiny_panel: pd.DataFrame) -> None:
-    """Canonical: geometric-mean H-month forward return.
+def test_canonical_forward_returns_raw(tiny_panel: pd.DataFrame) -> None:
+    """Canonical: aggregate="raw" (default) — 1-period shift, replaces ret_col.
 
-    Different from forward_returns: this ADDS a new column (default
-    'ret_fwd{H}'), preserves the original 'ret' column, and computes
-    the per-month equivalent of the compounded H-month return.
+    Use for bin-and-evaluate patterns (MAX, value, B/M): end-of-month t
+    signal paired with ret[t+1]. The merged forward_returns function
+    replaces the older forward_returns and forward_returns_h — one
+    function, three modes, no risk of picking the wrong variant.
     """
-    # Need enough obs per stock for n_lags=2. tiny_panel has 3 dates
-    # per stock — exactly enough (last 2 rows per stock dropped).
-    out = forward_returns_h(
+    out = forward_returns(
         tiny_panel, signal_col="signal", date_col="date",
-        ret_col="ret", n_lags=2,
+        ret_col="ret", n_lags=1,
     )
-    # Output has both the original 'ret' and the new 'ret_fwd2' column.
+    # ret is REPLACED (no new column). n_lags=1 drops the last row per stock.
+    assert "ret" in out.columns
+    assert "ret_fwd1" not in out.columns
+    # tiny_panel has 2 stocks x 3 dates; n_lags=1 drops 1 per stock = 4 rows.
+    assert len(out) == 4
+
+
+def test_canonical_forward_returns_cumulative(tiny_panel: pd.DataFrame) -> None:
+    """Canonical: aggregate="cumulative" — H-month cumulative return.
+
+    Use for FIP / momentum (6-month holding) when the paper reports
+    holding-period returns (e.g. FIP Table 2: "6-month return"). The
+    column is ADDED (ret_col preserved) so both per-period and H-period
+    returns are available downstream.
+    """
+    out = forward_returns(
+        tiny_panel, signal_col="signal", date_col="date",
+        ret_col="ret", n_lags=2, aggregate="cumulative",
+    )
+    # ret PRESERVED; new column ret_fwd2 = prod(1+ret[t+1..t+2]) - 1
     assert "ret" in out.columns
     assert "ret_fwd2" in out.columns
-    # Last 2 dates per stock are dropped.
-    assert len(out) == 2  # 1 obs per stock (the earliest date).
-
-
-# ── forward_returns_h cumulative=True (H-month cumulative, FIP-style) ──────
-
-
-def test_canonical_forward_returns_h_cumulative(tiny_panel: pd.DataFrame) -> None:
-    """Canonical: cumulative=True produces prod(1+ret) - 1 over the H-month
-    forward window, NOT the per-month geometric mean. Use this when the
-    paper reports H-month holding-period returns (e.g. FIP Table 2:
-    "6-month return").
-
-    Different from default mode: default returns the per-month equivalent
-    (geometric mean), which when averaged over a portfolio and then
-    compounded by H gives a different number (Jensen's inequality).
-    """
-    out = forward_returns_h(
-        tiny_panel, signal_col="signal", date_col="date",
-        ret_col="ret", n_lags=2, cumulative=True,
-    )
-    # Output adds ret_fwd2 = prod(1+ret_t+1..t+2) - 1 per stock
-    assert "ret" in out.columns
-    assert "ret_fwd2" in out.columns
-    # Last 2 dates per stock dropped
-    assert len(out) == 2
+    assert len(out) == 2  # 1 obs per stock (last 2 dropped)
 
 
 # ── rolling_cumret (JT 12-2 momentum signal formation) ─────────────────────
@@ -592,11 +585,11 @@ def test_tstat_newey_west_auto_detect_custom_column() -> None:
     assert np.isfinite(out["t_stat"])
 
 
-# ── forward_returns_h parity + perf (iter 11) ───────────────────────────────
+# ── forward_returns parity + perf (iter 11, now merged) ─────────────────
 
 
-def test_forward_returns_h_matches_naive_implementation() -> None:
-    """Parity: vectorized forward_returns_h matches the iter-9
+def test_forward_returns_matches_naive_implementation() -> None:
+    """Parity: vectorized forward_returns(per_month) matches the iter-9
     groupby().transform(rolling) implementation within float tolerance.
 
     We inline the iter-9 implementation as the reference rather than
@@ -611,8 +604,8 @@ def test_forward_returns_h_matches_naive_implementation() -> None:
     ret = np.random.normal(0.01, 0.04, n_stocks * n_months)
     df = pd.DataFrame({"permno": permno, "month": month, "ret": ret, "signal": ret})
 
-    out = forward_returns_h(df, signal_col="signal", date_col="month",
-                            ret_col="ret", n_lags=6)
+    out = forward_returns(df, signal_col="signal", date_col="month",
+                          ret_col="ret", n_lags=6, aggregate="per_month")
 
     # Reference: the iter-9 implementation, inlined here. If this
     # implementation is wrong, both the reference and the vectorized
@@ -637,11 +630,11 @@ def test_forward_returns_h_matches_naive_implementation() -> None:
         merged["ref_ret_fwd6"].values,
         rtol=1e-10,
         atol=1e-12,
-        err_msg="vectorized forward_returns_h disagrees with iter-9 reference",
+        err_msg="vectorized forward_returns disagrees with iter-9 reference",
     )
 
 
-def test_forward_returns_h_fast_on_large_panel() -> None:
+def test_forward_returns_fast_on_large_panel() -> None:
     """Perf gate: 50k rows of 12 monthly periods must complete in <2s.
 
     Sanity check that the vectorized implementation is actually fast.
@@ -658,9 +651,8 @@ def test_forward_returns_h_fast_on_large_panel() -> None:
         "signal": np.random.normal(0, 1, n_stocks * n_months),
     })
     t0 = time.time()
-    out = forward_returns_h(df, signal_col="signal", date_col="month",
-                            ret_col="ret", n_lags=6)
+    out = forward_returns(df, signal_col="signal", date_col="month",
+                          ret_col="ret", n_lags=6, aggregate="per_month")
     elapsed = time.time() - t0
-    # Pre-iter-11 this was ~30s for 60k rows; vectorized should be <2s.
-    assert elapsed < 2.0, f"forward_returns_h too slow: {elapsed:.2f}s on 60k rows"
+    assert elapsed < 2.0, f"forward_returns too slow: {elapsed:.2f}s on 60k rows"
     assert len(out) > 0

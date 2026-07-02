@@ -18,11 +18,12 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 
 ## 1. Pick the right primitive
 
-> **Decision aid for the two `forward_returns` variants:**
-> - `forward_returns(n_lags=1)` — **bin-and-evaluate** pattern. The return at month t+1 is paired with the signal at month t before binning. Used by **MAX, value, B/M** (1-month holding).
-> - `forward_returns_h(n_lags=H)` — **overlapping-cohort** pattern. The column added is the per-month equivalent of the compounded H-month forward return. Used by **FIP, momentum** (H-month holding).
-> Mixing them up gives look-ahead bias (using `forward_returns` for momentum) or wrong column shape (using `forward_returns_h` and binning on the wrong column).
-> - `forward_returns_h(..., cumulative=True)` — same as above but outputs the H-month **cumulative** return `prod(1+ret) - 1` instead of the per-month geometric mean. Use when the paper reports H-month holding-period returns (e.g. FIP Table 2 "6-month return").
+> **Decision aid for `forward_returns` — one function, three modes:**
+> - `forward_returns(n_lags=1)` (default `aggregate="raw"`) — **bin-and-evaluate** pattern. The return at month t+1 is paired with the signal at month t before binning. `ret_col` is REPLACED. Used by **MAX, value, B/M** (1-month holding).
+> - `forward_returns(n_lags=H, aggregate="per_month")` — **overlapping-cohort** pattern. The column added is the per-month equivalent of the compounded H-month forward return. `ret_col` is PRESERVED. Used by **momentum** (H-month holding, per-month-equivalent reporting).
+> - `forward_returns(n_lags=H, aggregate="cumulative")` — same as above but outputs the H-month **cumulative** return `prod(1+ret) - 1` instead of the per-month geometric mean. Use when the paper reports H-month holding-period returns (e.g. **FIP** Table 2 "6-month return").
+>
+> All three pair the signal at time t with the return realized over months t+1..t+n_lags — no look-ahead. The only difference is whether the return is a single shifted value (raw, 1-month holding) or an H-period aggregate (per-month equiv or cumulative, H-month holding). The column handling (replace vs add) is automatic.
 
 | I need to... | Use this | Returns |
 |---|---|---|
@@ -31,9 +32,9 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 | Conditional (outer × inner) double sort | `double_sort(panel, date_col, outer_col, inner_col, n_bins=5)` | DataFrame with `outer_q` + `inner_q` columns |
 | Compute per-decile EW + VW returns | `bin_returns(panel, date_col, bin_col, ret_col, mcap_col)` | DataFrame with columns `[date_col, bin_col, "EW", "VW"]` |
 | Form a long-short portfolio | `long_short(bin_rets, date_col, weighting="VW", long_bin, short_bin)` | DataFrame `[date_col, "ret"]` |
-| Shift the return forward to avoid look-ahead (1-period) | `forward_returns(panel, signal_col, date_col, ret_col, n_lags=1)` | DataFrame with `ret_col` REPLACED (not new column) |
-| Geometric-mean H-month forward return (overlapping cohorts) | `forward_returns_h(panel, signal_col, date_col, ret_col, n_lags=6)` | DataFrame with `ret_fwd{H}` ADDED (preserves `ret_col`) |
-| H-month cumulative forward return (FIP-style "6-month return") | `forward_returns_h(panel, signal_col, date_col, ret_col, n_lags=6, cumulative=True)` | DataFrame with `ret_fwd{H}` = `prod(1+ret) - 1` |
+| Shift the return forward to avoid look-ahead (1-period, default) | `forward_returns(panel, signal_col, date_col, ret_col, n_lags=1)` | DataFrame with `ret_col` REPLACED (not new column) |
+| Per-month geometric mean of H-month forward return (overlapping cohorts) | `forward_returns(panel, signal_col, date_col, ret_col, n_lags=6, aggregate="per_month")` | DataFrame with `ret_fwd6` ADDED (preserves `ret_col`) |
+| H-month cumulative forward return (FIP-style "6-month return") | `forward_returns(panel, signal_col, date_col, ret_col, n_lags=6, aggregate="cumulative")` | DataFrame with `ret_fwd6` = `prod(1+ret) - 1` |
 | Rolling cumulative return for momentum signal (PRET) | `rolling_cumret(panel, date_col, ret_col, window=11, skip=1)` | `pd.Series` — `prod(1+ret) - 1` over the formation window |
 | Compute Sharpe / CAGR / max DD / vol | `performance_metrics(returns, freq="M")` (PREFERRED: pass `pd.Series`) | dict |
 | HAC t-stat for autocorrelated returns (use n_lags=H-1 for overlapping cohorts) | `tstat_newey_west(returns, n_lags=5)` (PREFERRED: pass `pd.Series`) | dict `{mean_return, t_stat, n_obs}` |
@@ -51,21 +52,23 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 - **`bin_returns` output columns are LITERALLY `"EW"` and `"VW"`** —
   don't rename them. Pass `weighting="EW"` or `weighting="VW"` to
   `long_short`, not a column name.
-- **`forward_returns` REPLACES** the `ret_col` column with the
-  forward-shifted values. The output is the same shape as the input,
-  minus the last `n_lags` rows per stock.
-- **`forward_returns_h` ADDS a new column** (default `ret_fwd{H}`)
-  instead of replacing `ret_col`. Use this for overlapping-cohort
-  (Jegadeesh-Titman) momentum patterns where you need both the
-  original `ret` AND the per-month-equivalent H-month forward return.
-  Different from `forward_returns` by intent — don't mix them up.
-- **`forward_returns_h(cumulative=True)` is the FIP-style fix.** Default
-  outputs the per-month geometric mean: `exp(mean(log(1+ret))) - 1`.
-  `cumulative=True` outputs the H-month cumulative: `prod(1+ret) - 1`.
-  Compounding the per-month mean by H (the old FIP workaround
+- **`forward_returns` is one function with three modes** —
+  `aggregate="raw"` (default, replaces `ret_col`),
+  `aggregate="per_month"` (adds `ret_fwdH`), `aggregate="cumulative"`
+  (adds `ret_fwdH`, prod instead of geometric mean). Don't pick
+  between two functions, pick the mode.
+- **For 1-month holding** (MAX, value, B/M): use the default
+  `aggregate="raw"` (or just `forward_returns(...)` with no `aggregate=`
+  kwarg). `ret_col` is REPLACED with the next-month return.
+- **For H-month holding with per-month reporting** (some momentum
+  papers): use `aggregate="per_month"`. `ret_col` is PRESERVED;
+  `ret_fwdH` is added.
+- **For H-month holding with H-month reporting** (FIP, most
+  momentum papers): use `aggregate="cumulative"`. The output is
+  the actual H-month cumulative return, not a per-month equivalent.
+  Compounding the per-month equivalent by H (the old FIP workaround
   `(1 + mean)**H - 1`) understates the magnitude via Jensen's
-  inequality. Use `cumulative=True` whenever the paper reports
-  H-month holding-period returns.
+  inequality.
 - **`tstat_newey_west` is for autocorrelated returns.** For independent
   monthly returns (MAX paper), `n_lags=0` ≈ iid t-stat. For
   H-month overlapping cohorts (FIP / momentum), set `n_lags=H-1`
@@ -287,12 +290,13 @@ Use when the paper holds cohorts for H months and forms a new cohort
 every month. Two flavors depending on how the paper reports returns:
 
 **Flavor D1: H-month cumulative returns (e.g. FIP Table 2 reports
-"6-month return").** Use `cumulative=True` so the per-stock column is
-the actual 6-month cumulative return, not a per-month equivalent.
+"6-month return").** Use `aggregate="cumulative"` so the per-stock
+column is the actual 6-month cumulative return, not a per-month
+equivalent.
 
 ```python
 from utils import (
-    double_sort, forward_returns_h, rolling_cumret,
+    double_sort, forward_returns, rolling_cumret,
     performance_metrics, tstat_newey_west,
     plot_cumulative_returns,
 )
@@ -305,10 +309,11 @@ monthly["pret"] = rolling_cumret(
 )
 
 # 2. H-month CUMULATIVE forward return (FIP-style). Per-stock column
-#    is prod(1+ret[t+1..t+H]) - 1.
-monthly = forward_returns_h(
+#    is prod(1+ret[t+1..t+H]) - 1. Uses the merged forward_returns
+#    with aggregate="cumulative".
+monthly = forward_returns(
     monthly, signal_col="pret", date_col="month",
-    ret_col="ret", n_lags=6, cumulative=True,
+    ret_col="ret", n_lags=6, aggregate="cumulative",
 )
 # monthly now has 'ret_fwd6' = 6-month cumulative return per stock.
 # The original 'ret' is preserved.

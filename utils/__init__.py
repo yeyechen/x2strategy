@@ -58,7 +58,7 @@ from .portfolio import (
     bin_returns,
     long_short,
     forward_returns,
-    forward_returns_h,
+
     rolling_cumret,
     PortfolioError,
 )
@@ -107,7 +107,6 @@ __all__ = [
     "bin_returns",
     "long_short",
     "forward_returns",
-    "forward_returns_h",
     "PortfolioError",
     # metrics
     "performance_metrics",

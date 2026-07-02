@@ -1,4 +1,4 @@
-"""Tests for utils.portfolio — bin_returns + long_short + forward_returns."""
+"""Tests for utils.portfolio — bin_returns + long_short + forward_returns (merged: raw / per_month / cumulative)."""
 
 import numpy as np
 import pandas as pd
@@ -8,7 +8,7 @@ from utils.portfolio import (
     bin_returns,
     long_short,
     forward_returns,
-    forward_returns_h,
+
     rolling_cumret,
     PortfolioError,
 )
@@ -224,72 +224,68 @@ class TestForwardReturns:
         with pytest.raises(PortfolioError, match="n_lags"):
             forward_returns(df, signal_col="max_signal", date_col="month", n_lags=0)
 
-# ── forward_returns_h ──────────────────────────────────────
+# ── forward_returns (merged: raw / per_month / cumulative) ──
 
 
 class TestForwardReturnsH:
-    """Tests for forward_returns_h — both default (per-month geometric mean)
-    and cumulative=True (H-month cumulative return)."""
+    """Tests for the merged forward_returns function — three modes:
 
-    def test_default_preserves_ret_and_adds_column(self):
-        """Default mode (cumulative=False): adds ret_fwd6 = exp(mean(log(1+ret))) - 1."""
+    - aggregate="raw"          : 1-period shift, replaces ret_col
+    - aggregate="per_month"    : per-month equivalent of H-period compounded
+    - aggregate="cumulative"   : H-month cumulative return
+    """
+
+    def test_per_month_preserves_ret_and_adds_column(self):
+        """aggregate="per_month" (default): adds ret_fwd3 = exp(mean(log(1+ret))) - 1."""
         df = pd.DataFrame({
             "permno": [1] * 7,
             "month": pd.date_range("2020-01-31", periods=7, freq="ME"),
             "pret": [0.05] * 7,
             "ret": [0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.07],
         })
-        out = forward_returns_h(
+        out = forward_returns(
             df, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=3,
+            ret_col="ret", n_lags=3, aggregate="per_month",
         )
-        # Original 'ret' is preserved
         assert "ret" in out.columns
-        # New column added with default name
         assert "ret_fwd3" in out.columns
-        # Last n_lags=3 rows dropped (rows 4, 5, 6)
-        assert len(out) == 4
+        assert len(out) == 4  # last 3 rows dropped
 
-    def test_default_geometric_mean_value(self):
-        """Default mode: at month t, ret_fwd3 = exp(mean(log(1+ret[t+1:t+4]))) - 1."""
+    def test_per_month_geometric_mean_value(self):
+        """aggregate="per_month": at month t, ret_fwd3 = exp(mean(log(1+ret[t+1:t+4]))) - 1."""
         df = pd.DataFrame({
             "permno": [1] * 6,
             "month": pd.date_range("2020-01-31", periods=6, freq="ME"),
             "pret": [0.05] * 6,
             "ret": [0.01, 0.02, 0.03, 0.04, 0.05, 0.06],
         })
-        out = forward_returns_h(
+        out = forward_returns(
             df, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=3,
+            ret_col="ret", n_lags=3, aggregate="per_month",
         )
-        # Expected at row 0: 3 months of 0.02, 0.03, 0.04 → geometric mean
-        # = exp((log(1.02) + log(1.03) + log(1.04)) / 3) - 1
         expected = np.expm1(
             (np.log1p(0.02) + np.log1p(0.03) + np.log1p(0.04)) / 3
         )
         assert out["ret_fwd3"].iloc[0] == pytest.approx(expected, rel=1e-9)
 
-    def test_cumulative_true_value(self):
-        """cumulative=True: at month t, ret_fwd3 = prod(1+ret[t+1:t+4]) - 1."""
+    def test_cumulative_value(self):
+        """aggregate="cumulative": at month t, ret_fwd3 = prod(1+ret[t+1:t+4]) - 1."""
         df = pd.DataFrame({
             "permno": [1] * 6,
             "month": pd.date_range("2020-01-31", periods=6, freq="ME"),
             "pret": [0.05] * 6,
             "ret": [0.01, 0.02, 0.03, 0.04, 0.05, 0.06],
         })
-        out = forward_returns_h(
+        out = forward_returns(
             df, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=3, cumulative=True,
+            ret_col="ret", n_lags=3, aggregate="cumulative",
         )
-        # Expected at row 0: prod(1+0.02, 1+0.03, 1+0.04) - 1
         expected = (1.02 * 1.03 * 1.04) - 1
         assert out["ret_fwd3"].iloc[0] == pytest.approx(expected, rel=1e-9)
 
-    def test_cumulative_equals_compounded_default_when_ret_constant(self):
-        """When per-period returns are constant r:
-        - default = r (per-month equivalent)
-        - cumulative = (1+r)^H - 1 (H-month cumulative)
-        Compounding the default for H periods must equal the cumulative.
+    def test_cumulative_equals_compounded_per_month_when_ret_constant(self):
+        """For constant returns r: per_month = r, cumulative = (1+r)^H - 1.
+        Compounding per_month for H periods equals cumulative.
         """
         df = pd.DataFrame({
             "permno": [1] * 8,
@@ -297,40 +293,36 @@ class TestForwardReturnsH:
             "pret": [0.05] * 8,
             "ret": [0.02] * 8,
         })
-        out_default = forward_returns_h(
+        out_pm = forward_returns(
             df, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=4, cumulative=False,
+            ret_col="ret", n_lags=4, aggregate="per_month",
         )
-        out_cumul = forward_returns_h(
+        out_cumul = forward_returns(
             df, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=4, cumulative=True,
+            ret_col="ret", n_lags=4, aggregate="cumulative",
         )
-        # (1 + default_value)^H - 1 == cumulative_value
-        compounded = (1 + out_default["ret_fwd4"].iloc[0]) ** 4 - 1
+        compounded = (1 + out_pm["ret_fwd4"].iloc[0]) ** 4 - 1
         assert compounded == pytest.approx(
             out_cumul["ret_fwd4"].iloc[0], rel=1e-9
         )
 
     def test_cumulative_jensen_inequality(self):
-        """(1 + mean(r))^H <= mean((1+r)^H): cumulative is larger than
-        compounding-the-mean when returns vary (Jensen's inequality)."""
+        """When returns vary, cumulative >= per_month * H (Jensen's inequality)."""
         df = pd.DataFrame({
             "permno": [1] * 8,
             "month": pd.date_range("2020-01-31", periods=8, freq="ME"),
             "pret": [0.05] * 8,
-            # Alternating small and large returns → mean is 0.10
             "ret": [0.20, 0.00, 0.30, -0.10, 0.20, 0.00, 0.30, -0.10],
         })
-        out_default = forward_returns_h(
+        out_pm = forward_returns(
             df, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=4, cumulative=False,
+            ret_col="ret", n_lags=4, aggregate="per_month",
         )
-        out_cumul = forward_returns_h(
+        out_cumul = forward_returns(
             df, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=4, cumulative=True,
+            ret_col="ret", n_lags=4, aggregate="cumulative",
         )
-        # Cumulative must be >= default (Jensen's inequality, both > 0 here)
-        assert out_cumul["ret_fwd4"].iloc[0] > out_default["ret_fwd4"].iloc[0]
+        assert out_cumul["ret_fwd4"].iloc[0] > out_pm["ret_fwd4"].iloc[0]
 
     def test_cumulative_per_stock_grouping(self):
         """Per-stock grouping is preserved in cumulative mode."""
@@ -343,71 +335,74 @@ class TestForwardReturnsH:
             "ret":     [0.01, 0.02, 0.03, 0.04,
                         0.10, 0.20, 0.30, 0.40],
         })
-        out = forward_returns_h(
+        out = forward_returns(
             df, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=2, cumulative=True,
+            ret_col="ret", n_lags=2, aggregate="cumulative",
         )
-        # Stock 1: prod(1+0.02, 1+0.03) - 1 = 1.02*1.03 - 1 = 0.0506
         s1 = out[out["permno"] == 1].sort_values("month")
         assert s1["ret_fwd2"].iloc[0] == pytest.approx(1.02 * 1.03 - 1, rel=1e-9)
-        # Stock 2: prod(1+0.20, 1+0.30) - 1 = 1.20*1.30 - 1 = 0.56
         s2 = out[out["permno"] == 2].sort_values("month")
         assert s2["ret_fwd2"].iloc[0] == pytest.approx(1.20 * 1.30 - 1, rel=1e-9)
 
     def test_cumulative_drops_last_n_lags(self):
-        """cumulative=True drops the last n_lags rows per stock, same as default."""
+        """aggregate="cumulative" drops the last n_lags rows per stock."""
         df = pd.DataFrame({
             "permno": [1] * 5,
             "month": pd.date_range("2020-01-31", periods=5, freq="ME"),
             "pret": [0.05] * 5,
             "ret": [0.01, 0.02, 0.03, 0.04, 0.05],
         })
-        out = forward_returns_h(
+        out = forward_returns(
             df, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=2, cumulative=True,
+            ret_col="ret", n_lags=2, aggregate="cumulative",
         )
-        # 5 rows - 2 dropped = 3 remaining
         assert len(out) == 3
 
     def test_cumulative_preserves_ret(self):
-        """cumulative=True does not modify the original ret column."""
+        """aggregate="cumulative" does not modify the original ret column."""
         df = pd.DataFrame({
             "permno": [1] * 5,
             "month": pd.date_range("2020-01-31", periods=5, freq="ME"),
             "pret": [0.05] * 5,
             "ret": [0.01, 0.02, 0.03, 0.04, 0.05],
         })
-        out = forward_returns_h(
+        out = forward_returns(
             df, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=2, cumulative=True,
+            ret_col="ret", n_lags=2, aggregate="cumulative",
         )
-        # Original ret values must be unchanged in the output
         assert list(out["ret"]) == pytest.approx([0.01, 0.02, 0.03])
 
-    def test_missing_col_raises_h(self):
-        df = pd.DataFrame({"permno": [1], "month": [pd.Timestamp("2020-01-31")]})
-        with pytest.raises(PortfolioError, match="missing columns"):
-            forward_returns_h(
-                df, signal_col="missing_signal", date_col="month",
-                ret_col="missing_ret", n_lags=2,
-            )
-
-    def test_invalid_n_lags_raises_h(self):
+    def test_invalid_aggregate_raises(self):
+        """aggregate must be one of 'raw', 'per_month', 'cumulative'."""
         df = pd.DataFrame({
-            "permno": [1],
-            "month": [pd.Timestamp("2020-01-31")],
-            "pret": [0.05],
-            "ret": [0.01],
+            "permno": [1] * 4,
+            "month": pd.date_range("2020-01-31", periods=4, freq="ME"),
+            "pret": [0.05] * 4,
+            "ret": [0.01, 0.02, 0.03, 0.04],
         })
-        with pytest.raises(PortfolioError, match="n_lags"):
-            forward_returns_h(
+        with pytest.raises(PortfolioError, match="aggregate"):
+            forward_returns(
                 df, signal_col="pret", date_col="month",
-                ret_col="ret", n_lags=0,
+                ret_col="ret", n_lags=2, aggregate="bogus",
             )
 
-
-# ── rolling_cumret ──────────────────────────────────────────
-
+    def test_raw_mode_replaces_ret_col(self):
+        """aggregate='raw' (default for n_lags=1): replaces ret_col in place."""
+        df = pd.DataFrame({
+            "permno": [1] * 4,
+            "month": pd.date_range("2020-01-31", periods=4, freq="ME"),
+            "pret": [0.05] * 4,
+            "ret": [0.01, 0.02, 0.03, 0.04],
+        })
+        out = forward_returns(
+            df, signal_col="pret", date_col="month",
+            ret_col="ret", n_lags=1, aggregate="raw",
+        )
+        # ret is replaced (not added as new col). Value at row 0 = original ret[1] = 0.02
+        assert "ret" in out.columns
+        assert "ret_fwd1" not in out.columns
+        assert out["ret"].iloc[0] == pytest.approx(0.02, rel=1e-9)
+        assert len(out) == 3  # last 1 row dropped
 
 class TestRollingCumret:
     """Tests for rolling_cumret — JT 12-2 momentum signal formation."""
