@@ -59,6 +59,7 @@ from .portfolio import (
     long_short,
     forward_returns,
     forward_returns_h,
+    rolling_cumret,
     PortfolioError,
 )
 

@@ -22,6 +22,7 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 > - `forward_returns(n_lags=1)` — **bin-and-evaluate** pattern. The return at month t+1 is paired with the signal at month t before binning. Used by **MAX, value, B/M** (1-month holding).
 > - `forward_returns_h(n_lags=H)` — **overlapping-cohort** pattern. The column added is the per-month equivalent of the compounded H-month forward return. Used by **FIP, momentum** (H-month holding).
 > Mixing them up gives look-ahead bias (using `forward_returns` for momentum) or wrong column shape (using `forward_returns_h` and binning on the wrong column).
+> - `forward_returns_h(..., cumulative=True)` — same as above but outputs the H-month **cumulative** return `prod(1+ret) - 1` instead of the per-month geometric mean. Use when the paper reports H-month holding-period returns (e.g. FIP Table 2 "6-month return").
 
 | I need to... | Use this | Returns |
 |---|---|---|
@@ -32,6 +33,8 @@ uv run pytest tests/test_utils_canonical_usage.py -x
 | Form a long-short portfolio | `long_short(bin_rets, date_col, weighting="VW", long_bin, short_bin)` | DataFrame `[date_col, "ret"]` |
 | Shift the return forward to avoid look-ahead (1-period) | `forward_returns(panel, signal_col, date_col, ret_col, n_lags=1)` | DataFrame with `ret_col` REPLACED (not new column) |
 | Geometric-mean H-month forward return (overlapping cohorts) | `forward_returns_h(panel, signal_col, date_col, ret_col, n_lags=6)` | DataFrame with `ret_fwd{H}` ADDED (preserves `ret_col`) |
+| H-month cumulative forward return (FIP-style "6-month return") | `forward_returns_h(panel, signal_col, date_col, ret_col, n_lags=6, cumulative=True)` | DataFrame with `ret_fwd{H}` = `prod(1+ret) - 1` |
+| Rolling cumulative return for momentum signal (PRET) | `rolling_cumret(panel, date_col, ret_col, window=11, skip=1)` | `pd.Series` — `prod(1+ret) - 1` over the formation window |
 | Compute Sharpe / CAGR / max DD / vol | `performance_metrics(returns, freq="M")` (PREFERRED: pass `pd.Series`) | dict |
 | HAC t-stat for autocorrelated returns (use n_lags=H-1 for overlapping cohorts) | `tstat_newey_west(returns, n_lags=5)` (PREFERRED: pass `pd.Series`) | dict `{mean_return, t_stat, n_obs}` |
 | Plot cumulative P&L | `plot_cumulative_returns(df, index_col_name, ret_col_lst, save_to=...)` | PNG at `save_to` |
@@ -56,6 +59,13 @@ uv run pytest tests/test_utils_canonical_usage.py -x
   (Jegadeesh-Titman) momentum patterns where you need both the
   original `ret` AND the per-month-equivalent H-month forward return.
   Different from `forward_returns` by intent — don't mix them up.
+- **`forward_returns_h(cumulative=True)` is the FIP-style fix.** Default
+  outputs the per-month geometric mean: `exp(mean(log(1+ret))) - 1`.
+  `cumulative=True` outputs the H-month cumulative: `prod(1+ret) - 1`.
+  Compounding the per-month mean by H (the old FIP workaround
+  `(1 + mean)**H - 1`) understates the magnitude via Jensen's
+  inequality. Use `cumulative=True` whenever the paper reports
+  H-month holding-period returns.
 - **`tstat_newey_west` is for autocorrelated returns.** For independent
   monthly returns (MAX paper), `n_lags=0` ≈ iid t-stat. For
   H-month overlapping cohorts (FIP / momentum), set `n_lags=H-1`
@@ -88,6 +98,11 @@ uv run pytest tests/test_utils_canonical_usage.py -x
   The coefficients are directly comparable to paper-reported values.
   Access them via `result.summary["mean"]` and `result.summary["t_stat"]`
   — there is NO `.coefficients` or `.t_stats` attribute on the result.
+- **`rolling_cumret(window=11, skip=1)` is the JT 12-2 primitive.** It
+  computes `prod(1+ret[t-12..t-2]) - 1` (skip the most recent month).
+  Don't write `shift(2) + rolling(11).apply((1+x).prod()-1)` by hand —
+  the skip convention is easy to get wrong. Stock column auto-detected
+  from {permno, ticker, stock_id, id}.
 - **`factor_alpha` parameter names:** use `portfolio_returns=` (not
   `port_rets=`), `factor_returns=`, `factors=`, `rf_col=` (not `rf=`).
 - **`long_short` returns `long - short`** by default. If the paper
@@ -254,42 +269,59 @@ If a paper genuinely needs behavior the primitives don't provide,
 ### Pattern D: overlapping-cohort momentum (FIP, Jegadeesh-Titman)
 
 Use when the paper holds cohorts for H months and forms a new cohort
-every month. Monthly portfolio return = average across H active cohorts.
+every month. Two flavors depending on how the paper reports returns:
+
+**Flavor D1: H-month cumulative returns (e.g. FIP Table 2 reports
+"6-month return").** Use `cumulative=True` so the per-stock column is
+the actual 6-month cumulative return, not a per-month equivalent.
 
 ```python
 from utils import (
-    double_sort, forward_returns_h,
+    double_sort, forward_returns_h, rolling_cumret,
     performance_metrics, tstat_newey_west,
     plot_cumulative_returns,
 )
 
-# 1. Geometric-mean H-month forward return (preserves original 'ret').
+# 1. PRET (Jegadeesh-Titman 12-2): 11-month formation, skip 1.
+#    At month t: prod(1+ret[t-12..t-2]) - 1
+monthly["pret"] = rolling_cumret(
+    monthly, date_col="month", ret_col="ret",
+    window=11, skip=1, min_periods=8,
+)
+
+# 2. H-month CUMULATIVE forward return (FIP-style). Per-stock column
+#    is prod(1+ret[t+1..t+H]) - 1.
 monthly = forward_returns_h(
     monthly, signal_col="pret", date_col="month",
-    ret_col="ret", n_lags=6,
+    ret_col="ret", n_lags=6, cumulative=True,
 )
-# monthly now has 'ret_fwd6': per-month equivalent of the compounded
-# 6-month return. The original 'ret' is preserved.
+# monthly now has 'ret_fwd6' = 6-month cumulative return per stock.
+# The original 'ret' is preserved.
 
-# 2. Conditional double sort on PRET (outer) x ID (inner).
+# 3. Conditional double sort on PRET (outer) x ID (inner).
 monthly = double_sort(
     monthly, date_col="month", outer_col="pret",
     inner_col="id", n_bins=5,
 )
 
-# 3. Pick the L/S cells: PRET Q5 x ID Q1 (long) vs PRET Q1 x ID Q1 (short).
+# 4. Pick the L/S cells: PRET Q5 x ID Q1 (long) vs PRET Q1 x ID Q1 (short).
 long = monthly[(monthly["pret_q"] == 5) & (monthly["id_q"] == 1)]
 short = monthly[(monthly["pret_q"] == 1) & (monthly["id_q"] == 1)]
 
-# 4. Build EW portfolios (per-cell equal-weighted average of ret_fwd6).
+# 5. Build EW portfolios (per-cell mean of 6-month cumulative returns).
 ls = (
     long.groupby("month")["ret_fwd6"].mean()
     - short.groupby("month")["ret_fwd6"].mean()
 ).rename("ret").reset_index()
+# ls["ret"] is the 6-month cumulative spread per cohort month.
+spread_6m_pct = ls["ret"].mean() * 100
 
-# 5. NW-corrected t-stat (use n_lags=H-1=5 for H=6 overlapping cohorts).
-nw = tstat_newey_west(ls, n_lags=5)
-print(f"FIP spread: {ls['ret'].mean():.4f}/mo, t_NW = {nw['t_stat']:.2f}")
+# 6. NW-corrected t-stat. Convert to per-month equivalent first
+#    (since the spread is 6-month cumulative, we inverse-compound),
+#    then use n_lags=H-1=5 for the autocorrelation correction.
+ls_monthly = (1 + ls["ret"]) ** (1.0 / 6) - 1
+nw = tstat_newey_west(ls_monthly, n_lags=5)
+print(f"FIP 6m spread: {spread_6m_pct:.2f}%, t_NW = {nw['t_stat']:.2f}")
 
 # 6. P&L plot.
 plot_cumulative_returns(

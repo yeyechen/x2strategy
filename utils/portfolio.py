@@ -325,12 +325,12 @@ def forward_returns_h(
     ret_col: str = "ret",
     n_lags: int = 6,
     out_col=None,
+    cumulative: bool = False,
 ) -> pd.DataFrame:
-    """Add a geometric-mean H-month forward return column.
+    """Add a forward H-month return column.
 
     Overlapping-cohort (Jegadeesh-Titman) convention: for each (stock, t),
-    the output column is the per-month equivalent of the compounded return
-    realized over months t+1 ... t+H.
+    the output column is the forward return realized over months t+1 ... t+H.
 
     For H=1, equivalent to forward_returns (single-period shift). For H>1,
     standard momentum-overlapping-cohort return.
@@ -347,6 +347,11 @@ def forward_returns_h(
         ret_col: per-period return column. Default "ret".
         n_lags: how many periods to forward-aggregate. Default 6.
         out_col: output column name. Default f"{ret_col}_fwd{n_lags}".
+        cumulative: if False (default), output the per-month geometric
+            mean: ``exp(mean(log(1+ret))) - 1``. If True, output the
+            H-month cumulative return: ``prod(1+ret) - 1``. Use
+            ``cumulative=True`` when the paper reports cumulative
+            holding-period returns (e.g. FIP Table 2: "6-month return").
 
     Returns:
         New DataFrame with out_col added. Last n_lags periods per stock
@@ -354,9 +359,10 @@ def forward_returns_h(
 
     Example::
 
+        # FIP: 6-month cumulative forward return
         monthly = forward_returns_h(
             monthly, signal_col="pret", date_col="month",
-            ret_col="ret", n_lags=6,
+            ret_col="ret", n_lags=6, cumulative=True,
         )
     """
     required = [date_col, signal_col, ret_col]
@@ -443,10 +449,113 @@ def forward_returns_h(
         same_group = group_ids[: n - n_lags] == group_ids[n_lags:]
         fwd_log_sum[: n - n_lags] = np.where(same_group, rolling_log[n_lags:], np.nan)
 
-    df[out_col] = np.expm1(fwd_log_sum / n_lags)
+    if cumulative:
+        # H-month cumulative return: prod(1+ret) - 1 = exp(sum(log(1+ret))) - 1
+        df[out_col] = np.expm1(fwd_log_sum)
+    else:
+        # Per-month geometric mean: exp(mean(log(1+ret))) - 1
+        df[out_col] = np.expm1(fwd_log_sum / n_lags)
     df = df.dropna(subset=[out_col])
     df = df[np.isfinite(df[out_col])]
     return df.reset_index(drop=True)
+
+
+def rolling_cumret(
+    panel: pd.DataFrame,
+    date_col: str,
+    ret_col: str,
+    window: int,
+    skip: int = 1,
+    min_periods: int = None,
+) -> pd.Series:
+    """Rolling cumulative return: ``prod(1+ret)`` over the past ``window``
+    months, skipping the most recent ``skip`` months.
+
+    **Use this for momentum signal formation** — it encodes the
+    Jegadeesh-Titman skip convention correctly so the agent doesn't
+    have to reason about ``shift(skip+1)`` manually.
+
+    For JT 12-2 momentum: ``window=11, skip=1`` → formation period is
+    months t-12 to t-2 (11 months, skipping the most recent month t-1).
+
+    The current month t is always excluded (it hasn't ended yet).
+    ``skip`` controls how many *additional* months to exclude:
+
+    ====== ========== =========================
+    skip   shift      formation window
+    ====== ========== =========================
+    0      1          t-window to t-1
+    1      2          t-(window+1) to t-2  (JT 12-2)
+    2      3          t-(window+2) to t-3
+    ====== ========== =========================
+
+    Args:
+        panel: per-(stock, date) DataFrame. Must contain ``date_col``,
+            ``ret_col``, and a per-stock grouping column.
+        date_col: name of the date column.
+        ret_col: name of the return column (e.g. ``"ret"``).
+        window: number of months in the formation period.
+        skip: months to skip between the current month and the most
+            recent formation month. Default 1 (JT 12-2 convention).
+        min_periods: minimum non-NaN months required. Default
+            ``window`` (require full window).
+
+    Returns:
+        pandas Series aligned to ``panel`` — the rolling cumulative
+        return ``prod(1+ret) - 1``. NaN where insufficient data.
+
+    Raises:
+        PortfolioError: if columns are missing or no stock-id column
+            is found.
+
+    Example::
+
+        # JT 12-2 momentum: 11-month formation, skip 1
+        monthly["pret"] = rolling_cumret(
+            monthly, date_col="month", ret_col="ret",
+            window=11, skip=1,
+        )
+        # At month t: prod(1+ret[t-12..t-2]) - 1
+    """
+    required = [date_col, ret_col]
+    missing = [c for c in required if c not in panel.columns]
+    if missing:
+        raise PortfolioError(f"rolling_cumret: missing columns {missing}")
+    if window < 1:
+        raise PortfolioError(f"rolling_cumret: window must be >= 1, got {window}")
+    if skip < 0:
+        raise PortfolioError(f"rolling_cumret: skip must be >= 0, got {skip}")
+    if min_periods is None:
+        min_periods = window
+
+    stock_col = None
+    for candidate in ("permno", "ticker", "stock_id", "id"):
+        if candidate in panel.columns:
+            stock_col = candidate
+            break
+    if stock_col is None:
+        raise PortfolioError(
+            "rolling_cumret: no per-stock grouping column found. "
+            "Need one of: permno, ticker, stock_id, id."
+        )
+
+    shift_amt = skip + 1
+    df = panel.sort_values([stock_col, date_col]).copy()
+    # Compute prod(1+r) - 1 = exp(sum(log(1+r))) - 1 in two stages:
+    #   1. log1p + shift within each stock
+    #   2. rolling SUM (built-in, respects min_periods) within each stock
+    #   3. expm1 of the rolling sum
+    # Note: ``rolling.apply(raw=True)`` ignores min_periods in pandas, so we
+    # cannot use it here. Built-in ``.sum()`` is required for min_periods.
+    df["_logret"] = np.log1p(df[ret_col])
+    df["_logret_shifted"] = df.groupby(stock_col)["_logret"].shift(shift_amt)
+    df["_logcum"] = (
+        df.groupby(stock_col)["_logret_shifted"]
+        .rolling(window, min_periods=min_periods)
+        .sum()
+        .reset_index(level=0, drop=True)
+    )
+    return np.expm1(df["_logcum"])
 
 
 __all__ = [
@@ -454,5 +563,6 @@ __all__ = [
     "long_short",
     "forward_returns",
     "forward_returns_h",
+    "rolling_cumret",
     "PortfolioError",
 ]

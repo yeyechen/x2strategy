@@ -63,6 +63,7 @@ from utils import (
     long_short,
     forward_returns,
     forward_returns_h,
+    rolling_cumret,
     performance_metrics,
     format_metrics,
     tstat_newey_west,
@@ -420,6 +421,52 @@ def test_canonical_forward_returns_h(tiny_panel: pd.DataFrame) -> None:
     assert "ret_fwd2" in out.columns
     # Last 2 dates per stock are dropped.
     assert len(out) == 2  # 1 obs per stock (the earliest date).
+
+
+# ── forward_returns_h cumulative=True (H-month cumulative, FIP-style) ──────
+
+
+def test_canonical_forward_returns_h_cumulative(tiny_panel: pd.DataFrame) -> None:
+    """Canonical: cumulative=True produces prod(1+ret) - 1 over the H-month
+    forward window, NOT the per-month geometric mean. Use this when the
+    paper reports H-month holding-period returns (e.g. FIP Table 2:
+    "6-month return").
+
+    Different from default mode: default returns the per-month equivalent
+    (geometric mean), which when averaged over a portfolio and then
+    compounded by H gives a different number (Jensen's inequality).
+    """
+    out = forward_returns_h(
+        tiny_panel, signal_col="signal", date_col="date",
+        ret_col="ret", n_lags=2, cumulative=True,
+    )
+    # Output adds ret_fwd2 = prod(1+ret_t+1..t+2) - 1 per stock
+    assert "ret" in out.columns
+    assert "ret_fwd2" in out.columns
+    # Last 2 dates per stock dropped
+    assert len(out) == 2
+
+
+# ── rolling_cumret (JT 12-2 momentum signal formation) ─────────────────────
+
+
+def test_canonical_rolling_cumret(tiny_panel: pd.DataFrame) -> None:
+    """Canonical: rolling cumulative return for momentum signal formation.
+
+    Use this to compute PRET (past return) for any momentum-style paper
+    that uses a formation period. The ``skip`` parameter encodes the
+    Jegadeesh-Titman skip convention: skip=1 means "exclude the most
+    recent month", which is the standard JT 12-2 momentum convention.
+    """
+    out = rolling_cumret(
+        tiny_panel, date_col="date", ret_col="ret",
+        window=2, skip=1, min_periods=1,
+    )
+    # Output is a Series aligned to the input panel.
+    assert isinstance(out, pd.Series)
+    assert len(out) == len(tiny_panel)
+    # All-NaN is acceptable here (tiny_panel only has 3 dates per stock,
+    # window=2 + shift=2 means first valid is at index 2).
 
 
 # ── double_sort (conditional outer x inner sort) ───────────────────────────
